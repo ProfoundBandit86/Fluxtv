@@ -121,7 +121,7 @@ public final class ConfigServer {
                 Runnable r = onChange;
                 if (r != null) App.MAIN.post(r);
             }
-            respond(c.getOutputStream(), page(message));
+            respond(c.getOutputStream(), page(message, "POST".equals(method) ? sectionFor(path) : null));
         } catch (Exception ignored) { }
     }
 
@@ -326,6 +326,12 @@ public final class ConfigServer {
             {"ro", "Romanian"}};
 
     private static String page(String message) {
+        return page(message, null);
+    }
+
+    /** open = the section to show expanded (the one the last form belonged to). */
+    private static String page(String message, String open) {
+        openSection = open;
         StringBuilder sb = new StringBuilder();
         String accent = Theme.ACCENT_HEX[Theme.accentIndex()];
         sb.append("<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>")
@@ -337,19 +343,26 @@ public final class ConfigServer {
           .append("button{padding:9px 16px;font-size:15px;border:0;border-radius:9px;background:var(--a);color:#000;font-weight:600;margin:6px 6px 0 0}")
           .append("button.g{background:#2a2a36;color:#eee}button.rm{background:#a33;color:#fff}button.s{padding:6px 11px;font-size:14px}")
           .append("details{background:#111118;border-radius:14px;margin:12px 0;padding:4px 16px}")
-          .append("summary{font-size:19px;font-weight:700;padding:12px 0;cursor:pointer}")
+          .append("summary{font-size:19px;font-weight:700;padding:14px 0;cursor:pointer;list-style:none;display:flex;flex-direction:column}")
+          .append("summary::-webkit-details-marker{display:none}.sub{font-size:13px;font-weight:400;color:#999;margin-top:2px}")
+          .append("details[open] summary{border-bottom:1px solid #222;margin-bottom:8px}")
+          .append("nav{position:sticky;top:0;background:#0b0b10;padding:10px 0;display:flex;gap:6px;overflow-x:auto;z-index:2}")
+          .append("nav a{flex:none;padding:7px 12px;border-radius:99px;background:#1b1b26;color:#ddd;text-decoration:none;font-size:14px}")
+          .append(".grp{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:#888;margin:22px 0 0}")
           .append(".a{background:#1b1b26;padding:11px 12px;border-radius:10px;margin:8px 0}.u{color:#999;font-size:13px;word-break:break-all}")
           .append(".m{background:#232336;border-left:4px solid var(--a);padding:12px;border-radius:8px;font-size:16px}")
           .append(".row{display:flex;align-items:center;gap:6px}.row b{flex:1}.off{opacity:.45}")
           .append(".code{font-size:40px;font-weight:800;color:var(--a);letter-spacing:4px}form{margin:0}")
           .append(".in{display:inline}</style></head><body>")
           .append("<h1>Flux TV</h1><div class='u'>").append(esc(Updater.currentName(App.ctx)))
-          .append(" · settings apply to the TV right away</div>");
+          .append(" · settings apply to the TV right away</div>")
+          .append("<nav><a href='#profiles'>Profiles</a><a href='#home'>Home</a><a href='#appearance'>Look</a><a href='#player'>Player</a>")
+          .append("<a href='#sources'>Sources</a><a href='#downloads'>Downloads</a><a href='#search'>Search</a><a href='#system'>System</a></nav>");
         if (message != null) sb.append("<p class='m'>").append(esc(message)).append("</p>");
 
         // ---------------- profiles & Trakt
         Trakt.Login login = Trakt.current();
-        sb.append("<details open><summary>Profiles &amp; Trakt</summary>");
+        sb.append("" + section("profiles", "Profiles &amp; Trakt", "Who&#39;s watching, watchlist sync") + "");
         if (login != null && "waiting".equals(login.state)) {
             sb.append("<div class='a'>Linking Trakt for <b>").append(esc(login.profile)).append("</b>. Open <a style='color:var(--a)' href='")
               .append(esc(login.url)).append("' target='_blank'>").append(esc(login.url)).append("</a> and enter:<div class='code'>")
@@ -381,13 +394,8 @@ public final class ConfigServer {
           .append("<p class='u'>Synced per profile: Favorites ⇄ Trakt watchlist, resume points, and watch history (scrobbling).</p>");
         sb.append("</details>");
 
-        // ---------------- appearance
-        sb.append("<details><summary>Appearance</summary><form method='post' action='/appearance'>Accent colour")
-          .append(select("accent", Theme.ACCENT_NAMES, Theme.accentIndex())).append("Background")
-          .append(select("bg", Theme.BG_NAMES, Theme.bgIndex())).append("<button>Save colours</button></form></details>");
-
         // ---------------- home
-        sb.append("<details><summary>Home screen</summary>");
+        sb.append("" + section("home", "Home screen", "Rows, Continue watching, apps, region") + "");
         sb.append("<h3>Rows</h3><p class='u'>Continue watching, your apps and streaming services stay at the top. Rows below them, in order:</p>");
         List<JSONObject> rows = HomeLayout.savedAvailable();
         java.util.Set<String> hiddenRows = HomeLayout.hidden();
@@ -433,8 +441,13 @@ public final class ConfigServer {
         }
         sb.append("</select><button>Save</button></form></details>");
 
+        // ---------------- appearance
+        sb.append("" + section("appearance", "Appearance", "Colours") + "<form method='post' action='/appearance'>Accent colour")
+          .append(select("accent", Theme.ACCENT_NAMES, Theme.accentIndex())).append("Background")
+          .append(select("bg", Theme.BG_NAMES, Theme.bgIndex())).append("<button>Save colours</button></form></details>");
+
         // ---------------- player
-        sb.append("<details><summary>Player</summary><form method='post' action='/player'>")
+        sb.append("" + section("player", "Player", "Subtitles, picture, size limits") + "<form method='post' action='/player'>")
           .append("Preferred audio language").append(langSelect("player_audio_lang"))
           .append("Preferred subtitle language").append(langSelect("player_sub_lang"))
           .append("Subtitles").append(select("player_subs", new String[]{"", "off", "on"},
@@ -447,20 +460,9 @@ public final class ConfigServer {
           .append("<p class='u'>While watching: press OK or ↑ to show the controls; Audio, Subtitles, Quality, Speed and Picture are in the bar. "
                   + "Subtitles from add-ons need a subtitles add-on such as OpenSubtitles v3.</p></details>");
 
-        // ---------------- downloads
-        sb.append("<details><summary>Radarr, Sonarr &amp; SABnzbd</summary><p class='u'>API keys: in each app under Settings → General. "
-                + "Once connected, title pages get an Add to Radarr/Sonarr button and the sidebar gets Downloads.</p>");
-        arrForm(sb, "radarr", "Radarr", "http://192.168.1.10:7878", Arr.RADARR.configured(), Arr.RADARR);
-        arrForm(sb, "sonarr", "Sonarr", "http://192.168.1.10:8989", Arr.SONARR.configured(), Arr.SONARR);
-        arrForm(sb, "sab", "SABnzbd", "http://192.168.1.10:8080", Sab.configured(), null);
-        sb.append("<h3>Fallback</h3><form method='post' action='/arr-fallback'>When nothing can play from your servers or Real-Debrid")
-          .append(select("fallback", new String[]{"on", "off"}, new String[]{"Send it to Radarr / Sonarr automatically",
-                  "Only when I press \"Get with Radarr/Sonarr\""}, Arr.fallbackOn() ? "on" : "off"))
-          .append("<button>Save</button></form>");
-        sb.append("</details>");
-
+        sb.append("<h2 class='grp' id='sources'>Sources</h2>");
         // ---------------- add-ons
-        sb.append("<details><summary>Add-ons</summary><form method='post' action='/install'>")
+        sb.append("" + section("addons", "Add-ons", "Catalogs and streams") + "<form method='post' action='/install'>")
           .append("<input name='url' placeholder='https://…/manifest.json' autocomplete='off'><button>Install</button></form>");
         List<String> urls = Store.addonUrls();
         for (String url : urls) {
@@ -474,7 +476,7 @@ public final class ConfigServer {
         sb.append("</details>");
 
         // ---------------- servers
-        sb.append("<details><summary>Media servers</summary>");
+        sb.append("" + section("servers", "Media servers", "Plex, Jellyfin, Emby") + "");
         for (MediaServer ms : Store.servers()) {
             sb.append("<div class='a'><b>").append(esc(ms.name)).append("</b> (").append(ms.kindLabel())
               .append(")<div class='u'>").append(esc(ms.url)).append("</div>")
@@ -489,8 +491,15 @@ public final class ConfigServer {
           .append("<form method='post' action='/plex-manual'><input name='url' placeholder='http://192.168.1.10:32400' autocomplete='off'>")
           .append("<input name='token' placeholder='X-Plex-Token' autocomplete='off'><button>Add Plex server</button></form></details>");
 
+        // ---------------- RD
+        sb.append("" + section("rd", "Real-Debrid", "Account") + "<p>").append(RealDebrid.isSignedIn() ? "Signed in." : "Not signed in.")
+          .append(" Get your token at <a style='color:var(--a)' href='https://real-debrid.com/apitoken'>real-debrid.com/apitoken</a>.</p>")
+          .append("<form method='post' action='/rdkey'><input name='key' placeholder='API token' autocomplete='off'><button>Save token</button></form>");
+        if (RealDebrid.isSignedIn()) sb.append(form("/rd-signout", "", "Sign out", "rm"));
+        sb.append("</details>");
+
         // ---------------- IPTV
-        sb.append("<details><summary>Live TV &amp; IPTV</summary>");
+        sb.append("" + section("iptv", "Live TV &amp; IPTV", "Xtream Codes, M3U, Dispatcharr") + "");
         for (Iptv.Source is : Iptv.sources()) {
             sb.append("<div class='a'><b>").append(esc(is.name)).append("</b><div class='u'>")
               .append(esc(is.xtream() ? "Xtream Codes · " + is.url : "M3U playlist")).append("</div>")
@@ -508,15 +517,20 @@ public final class ConfigServer {
           .append("<input name='epg' placeholder='Guide link (XMLTV), optional' autocomplete='off'>")
           .append("<button>Add playlist</button></form></details>");
 
-        // ---------------- RD
-        sb.append("<details><summary>Real-Debrid</summary><p>").append(RealDebrid.isSignedIn() ? "Signed in." : "Not signed in.")
-          .append(" Get your token at <a style='color:var(--a)' href='https://real-debrid.com/apitoken'>real-debrid.com/apitoken</a>.</p>")
-          .append("<form method='post' action='/rdkey'><input name='key' placeholder='API token' autocomplete='off'><button>Save token</button></form>");
-        if (RealDebrid.isSignedIn()) sb.append(form("/rd-signout", "", "Sign out", "rm"));
+        // ---------------- downloads
+        sb.append("" + section("downloads", "Downloads", "Radarr, Sonarr, SABnzbd") + "<p class='u'>API keys: in each app under Settings → General. "
+                + "Once connected, title pages get an Add to Radarr/Sonarr button and the sidebar gets Downloads.</p>");
+        arrForm(sb, "radarr", "Radarr", "http://192.168.1.10:7878", Arr.RADARR.configured(), Arr.RADARR);
+        arrForm(sb, "sonarr", "Sonarr", "http://192.168.1.10:8989", Arr.SONARR.configured(), Arr.SONARR);
+        arrForm(sb, "sab", "SABnzbd", "http://192.168.1.10:8080", Sab.configured(), null);
+        sb.append("<h3>Fallback</h3><form method='post' action='/arr-fallback'>When nothing can play from your servers or Real-Debrid")
+          .append(select("fallback", new String[]{"on", "off"}, new String[]{"Send it to Radarr / Sonarr automatically",
+                  "Only when I press \"Get with Radarr/Sonarr\""}, Arr.fallbackOn() ? "on" : "off"))
+          .append("<button>Save</button></form>");
         sb.append("</details>");
 
         // ---------------- keys
-        sb.append("<details><summary>Search &amp; discovery keys</summary>")
+        sb.append("" + section("search", "Search", "Gemini and TMDB keys") + "")
           .append("<p class='u'>Gemini (smart voice search): ").append(Store.get("gemini_key").isEmpty() ? "not set" : "saved")
           .append(" · TMDB (streaming services, cast &amp; crew): ").append(Store.get("tmdb_key").isEmpty() ? "not set" : "saved").append("</p>")
           .append("<form method='post' action='/keys'><input name='gemini' placeholder='Gemini API key (aistudio.google.com)' autocomplete='off'>")
@@ -526,7 +540,12 @@ public final class ConfigServer {
           .append("<button>Save</button></form>");
         if (!Store.get("gemini_key").isEmpty()) sb.append(form("/key-remove", hidden("key", "gemini_key"), "Remove Gemini key", "g s"));
         if (!Store.get("tmdb_key").isEmpty()) sb.append(form("/key-remove", hidden("key", "tmdb_key"), "Remove TMDB key", "g s"));
-        sb.append("</details></body></html>");
+        sb.append("</details>");
+        // ---------------- system
+        sb.append(section("system", "System", "Version, Home button")).append("<p>Flux TV ").append(esc(Updater.currentName(App.ctx)))
+          .append("</p><p class='u'>Home button: ").append(esc(HomeButtonService.status(App.ctx)))
+          .append(" To change it, open Settings → Home screen on the TV.</p></details>");
+        sb.append("</body></html>");
         return sb.toString();
     }
 
@@ -569,6 +588,29 @@ public final class ConfigServer {
             sb.append(quality).append(select("q_" + quality, v, l, cur));
         }
         return sb.append("<button>Save size limits</button></form>").toString();
+    }
+
+    private static String openSection;
+
+    /** A collapsible card with an anchor, a title and a grey one-line summary. */
+    private static String section(String id, String title, String sub) {
+        return "<details id='" + id + "'" + (id.equals(openSection) ? " open" : "") + "><summary>" + title
+                + "<span class='sub'>" + sub + "</span></summary>";
+    }
+
+    /** Which section a form belongs to, so the page reopens there after saving. */
+    private static String sectionFor(String path) {
+        if (path.startsWith("/profile") || path.startsWith("/trakt")) return "profiles";
+        if (path.equals("/appearance")) return "appearance";
+        if (path.equals("/home-row") || path.equals("/cw") || path.equals("/dock") || path.equals("/region")) return "home";
+        if (path.equals("/player") || path.equals("/size-limits")) return "player";
+        if (path.startsWith("/arr")) return "downloads";
+        if (path.equals("/install") || path.equals("/remove") || path.equals("/addon-move")) return "addons";
+        if (path.startsWith("/server") || path.startsWith("/plex")) return "servers";
+        if (path.startsWith("/iptv")) return "iptv";
+        if (path.startsWith("/rd")) return "rd";
+        if (path.equals("/keys") || path.equals("/key-remove") || path.equals("/gemini-speed")) return "search";
+        return null;
     }
 
     private static String hidden(String name, String value) {

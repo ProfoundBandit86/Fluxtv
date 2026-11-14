@@ -159,6 +159,17 @@ adb shell am start -W -n $P/.HomeRowsActivity; sleep 3; texts cw-sources 20; sho
 tap "✓ Flux"; sleep 2; texts cw-sources-after 12
 curl -s http://127.0.0.1:8000/arr/_log | python3 -c "import json,sys; d=json.load(sys.stdin); [print('GEMINI', e['path'], e['body'][-200:]) for e in d['gemini']]"
 crashes cw
+# Home button takeover via the accessibility service (like Projectivy)
+adb shell settings put secure enabled_accessibility_services $P/$P.HomeButtonService
+adb shell settings put secure accessibility_enabled 1
+sleep 3
+adb shell am start -W -n $P/.SettingsActivity --es category home; sleep 4; texts settings-home 30; shot 35-settings-home
+adb shell input keyevent HOME; sleep 4; top after-home
+shot 36-after-home-button
+curl -s -m 20 http://127.0.0.1:8090/ > /dev/null
+adb shell am start -W -n $P/.SettingsActivity; sleep 3
+curl -s -m 20 http://127.0.0.1:8090/ > out/settings-page-final.html; echo "== WEB SECTIONS: $(grep -o "<summary>[^<]*" out/settings-page-final.html | tr '\n' ' ')"
+crashes home-button
 adb logcat -d > out/logcat.txt
 kill $FAKE_PID 2>/dev/null
 exit 0
