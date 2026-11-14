@@ -19,7 +19,8 @@ adb shell am force-stop $P
 adb logcat -c
 
 # ---------------- IPTV with a fake Xtream server + M3U/EPG
-python3 .github/fake_xtream.py &
+nohup python3 .github/fake_xtream.py > /tmp/fake_xtream.log 2>&1 < /dev/null &
+FAKE_PID=$!
 sleep 2
 curl -s "http://127.0.0.1:8000/player_api.php?username=test&password=test" | head -c 200; echo
 adb shell am start -W -n $P/.IptvActivity; sleep 4
@@ -48,4 +49,5 @@ texts movies-with-iptv 60; shot 14-movies-iptv
 crashes movies-iptv
 
 adb logcat -d > out/logcat.txt
+kill $FAKE_PID 2>/dev/null
 exit 0
