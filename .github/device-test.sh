@@ -30,10 +30,12 @@ shot 2-after-keys
 key DPAD_CENTER 10
 top after-ok; texts after-ok 12; shot 3-after-ok
 adb shell uiautomator dump /sdcard/ui.xml; adb shell cat /sdcard/ui.xml > out/detail-ui.xml; head -c 1500 out/detail-ui.xml; echo
-sleep 5; top details; focus details; shot 3b-details
+sleep 5; top details; key DPAD_DOWN 1; key DPAD_UP 1; focus details; shot 3b-details
 key DPAD_CENTER 30
-top after-play-ok; focus streams; shot 4-streams
-key DPAD_CENTER 15
+top after-play-ok; key DPAD_DOWN 1; key DPAD_UP 1; focus streams; shot 4-streams
+key DPAD_CENTER 3
+top after-stream-ok-3s; texts dialog-3s 8; shot 5a-stream-3s
+sleep 12
 top after-stream-ok; texts after-stream-ok 10; shot 5-after-stream-ok
 crashes stream-ok
 crashes ok
