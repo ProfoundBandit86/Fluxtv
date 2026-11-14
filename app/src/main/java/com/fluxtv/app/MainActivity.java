@@ -102,6 +102,10 @@ public class MainActivity extends Activity {
         updateButton.setText("Updates · " + Updater.currentName(this));
         Updater.check(this, false);   // automatic update check on every reload of the home screen
         showLastCrash();
+        if (getCurrentFocus() == null) {   // nothing selected yet: start on the menu so OK always does something
+            View home = nav.getChildAt(2);
+            home.post(home::requestFocus);
+        }
         renderLocalRows();
         if (Store.addonsVersion() != loadedVersion) loadCatalogs();
         App.MAIN.removeCallbacks(clockTick);

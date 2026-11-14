@@ -112,7 +112,7 @@ public class DetailActivity extends Activity {
             if (!meta.has("type")) try { meta.put("type", type); } catch (Exception ignored) { }
             render();
             View first = buttons.getChildAt(0);
-            if (first != null) first.requestFocus();
+            if (first != null) first.post(first::requestFocus);   // after layout, so it reliably sticks
         }, e -> {
             description.setText("Couldn't load details: " + App.message(e));
             buttons.removeAllViews();
