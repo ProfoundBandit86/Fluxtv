@@ -122,6 +122,7 @@ public class SearchActivity extends FluxActivity {
     }
 
     private void handle(Intent i) {
+        android.util.Log.i("FluxSearch", "handle voice=" + i.getBooleanExtra("voice", false) + " demo=" + i.getBooleanExtra("demo_listen", false));
         String q = i.getStringExtra("query");
         if (q != null && !q.isEmpty()) {
             input.setText(q);
@@ -226,6 +227,7 @@ public class SearchActivity extends FluxActivity {
     }
 
     private void showListening(String hint) {
+        android.util.Log.i("FluxSearch", "showListening: " + hint);
         listen.setVisibility(View.VISIBLE);
         listen.setAlpha(0f);
         listen.animate().alpha(1f).setDuration(150).start();
@@ -236,6 +238,7 @@ public class SearchActivity extends FluxActivity {
     }
 
     private void hideListening() {
+        android.util.Log.i("FluxSearch", "hideListening", new Throwable());
         listening = false;
         wave.setActive(false);
         listen.animate().alpha(0f).setDuration(150).withEndAction(() -> listen.setVisibility(View.GONE)).start();

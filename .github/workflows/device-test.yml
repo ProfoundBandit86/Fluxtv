@@ -49,7 +49,7 @@ jobs:
           script: bash .github/device-test.sh
 
       - name: Run on Android TV emulator (other apps' Home rows)
-        if: always() && hashFiles('.github/QUICK_HOME') == ''
+        if: always() && hashFiles('.github/QUICK_HOME') == '' && hashFiles('.github/quick.sh') == ''
         continue-on-error: true
         uses: reactivecircus/android-emulator-runner@v2
         with:

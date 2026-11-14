@@ -12,6 +12,7 @@ nudge() { key DPAD_DOWN 1; key DPAD_UP 1; }
 crashes() { echo "== CRASHES ($1)"; adb logcat -d -b crash | tail -60; }
 
 adb install -r flux-test.apk
+if [ -f .github/quick.sh ]; then source .github/quick.sh; exit 0; fi
 # Quick mode: only the Home button test
 if [ -f .github/QUICK_HOME ]; then
   adb shell settings put secure enabled_accessibility_services $P/$P.HomeButtonService
