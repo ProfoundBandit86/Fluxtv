@@ -22,7 +22,13 @@ import java.util.List;
 import java.util.Set;
 
 /** Every installed app, so the TV stays fully usable with Flux as the home screen. */
-public class AppsActivity extends Activity {
+public class AppsActivity extends FluxActivity {
+
+    @Override
+    protected String sidebarKey() {
+        return "apps";
+    }
+
 
     private static final int PER_ROW = 5;
 

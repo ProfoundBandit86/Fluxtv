@@ -16,7 +16,13 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 /** Appearance (accent + background colours), sources, and system shortcuts. */
-public class SettingsActivity extends Activity {
+public class SettingsActivity extends FluxActivity {
+
+    @Override
+    protected String sidebarKey() {
+        return "settings";
+    }
+
 
     private LinearLayout content;
     private int focusAccent = -1, focusBg = -1;

@@ -20,7 +20,7 @@ import org.json.JSONObject;
 import java.util.List;
 
 /** Cast & Crew for a title: round headshots with roles. Pick a person to see their work. */
-public class CreditsActivity extends Activity {
+public class CreditsActivity extends FluxActivity {
 
     public static void open(Context c, String id, String type, String name) {
         c.startActivity(new Intent(c, CreditsActivity.class).putExtra("id", id).putExtra("type", type).putExtra("name", name));

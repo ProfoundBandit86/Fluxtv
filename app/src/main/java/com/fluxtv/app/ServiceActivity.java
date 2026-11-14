@@ -14,7 +14,7 @@ import android.widget.TextView;
 import org.json.JSONObject;
 
 /** One streaming service: Latest, Most popular and Top rated movies and shows. */
-public class ServiceActivity extends Activity {
+public class ServiceActivity extends FluxActivity {
 
     private LinearLayout content;
     private TextView status;

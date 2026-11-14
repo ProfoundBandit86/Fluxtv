@@ -113,6 +113,13 @@ adb shell am start -W -n $P/.GenreActivity --es type movie --es genre Action
 sleep 12; nudge; texts genre 30; shot 32-genre-action
 crashes fallback
 echo "== ARR LOG 2"; curl -s http://127.0.0.1:8000/arr/_log | python3 -c "import json,sys; d=json.load(sys.stdin); [print(e['path'], e.get('body','')[:160]) for e in d['arr'] if 'body' in e]"
+# Sidebar on other screens
+adb shell am start -W -n $P/.DetailActivity --es type movie --es id tt0111161 --es name Test
+sleep 12; nudge; key DPAD_LEFT 1; key DPAD_LEFT 1; key DPAD_LEFT 1; key DPAD_LEFT 2; texts detail-sidebar 40; shot 33-detail-sidebar
+key DPAD_DOWN 1; key DPAD_DOWN 1; key DPAD_CENTER 6; top sidebar-to-movies; texts sidebar-to-movies 12
+adb shell am start -W -n $P/.SettingsActivity; sleep 4; key DPAD_LEFT 2; texts settings-sidebar 20; shot 34-settings-sidebar
+key BACK 2; texts settings-after-back 8
+crashes sidebar
 # Remote-button link to a service page
 adb shell am start -W -a android.intent.action.VIEW -d "fluxtv://service/disney"; sleep 8; top deeplink; texts deeplink 10; shot 29-deeplink-disney
 

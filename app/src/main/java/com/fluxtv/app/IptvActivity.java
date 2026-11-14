@@ -15,7 +15,7 @@ import android.widget.Toast;
 import java.util.List;
 
 /** Add / remove IPTV providers (Xtream Codes or M3U + EPG) and the movies & series switch. */
-public class IptvActivity extends Activity {
+public class IptvActivity extends FluxActivity {
 
     private LinearLayout content;
     private int session = 0;

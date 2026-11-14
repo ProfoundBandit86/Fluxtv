@@ -34,7 +34,7 @@ import java.util.TreeMap;
  * Title page: full-screen backdrop, title art, rating and genre chips, Play/Resume,
  * Favorite and Trailer, then Episodes, More like this, and an About section.
  */
-public class DetailActivity extends Activity {
+public class DetailActivity extends FluxActivity {
 
     private String type, id, serverId, badge;
     private JSONObject meta;

@@ -12,7 +12,7 @@ import android.widget.Toast;
 import java.util.List;
 
 /** Install, remove and reorder add-ons. Also hosts the phone setup page while open. */
-public class AddonsActivity extends Activity {
+public class AddonsActivity extends FluxActivity {
 
     private LinearLayout list;
     private TextView phoneHint;

@@ -25,7 +25,13 @@ import java.util.List;
  * Search: opens straight into voice search. Gemini turns what you say into matching titles;
  * your library, IPTV and add-ons are searched too.
  */
-public class SearchActivity extends Activity {
+public class SearchActivity extends FluxActivity {
+
+    @Override
+    protected String sidebarKey() {
+        return "search";
+    }
+
 
     private static final int VOICE = 41;
     private EditText input;

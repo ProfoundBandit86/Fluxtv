@@ -13,7 +13,7 @@ import java.util.List;
 import java.util.Set;
 
 /** Customize Home: show/hide rows and change their order. */
-public class HomeRowsActivity extends Activity {
+public class HomeRowsActivity extends FluxActivity {
 
     private LinearLayout list;
     private final List<String> order = new ArrayList<>();

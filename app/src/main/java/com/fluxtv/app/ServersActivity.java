@@ -15,7 +15,7 @@ import android.widget.Toast;
 import java.util.List;
 
 /** Add and remove Plex, Jellyfin and Emby servers. */
-public class ServersActivity extends Activity {
+public class ServersActivity extends FluxActivity {
 
     private LinearLayout content;
     private int session = 0;

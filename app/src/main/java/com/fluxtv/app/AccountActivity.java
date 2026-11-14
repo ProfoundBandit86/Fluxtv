@@ -12,7 +12,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 /** Real-Debrid sign-in (device code or API token) and account status. */
-public class AccountActivity extends Activity {
+public class AccountActivity extends FluxActivity {
 
     private LinearLayout content;
     private int session = 0;   // invalidates an in-flight device login when the screen changes

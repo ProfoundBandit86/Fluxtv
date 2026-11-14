@@ -13,7 +13,7 @@ import android.widget.Toast;
 import java.util.List;
 
 /** Settings → Downloads: connect Radarr, Sonarr and SABnzbd, and pick Radarr/Sonarr defaults. */
-public class ArrSetupActivity extends Activity {
+public class ArrSetupActivity extends FluxActivity {
 
     private LinearLayout content;
 

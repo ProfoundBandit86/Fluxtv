@@ -14,7 +14,7 @@ import android.widget.Toast;
 import java.util.List;
 
 /** Profiles (add, switch, remove) and each profile's Trakt link. */
-public class ProfilesActivity extends Activity {
+public class ProfilesActivity extends FluxActivity {
 
     private LinearLayout content;
     private int session;

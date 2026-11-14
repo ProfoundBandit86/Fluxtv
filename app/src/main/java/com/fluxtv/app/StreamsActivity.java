@@ -34,7 +34,7 @@ import java.util.regex.Pattern;
  * add-on streams with clean quality tags. Torrent results go through Real-Debrid.
  * Long-press a stream to open it in another installed player.
  */
-public class StreamsActivity extends Activity {
+public class StreamsActivity extends FluxActivity {
 
     private static final Pattern SIZE = Pattern.compile("(\\d+(?:[.,]\\d+)?)\\s?(GB|MB)", Pattern.CASE_INSENSITIVE);
 

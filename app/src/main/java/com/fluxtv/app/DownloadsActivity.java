@@ -18,7 +18,13 @@ import java.util.ArrayList;
 import java.util.List;
 
 /** Downloads: SABnzbd queue and history, Radarr/Sonarr queues, and what's coming up. Refreshes every few seconds. */
-public class DownloadsActivity extends Activity {
+public class DownloadsActivity extends FluxActivity {
+
+    @Override
+    protected String sidebarKey() {
+        return "downloads";
+    }
+
 
     private LinearLayout content;
     private boolean visible;

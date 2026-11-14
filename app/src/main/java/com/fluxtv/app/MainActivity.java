@@ -81,6 +81,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        if (getIntent().getStringExtra("section") != null) section = getIntent().getStringExtra("section");
         themeVersion = Theme.version();
 
         FrameLayout root = new FrameLayout(this);
@@ -341,6 +342,19 @@ public class MainActivity extends Activity {
             }
         }
         return super.dispatchKeyEvent(e);
+    }
+
+    /** The sidebar on other screens opens Home, Movies, TV Shows or Favorites here. */
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        String s = intent.getStringExtra("section");
+        if (s != null && home != null) {
+            closeDrawer(false);
+            showSection(s);
+        } else if (s != null) {
+            section = s;
+        }
     }
 
     @Override

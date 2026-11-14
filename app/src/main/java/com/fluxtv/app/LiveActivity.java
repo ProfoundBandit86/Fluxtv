@@ -22,7 +22,13 @@ import java.util.Date;
 import java.util.List;
 
 /** Live TV: provider / channel groups on the left, channels with now & next on the right. */
-public class LiveActivity extends Activity {
+public class LiveActivity extends FluxActivity {
+
+    @Override
+    protected String sidebarKey() {
+        return "live";
+    }
+
 
     private static final int MAX_ROWS = 400;
 

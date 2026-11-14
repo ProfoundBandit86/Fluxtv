@@ -17,7 +17,7 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 /** A person: photo, short bio, and everything they worked on, newest to oldest. */
-public class PersonActivity extends Activity {
+public class PersonActivity extends FluxActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
