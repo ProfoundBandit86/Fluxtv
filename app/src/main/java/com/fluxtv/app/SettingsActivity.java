@@ -24,7 +24,7 @@ public class SettingsActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        render();
+        render(false);
     }
 
     @Override
@@ -34,7 +34,7 @@ public class SettingsActivity extends Activity {
             ConfigServer.start(() -> {
                 if (!isFinishing()) render();
             });
-            render();
+            render(false);
         }
     }
 
@@ -45,9 +45,13 @@ public class SettingsActivity extends Activity {
     }
 
     private void render() {
+        render(true);
+    }
+
+    private void render(boolean keepFocus) {
         // Keep focus on the same control after rebuilding (e.g. after choosing a pill).
         int keep = -1;
-        if (content != null && getCurrentFocus() != null) keep = content.getFocusables(View.FOCUS_DOWN).indexOf(getCurrentFocus());
+        if (keepFocus && content != null && getCurrentFocus() != null && !(getCurrentFocus() instanceof android.widget.EditText)) keep = content.getFocusables(View.FOCUS_DOWN).indexOf(getCurrentFocus());
         content = Ui.page(this, "Settings");
         String addr = ConfigServer.running() ? ConfigServer.address() : null;
         if (addr != null) {

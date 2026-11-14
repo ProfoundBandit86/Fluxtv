@@ -63,7 +63,7 @@ public class ProfilesActivity extends Activity {
                     + "urn:ietf:wg:oauth:2.0:oob and save. Then paste its Client ID and Client Secret"
                     + (addr != null ? " at " + addr + " (easier) or here." : " here.")));
             EditText id = field("Client ID"), secret = field("Client Secret");
-            content.addView(id, new LinearLayout.LayoutParams(Ui.dp(this, 560), ViewGroup.LayoutParams.WRAP_CONTENT));
+            content.addView(id, new LinearLayout.LayoutParams(Ui.dp(this, 520), ViewGroup.LayoutParams.WRAP_CONTENT));
             content.addView(secret, new LinearLayout.LayoutParams(Ui.dp(this, 560), ViewGroup.LayoutParams.WRAP_CONTENT));
             LinearLayout b = Ui.horizontal(this);
             b.addView(Ui.button(this, "Save", v -> {
@@ -81,7 +81,7 @@ public class ProfilesActivity extends Activity {
             card.setGravity(Gravity.CENTER_VERTICAL);
             card.setBackground(Ui.rounded(this, Ui.PANEL, 0, 14));
             card.setPadding(Ui.dp(this, 18), Ui.dp(this, 10), Ui.dp(this, 10), Ui.dp(this, 10));
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(Ui.dp(this, 1000), ViewGroup.LayoutParams.WRAP_CONTENT);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
             lp.setMargins(0, Ui.dp(this, 5), 0, Ui.dp(this, 5));
             LinearLayout names = Ui.vertical(this);
             names.addView(Ui.heading(this, name + (name.equals(current) ? "   · watching now" : ""), 18));
@@ -233,7 +233,7 @@ public class ProfilesActivity extends Activity {
     private TextView para(String s) {
         TextView t = Ui.text(this, s, 14, Ui.MUTED);
         t.setPadding(0, Ui.dp(this, 4), 0, Ui.dp(this, 8));
-        t.setLayoutParams(new LinearLayout.LayoutParams(Ui.dp(this, 900), ViewGroup.LayoutParams.WRAP_CONTENT));
+        t.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         return t;
     }
 }

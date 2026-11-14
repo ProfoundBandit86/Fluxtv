@@ -74,7 +74,7 @@ crashes settings
 
 # Player options: audio, subtitles (built-in and from an add-on), speed
 tap() { adb shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1; B=$(adb shell cat /sdcard/ui.xml | grep -o "<node[^>]*text=\"$1[^>]*>" | head -1 | grep -o 'bounds="[^"]*"' | grep -o '[0-9]*' | tr '\n' ' '); set -- $B; if [ -n "$4" ]; then adb shell input tap $(( ($1+$3)/2 )) $(( ($2+$4)/2 )); else echo "== no element for tap"; fi; }
-adb shell am start -W -n $P/.PlayerActivity --es url "https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_fmp4/master.m3u8" --es pi_type movie --es pi_meta tt0111161 --es pi_video tt0111161 --es pi_name "Player Test"
+adb shell am start -W -n $P/.PlayerActivity --es url "https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_fmp4/master.m3u8" --es pi_type movie --es pi_meta tt0068646 --es pi_video tt0068646 --es pi_name PlayerTest
 sleep 20; shot 15-player
 key MENU 2; texts player-menu 30; shot 16-player-menu
 tap "Audio"; sleep 2; texts player-audio 30; shot 17-player-audio
