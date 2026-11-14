@@ -49,6 +49,12 @@ key DPAD_RIGHT 2; key DPAD_DOWN 2; key DPAD_DOWN 2; sleep 2
 texts movies-with-iptv 80; shot 14-movies-iptv
 crashes movies-iptv
 
+# Search blends provider movies & series
+adb shell am start -W -n $P/.SearchActivity
+sleep 3; adb shell input text "Test"; key ENTER 25
+texts search-iptv 40; shot 15-search-iptv
+crashes search
+
 adb logcat -d > out/logcat.txt
 kill $FAKE_PID 2>/dev/null
 exit 0

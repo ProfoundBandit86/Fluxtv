@@ -69,7 +69,16 @@ public class PlayerActivity extends Activity {
         }
         setContentView(root);
 
-        player = new ExoPlayer.Builder(this).build();
+        // Follow http→https and cross-host redirects (common with IPTV load balancers and debrid links).
+        androidx.media3.datasource.DefaultHttpDataSource.Factory http = new androidx.media3.datasource.DefaultHttpDataSource.Factory()
+                .setAllowCrossProtocolRedirects(true)
+                .setUserAgent("FluxTV/1.0 (Android TV)")
+                .setConnectTimeoutMs(15000)
+                .setReadTimeoutMs(20000);
+        androidx.media3.datasource.DefaultDataSource.Factory data = new androidx.media3.datasource.DefaultDataSource.Factory(this, http);
+        player = new ExoPlayer.Builder(this)
+                .setMediaSourceFactory(new androidx.media3.exoplayer.source.DefaultMediaSourceFactory(this).setDataSourceFactory(data))
+                .build();
         view.setPlayer(player);
         player.addListener(new Player.Listener() {
             @Override
