@@ -177,6 +177,7 @@ public final class WatchNext {
                 p.put("sub", sub.isEmpty() ? "Continue in " + app : sub);
                 p.put("t", lng(cur, "last_engagement_time_utc_millis"));
                 out.add(p);
+                ContinueWatching.seen(pkg, app);
             }
         } catch (Exception ignored) {
             // No TV provider on this device, or access refused.

@@ -250,6 +250,9 @@ public final class ConfigServer {
             case "/home-row":
                 homeRow(f(form, "key"), f(form, "action"));
                 return "Home rows saved";
+            case "/cw":
+                ContinueWatching.setHidden(f(form, "key"), "hide".equals(f(form, "action")));
+                return "Continue watching saved";
             case "/dock":
                 dock(f(form, "pkg"), f(form, "action"));
                 return "Your apps saved";
@@ -389,6 +392,14 @@ public final class ConfigServer {
               .append(form("/home-row", h + hidden("action", "up"), "▲", "g s in"))
               .append(form("/home-row", h + hidden("action", "down"), "▼", "g s in"))
               .append(form("/home-row", h + hidden("action", "toggle"), shown ? "Hide" : "Show", (shown ? "g " : "") + "s in"))
+              .append("</div>");
+        }
+        sb.append("<h3>Continue watching shows items from</h3>");
+        java.util.Set<String> cwHidden = ContinueWatching.hidden();
+        for (String[] src : ContinueWatching.sources()) {
+            boolean on = !cwHidden.contains(src[0]);
+            sb.append("<div class='a row").append(on ? "" : " off").append("'><b>").append(esc(src[1])).append("</b>")
+              .append(form("/cw", hidden("key", src[0]) + hidden("action", on ? "hide" : "show"), on ? "Hide" : "Show", (on ? "g " : "") + "s in"))
               .append("</div>");
         }
         sb.append("<h3>Your apps</h3>");

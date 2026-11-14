@@ -28,6 +28,18 @@ public class HomeRowsActivity extends Activity {
                 + "Choose which rows follow them, and their order.", 13, Ui.MUTED);
         help.setPadding(0, 0, 0, Ui.dp(this, 12));
         content.addView(help, new LinearLayout.LayoutParams(Ui.dp(this, 760), ViewGroup.LayoutParams.WRAP_CONTENT));
+        content.addView(Ui.heading(this, "Continue watching shows items from", 16));
+        TextView cwHelp = Ui.text(this, "Apps appear here once they've added something to Continue watching. "
+                + "Tip: long-press a Continue watching card to hide its app.", 12, Ui.DIM);
+        cwHelp.setPadding(0, Ui.dp(this, 2), 0, Ui.dp(this, 6));
+        content.addView(cwHelp);
+        LinearLayout cw = new LinearLayout(this);
+        cw.setOrientation(LinearLayout.VERTICAL);
+        content.addView(cw);
+        renderSources(cw);
+        TextView rowsHead = Ui.heading(this, "Rows", 16);
+        rowsHead.setPadding(0, Ui.dp(this, 18), 0, Ui.dp(this, 6));
+        content.addView(rowsHead);
         list = Ui.vertical(this);
         content.addView(list, new LinearLayout.LayoutParams(Ui.dp(this, 900), ViewGroup.LayoutParams.WRAP_CONTENT));
         hidden = HomeLayout.hidden();
@@ -74,6 +86,27 @@ public class HomeRowsActivity extends Activity {
         } else if (list.getChildCount() > 0) {
             View target = ((LinearLayout) list.getChildAt(0)).getChildAt(1);
             target.post(target::requestFocus);
+        }
+    }
+
+    private void renderSources(LinearLayout cw) {
+        cw.removeAllViews();
+        java.util.Set<String> hiddenApps = ContinueWatching.hidden();
+        LinearLayout line = null;
+        int n = 0;
+        for (String[] src : ContinueWatching.sources()) {
+            if (n++ % 4 == 0) {
+                line = Ui.horizontal(this);
+                cw.addView(line);
+            }
+            boolean on = !hiddenApps.contains(src[0]);
+            line.addView(Ui.pill(this, (on ? "✓ " : "") + src[1], on, v -> {
+                ContinueWatching.setHidden(src[0], on);
+                int idx = cw.getFocusables(View.FOCUS_DOWN).indexOf(v);
+                renderSources(cw);
+                java.util.ArrayList<View> f = cw.getFocusables(View.FOCUS_DOWN);
+                if (idx >= 0 && idx < f.size()) f.get(idx).requestFocus();
+            }));
         }
     }
 

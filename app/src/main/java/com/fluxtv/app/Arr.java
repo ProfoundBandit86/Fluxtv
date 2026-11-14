@@ -194,6 +194,7 @@ public final class Arr {
     /** Adds the title (monitored) and starts a search. */
     public void add(JSONObject lookup, String profileId, String root) throws Exception {
         JSONObject body = new JSONObject(lookup.toString());
+        body.remove("id");
         body.put("qualityProfileId", Integer.parseInt(profileId));
         body.put("rootFolderPath", root);
         body.put("monitored", true);

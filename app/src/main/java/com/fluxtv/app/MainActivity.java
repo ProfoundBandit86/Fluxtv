@@ -318,7 +318,23 @@ public class MainActivity extends Activity {
             }
             if (!drawerOpen && k == KeyEvent.KEYCODE_DPAD_LEFT) {
                 View f = getCurrentFocus();
-                if (f == null || FocusFinder.getInstance().findNextFocus(contentRoot, f, View.FOCUS_LEFT) == null) {
+                // The focused view can be outside the content area (or just removed by a refresh), and
+                // FocusFinder throws for those, so only ask it about views that are really inside.
+                boolean inside = false;
+                for (android.view.ViewParent p = f == null ? null : f.getParent(); p != null; p = p.getParent()) {
+                    if (p == contentRoot) { inside = true; break; }
+                }
+                View next = null;
+                if (inside) {
+                    try {
+                        next = FocusFinder.getInstance().findNextFocus(contentRoot, f, View.FOCUS_LEFT);
+                    } catch (IllegalArgumentException ignored) { }
+                }
+                if (f != null && !inside) {
+                    focusContent();   // stale focus (e.g. a row that was just rebuilt): move back onto Home
+                    return true;
+                }
+                if (f == null || next == null) {
                     openDrawer();
                     return true;
                 }
@@ -444,7 +460,11 @@ public class MainActivity extends Activity {
             external = list;
             appRows = ch;
             if (home != null) HomeLayout.setAvailable(allRows());
-            if (changed && section.equals("home") && home != null) renderSection();
+            if (changed && section.equals("home") && home != null) {
+                boolean hadFocus = !drawerOpen && getCurrentFocus() != null;
+                renderSection();
+                if (hadFocus || getCurrentFocus() == null) rows.post(this::focusContent);
+            }
         }, null);
     }
 
@@ -504,9 +524,12 @@ public class MainActivity extends Activity {
 
     private void continueRow(String type) {
         List<JSONObject> list = new ArrayList<>();
-        for (JSONObject p : home.continueWatching) if (type == null || type.equals(p.optString("type"))) list.add(p);
+        java.util.Set<String> hiddenApps = ContinueWatching.hidden();
+        if (!hiddenApps.contains(ContinueWatching.FLUX)) {
+            for (JSONObject p : home.continueWatching) if (type == null || type.equals(p.optString("type"))) list.add(p);
+        }
         if (type == null) {
-            list.addAll(external);
+            for (JSONObject p : external) if (!hiddenApps.contains(p.optString("package"))) list.add(p);
             Collections.sort(list, (a, b) -> Long.compare(b.optLong("t"), a.optLong("t")));
         }
         if (list.isEmpty()) return;
@@ -515,10 +538,13 @@ public class MainActivity extends Activity {
             boolean ext = "external".equals(p.optString("type"));
             String img = !p.optString("still").isEmpty() ? p.optString("still")
                     : !p.optString("background").isEmpty() ? p.optString("background") : p.optString("poster");
-            row.addView(Ui.landscape(this, img, p.optString("name"), p.optString("sub"), p.optString("badge"),
+            View card = Ui.landscape(this, img, p.optString("name"), p.optString("sub"), p.optString("badge"),
                     p.optDouble("progress", 0), 196,
                     v -> { if (ext) WatchNext.open(this, p); else DetailActivity.open(this, p); },
-                    () -> feature(p, ext ? "Continue in " + p.optString("badge") : "Continue watching")));
+                    () -> feature(p, ext ? "Continue in " + p.optString("badge") : "Continue watching"));
+            View target = card instanceof ViewGroup && ((ViewGroup) card).getChildCount() > 0 ? ((ViewGroup) card).getChildAt(0) : card;
+            target.setOnLongClickListener(v -> { continueMenu(p, ext); return true; });
+            row.addView(card);
             note(p, "Continue watching");
         }
     }
@@ -545,6 +571,24 @@ public class MainActivity extends Activity {
                 row.addView(Ui.poster(this, p, open, focus));
             }
         }
+    }
+
+    /** Long-press on a Continue watching card: hide that app from the row, or open the settings. */
+    private void continueMenu(JSONObject p, boolean ext) {
+        String app = ext ? p.optString("badge") : "Flux";
+        String key = ext ? p.optString("package") : ContinueWatching.FLUX;
+        new AlertDialog.Builder(this)
+                .setTitle(p.optString("name"))
+                .setItems(new String[]{"Hide everything from " + app, "Choose apps for Continue watching"}, (d, w) -> {
+                    if (w == 0) {
+                        ContinueWatching.setHidden(key, true);
+                        renderSection();
+                        focusContent();
+                    } else {
+                        startActivity(new Intent(this, HomeRowsActivity.class));
+                    }
+                })
+                .show();
     }
 
     private void posterRow(ViewGroup target, String title, String note, List<JSONObject> items) {

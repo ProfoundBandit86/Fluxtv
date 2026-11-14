@@ -137,6 +137,11 @@ sleep 4; nudge; top quick; texts quick 30; shot 12-quick-settings
 key DPAD_RIGHT 1; key DPAD_CENTER 5; top quick-open; key BACK 2
 crashes quick
 
+# Continue watching sources + Gemini request settings
+adb shell am start -W -n $P/.HomeRowsActivity; sleep 3; texts cw-sources 20; shot 30-cw-sources
+tap "✓ Flux"; sleep 2; texts cw-sources-after 12
+curl -s http://127.0.0.1:8000/arr/_log | python3 -c "import json,sys; d=json.load(sys.stdin); [print('GEMINI', e['path'], e['body'][-200:]) for e in d['gemini']]"
+crashes cw
 adb logcat -d > out/logcat.txt
 kill $FAKE_PID 2>/dev/null
 exit 0
