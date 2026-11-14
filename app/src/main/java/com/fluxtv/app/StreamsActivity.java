@@ -4,10 +4,17 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
+import android.graphics.Color;
+import android.graphics.Typeface;
+import android.graphics.drawable.StateListDrawable;
 import android.net.Uri;
 import android.os.Bundle;
+import android.text.TextUtils;
+import android.view.Gravity;
 import android.view.View;
-import android.widget.Button;
+import android.view.ViewGroup;
+import android.widget.FrameLayout;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -15,38 +22,104 @@ import android.widget.Toast;
 
 import org.json.JSONObject;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
- * Lists streams from every installed stream add-on. Direct links play straight away;
- * torrent results (infoHash) are resolved through Real-Debrid first.
+ * Stream picker: a panel over the title's backdrop. Your library's copies come first, then
+ * add-on streams with clean quality tags. Torrent results go through Real-Debrid.
  * Long-press a stream to open it in another installed player.
  */
 public class StreamsActivity extends Activity {
 
+    private static final Pattern SIZE = Pattern.compile("(\\d+(?:[.,]\\d+)?)\\s?(GB|MB)", Pattern.CASE_INSENSITIVE);
+
+    /** A stream plus what we parsed from its text. */
+    private static class Item {
+        Addons.Stream s;
+        boolean library;
+        String title, quality = "", mark;
+        List<String> tags = new ArrayList<>();
+        double sizeGb = -1;
+        View row;
+        TextView status;
+    }
+
     private PlayInfo info;
-    private LinearLayout list;
-    private TextView status;
+    private LinearLayout list, filters;
+    private TextView status, banner;
+    private LinearLayout bannerBox;
+    private final List<Item> items = new ArrayList<>();
+    private String filter = "All";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         info = PlayInfo.from(getIntent());
 
-        ScrollView scroll = new ScrollView(this);
-        scroll.setBackgroundColor(Ui.BG);
-        LinearLayout content = Ui.vertical(this);
-        int pad = Ui.dp(this, 48);
-        content.setPadding(pad, Ui.dp(this, 32), pad, pad);
-        scroll.addView(content);
-        setContentView(scroll);
+        FrameLayout root = new FrameLayout(this);
+        root.setBackgroundColor(Ui.BG);
+        ImageView bg = new ImageView(this);
+        bg.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        bg.setAlpha(0.35f);
+        root.addView(bg, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        ImageLoader.load(bg, info.background.isEmpty() ? info.poster : info.background, Ui.dp(this, 900));
+        View dim = new View(this);
+        dim.setBackgroundColor(Ui.alpha(Color.BLACK, 0.45f));
+        root.addView(dim, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
-        content.addView(Ui.heading(this, info.title(), 28));
-        status = Ui.text(this, "Finding streams…", 17, Ui.MUTED);
-        status.setPadding(0, Ui.dp(this, 6), 0, Ui.dp(this, 16));
-        content.addView(status);
+        LinearLayout left = Ui.vertical(this);
+        left.setPadding(Ui.dp(this, 56), Ui.dp(this, 56), Ui.dp(this, 24), 0);
+        TextView bigTitle = Ui.heading(this, info.name, 34);
+        bigTitle.setMaxLines(3);
+        left.addView(bigTitle);
+        if (!info.label.isEmpty()) {
+            TextView l = Ui.text(this, info.label, 15, Ui.MUTED);
+            l.setPadding(0, Ui.dp(this, 8), 0, 0);
+            left.addView(l);
+        }
+        root.addView(left, new FrameLayout.LayoutParams(Ui.dp(this, 340), ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        // Panel on the right.
+        ScrollView scroll = new ScrollView(this);
+        scroll.setBackgroundColor(Ui.PANEL);
+        scroll.setVerticalScrollBarEnabled(false);
+        LinearLayout panel = Ui.vertical(this);
+        panel.setPadding(Ui.dp(this, 36), Ui.dp(this, 32), Ui.dp(this, 36), Ui.dp(this, 40));
+        scroll.addView(panel);
+        FrameLayout.LayoutParams pp = new FrameLayout.LayoutParams(Ui.dp(this, 560), ViewGroup.LayoutParams.MATCH_PARENT, Gravity.END);
+        root.addView(scroll, pp);
+        setContentView(root);
+
+        panel.addView(Ui.eyebrow(this, info.label.isEmpty() ? info.name : info.label));
+        TextView h = Ui.heading(this, "Choose a stream", 26);
+        h.setPadding(0, Ui.dp(this, 6), 0, Ui.dp(this, 4));
+        panel.addView(h);
+        status = Ui.text(this, "Finding streams…", 13, Ui.MUTED);
+        status.setPadding(0, Ui.dp(this, 4), 0, Ui.dp(this, 10));
+        panel.addView(status);
+
+        bannerBox = Ui.horizontal(this);
+        bannerBox.setBackground(Ui.rounded(this, Ui.alpha(Ui.WARN, 0.12f), Ui.alpha(Ui.WARN, 0.35f), 12));
+        bannerBox.setPadding(Ui.dp(this, 14), Ui.dp(this, 12), Ui.dp(this, 14), Ui.dp(this, 12));
+        bannerBox.setGravity(Gravity.CENTER_VERTICAL);
+        bannerBox.addView(Ui.icon(this, R.drawable.ic_alert, 20, Ui.WARN));
+        banner = Ui.text(this, "", 13, Color.parseColor("#F8D9A6"));
+        banner.setPadding(Ui.dp(this, 12), 0, 0, 0);
+        bannerBox.addView(banner, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        bannerBox.setVisibility(View.GONE);
+        LinearLayout.LayoutParams blp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        blp.setMargins(0, 0, 0, Ui.dp(this, 10));
+        panel.addView(bannerBox, blp);
+
+        filters = Ui.horizontal(this);
+        panel.addView(filters);
         list = Ui.vertical(this);
-        content.addView(list);
+        panel.addView(list);
 
         load();
     }
@@ -54,59 +127,218 @@ public class StreamsActivity extends Activity {
     private void load() {
         status.setText("Finding streams…");
         list.removeAllViews();
-        App.async(() -> Addons.streams(info.type, info.videoId), this::render, e -> status.setText(App.message(e)));
+        App.async(() -> Addons.streams(info.type, info.videoId), this::onStreams, e -> status.setText(App.message(e)));
     }
 
-    private void render(List<Addons.Stream> streams) {
-        if (streams.isEmpty()) {
-            status.setText("No streams found. Install a stream add-on, or add a Plex/Jellyfin/Emby server, from the home screen.");
-            Button retry = Ui.button(this, "Retry", v -> load());
+    // ------------------------------------------------------------ parsing
+
+    private Item parse(Addons.Stream s) {
+        Item it = new Item();
+        it.s = s;
+        JSONObject j = s.json;
+        it.library = s.library;
+        String name = j.optString("name");
+        String desc = j.optString("title", j.optString("description"));
+        String all = (name + " " + desc).replace('\n', ' ');
+        String low = all.toLowerCase(Locale.ROOT);
+        if (low.matches(".*\\b(2160p|4k|uhd)\\b.*")) it.quality = "4K";
+        else if (low.contains("1080p")) it.quality = "1080p";
+        else if (low.contains("720p")) it.quality = "720p";
+        else if (low.matches(".*\\b(480p|sd)\\b.*")) it.quality = "SD";
+        if (low.contains("dolby vision") || low.matches(".*\\b(dv|dovi)\\b.*")) it.tags.add("Dolby Vision");
+        if (low.contains("hdr10+")) it.tags.add("HDR10+");
+        else if (low.contains("hdr")) it.tags.add("HDR");
+        if (low.contains("atmos")) it.tags.add("Atmos");
+        else if (low.matches(".*(ddp?5\\.1|5\\.1|dts).*")) it.tags.add("5.1");
+        if (low.matches(".*\\b(remux)\\b.*")) it.tags.add("Remux");
+        Matcher m = SIZE.matcher(all);
+        if (m.find()) {
+            double v = Double.parseDouble(m.group(1).replace(',', '.'));
+            it.sizeGb = m.group(2).equalsIgnoreCase("MB") ? v / 1024 : v;
+        }
+        // Title: first meaningful line of the description, else the name.
+        String first = "";
+        for (String line : desc.split("\n")) {
+            String t = line.trim();
+            if (t.length() > 3 && Character.isLetterOrDigit(t.charAt(0))) { first = t; break; }
+        }
+        it.title = !first.isEmpty() ? first : name.replace('\n', ' ').trim();
+        if (it.library) it.title = desc.isEmpty() ? name : desc;
+        String src = s.source;
+        it.mark = src.contains("Plex") ? "PLEX" : src.contains("Jellyfin") ? "JF" : src.contains("Emby") ? "EMBY"
+                : src.length() >= 2 ? src.substring(0, 2).toUpperCase(Locale.ROOT) : "··";
+        return it;
+    }
+
+    // ------------------------------------------------------------ rendering
+
+    private void onStreams(List<Addons.Stream> streams) {
+        items.clear();
+        for (Addons.Stream s : streams) items.add(parse(s));
+        if (items.isEmpty()) {
+            status.setText("No streams found. Add a streaming add-on, or a Plex / Jellyfin / Emby server that has this title.");
+            View retry = Ui.button(this, "Retry", v -> load());
             list.addView(retry);
-            retry.requestFocus();
+            retry.post(retry::requestFocus);
             return;
         }
-        status.setText(streams.size() + " streams · long-press to use another player"
-                + (RealDebrid.isSignedIn() ? "" : " · sign in to Real-Debrid for torrent results"));
-        for (Addons.Stream s : streams) {
-            JSONObject j = s.json;
-            StringBuilder label = new StringBuilder();
-            String name = j.optString("name").replace('\n', ' ').trim();
-            label.append(s.source);
-            if (!name.isEmpty()) label.append("  ·  ").append(name);
-            if (j.has("infoHash") && !j.has("url")) label.append("  ·  [RD]");
-            String desc = j.optString("title", j.optString("description")).trim();
-            if (!desc.isEmpty()) label.append('\n').append(desc);
-            Button b = Ui.listButton(this, label, v -> play(j, false));
-            b.setOnLongClickListener(v -> {
-                play(j, true);
-                return true;
-            });
-            list.addView(b);
-        }
-        View first = list.getChildAt(0);
-        first.post(first::requestFocus);
+        int lib = 0;
+        for (Item i : items) if (i.library) lib++;
+        status.setText(items.size() + " streams" + (lib > 0 ? " · " + lib + " from your library" : "")
+                + " · long-press for another player");
+        renderFilters();
+        renderList(true);
     }
 
-    private void play(JSONObject s, boolean external) {
+    private void renderFilters() {
+        filters.removeAllViews();
+        for (String f : new String[]{"All", "4K", "1080p", "720p & less", "Smallest"}) {
+            filters.addView(Ui.pill(this, f, f.equals(filter), v -> {
+                filter = f;
+                renderFilters();
+                renderList(false);
+                for (int i = 0; i < filters.getChildCount(); i++) {
+                    if (((TextView) filters.getChildAt(i)).getText().toString().equals(f)) filters.getChildAt(i).requestFocus();
+                }
+            }));
+        }
+    }
+
+    private boolean matches(Item it) {
+        switch (filter) {
+            case "4K": return it.quality.equals("4K");
+            case "1080p": return it.quality.equals("1080p");
+            case "720p & less": return it.quality.equals("720p") || it.quality.equals("SD");
+            default: return true;
+        }
+    }
+
+    private void renderList(boolean focusFirst) {
+        list.removeAllViews();
+        List<Item> shown = new ArrayList<>();
+        for (Item it : items) if (matches(it)) shown.add(it);
+        if (filter.equals("Smallest")) {
+            Collections.sort(shown, (a, b) -> Double.compare(a.sizeGb < 0 ? 1e9 : a.sizeGb, b.sizeGb < 0 ? 1e9 : b.sizeGb));
+        }
+        boolean libHeader = false, otherHeader = false;
+        View first = null;
+        for (Item it : shown) {
+            if (it.library && !libHeader && !filter.equals("Smallest")) {
+                list.addView(section("Your library"));
+                libHeader = true;
+            }
+            if (!it.library && !otherHeader && !filter.equals("Smallest")) {
+                list.addView(section("Streaming add-ons" + (RealDebrid.isSignedIn() ? " · Real-Debrid" : "")));
+                otherHeader = true;
+            }
+            View row = row(it);
+            list.addView(row);
+            if (first == null) first = row;
+        }
+        if (shown.isEmpty()) list.addView(Ui.text(this, "No streams match this filter.", 13, Ui.MUTED));
+        if (focusFirst && first != null) {
+            View f = first;
+            f.post(f::requestFocus);
+        }
+    }
+
+    private TextView section(String s) {
+        TextView t = Ui.text(this, s.toUpperCase(Locale.ROOT), 11, Ui.DIM);
+        t.setLetterSpacing(0.08f);
+        t.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        t.setPadding(0, Ui.dp(this, 18), 0, Ui.dp(this, 6));
+        return t;
+    }
+
+    private View row(Item it) {
+        LinearLayout r = Ui.horizontal(this);
+        r.setGravity(Gravity.CENTER_VERTICAL);
+        r.setFocusable(true);
+        r.setClickable(true);
+        r.setPadding(Ui.dp(this, 12), Ui.dp(this, 12), Ui.dp(this, 14), Ui.dp(this, 12));
+        StateListDrawable bg = new StateListDrawable();
+        bg.addState(new int[]{android.R.attr.state_focused}, Ui.rounded(this, Ui.BUTTON, Ui.TEXT, 14));
+        bg.addState(new int[]{}, Ui.rounded(this, Ui.alpha(Ui.BUTTON, 0.55f), 0, 14));
+        r.setBackground(bg);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        lp.setMargins(0, Ui.dp(this, 4), 0, Ui.dp(this, 4));
+        r.setLayoutParams(lp);
+
+        TextView mark = Ui.heading(this, it.mark, 10);
+        mark.setGravity(Gravity.CENTER);
+        mark.setBackground(Ui.rounded(this, Ui.BORDER, 0, 9));
+        r.addView(mark, new LinearLayout.LayoutParams(Ui.dp(this, 38), Ui.dp(this, 38)));
+
+        LinearLayout mid = Ui.vertical(this);
+        mid.setPadding(Ui.dp(this, 12), 0, Ui.dp(this, 10), 0);
+        TextView t = Ui.text(this, it.title, 14, Ui.TEXT);
+        t.setMaxLines(2);
+        t.setEllipsize(TextUtils.TruncateAt.END);
+        t.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        mid.addView(t);
+        LinearLayout chips = Ui.horizontal(this);
+        chips.setGravity(Gravity.CENTER_VERTICAL);
+        chips.setPadding(0, Ui.dp(this, 7), 0, 0);
+        if (!it.quality.isEmpty()) chips.addView(Ui.chip(this, it.quality, Ui.TEXT, Ui.BG));
+        for (String tag : it.tags) chips.addView(Ui.chip(this, tag, Ui.BORDER, Ui.TEXT));
+        String extra = (it.sizeGb > 0 ? String.format(Locale.ROOT, it.sizeGb >= 1 ? "%.1f GB" : "%.0f MB",
+                it.sizeGb >= 1 ? it.sizeGb : it.sizeGb * 1024) : "");
+        String src = it.library ? it.s.source : it.s.source;
+        TextView meta = Ui.text(this, (extra.isEmpty() ? "" : extra + "  ·  ") + src, 12, Ui.MUTED);
+        chips.addView(meta);
+        mid.addView(chips);
+        r.addView(mid, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+        boolean torrent = it.s.json.has("infoHash") && it.s.json.optString("url").isEmpty();
+        it.status = Ui.text(this, it.library ? "Your copy" : torrent ? "Real-Debrid" : "Direct", 12,
+                it.library ? Ui.GOOD : Ui.MUTED);
+        r.addView(it.status);
+
+        it.row = r;
+        r.setOnClickListener(v -> play(it, false));
+        r.setOnLongClickListener(v -> {
+            play(it, true);
+            return true;
+        });
+        return r;
+    }
+
+    // ------------------------------------------------------------ playing
+
+    private void showBanner(String msg) {
+        banner.setText(msg);
+        bannerBox.setVisibility(View.VISIBLE);
+    }
+
+    private void markUnavailable(Item it, String label) {
+        it.row.setAlpha(0.45f);
+        it.status.setText(label);
+        it.status.setTextColor(Ui.WARN);
+    }
+
+    private void play(Item it, boolean external) {
+        JSONObject s = it.s.json;
+        bannerBox.setVisibility(View.GONE);
         if (!s.optString("url").isEmpty()) {
             start(s.optString("url"), external);
         } else if (!s.optString("infoHash").isEmpty()) {
             if (!RealDebrid.isSignedIn()) {
-                Toast.makeText(this, "Sign in to Real-Debrid to play this", Toast.LENGTH_LONG).show();
+                showBanner("Sign in to Real-Debrid to play this kind of stream.");
                 startActivity(new Intent(this, AccountActivity.class));
                 return;
             }
-            resolve(s, external);
+            resolve(it, external);
         } else if (!s.optString("ytId").isEmpty()) {
             view("https://www.youtube.com/watch?v=" + s.optString("ytId"));
         } else if (!s.optString("externalUrl").isEmpty()) {
             view(s.optString("externalUrl"));
         } else {
-            Toast.makeText(this, "This stream type isn't supported", Toast.LENGTH_SHORT).show();
+            showBanner("This stream type isn't supported.");
         }
     }
 
-    private void resolve(JSONObject s, boolean external) {
+    private void resolve(Item it, boolean external) {
+        JSONObject s = it.s.json;
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setTitle("Real-Debrid")
                 .setMessage("Starting…")
@@ -127,11 +359,11 @@ public class StreamsActivity extends Activity {
                 e -> {
                     if (isFinishing()) return;
                     dialog.dismiss();
-                    new AlertDialog.Builder(this)
-                            .setTitle("Couldn't play")
-                            .setMessage(App.message(e))
-                            .setPositiveButton("OK", null)
-                            .show();
+                    showBanner(App.message(e));
+                    if (e instanceof RealDebrid.RdException && ((RealDebrid.RdException) e).unavailable) {
+                        markUnavailable(it, e instanceof RealDebrid.NotCachedException ? "Not ready" : "Blocked");
+                    }
+                    it.row.requestFocus();
                 });
     }
 
@@ -154,7 +386,7 @@ public class StreamsActivity extends Activity {
         try {
             startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
         } catch (ActivityNotFoundException e) {
-            Toast.makeText(this, "No app can open this link", Toast.LENGTH_SHORT).show();
+            showBanner("No app can open this link.");
         }
     }
 }

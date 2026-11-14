@@ -20,6 +20,7 @@ public class App extends Application {
     public void onCreate() {
         super.onCreate();
         Store.init(this);
+        Theme.apply();
         // Save any crash so the home screen can show it next time (TVs hide crash dialogs).
         Thread.UncaughtExceptionHandler previous = Thread.getDefaultUncaughtExceptionHandler();
         Thread.setDefaultUncaughtExceptionHandler((thread, error) -> {

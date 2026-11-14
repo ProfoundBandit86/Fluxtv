@@ -23,8 +23,49 @@ public final class RealDebrid {
             ".mkv", ".mp4", ".avi", ".m4v", ".mov", ".ts", ".m2ts", ".webm", ".wmv", ".mpg", ".mpeg");
     private static final List<String> FAILED = Arrays.asList("magnet_error", "error", "virus", "dead");
 
-    public static class NotCachedException extends Exception {
-        NotCachedException(String m) { super(m); }
+    /** A Real-Debrid problem explained in plain words. unavailable = this stream can't work; try another. */
+    public static class RdException extends Exception {
+        public final boolean unavailable;
+
+        RdException(String m, boolean unavailable) {
+            super(m);
+            this.unavailable = unavailable;
+        }
+    }
+
+    public static class NotCachedException extends RdException {
+        NotCachedException(String m) { super(m, true); }
+    }
+
+    /** Turns Real-Debrid's JSON errors (e.g. HTTP 451 infringing_file) into readable messages. */
+    static Exception friendly(Exception e) {
+        if (e instanceof RdException || !(e instanceof Http.HttpException)) return e;
+        Http.HttpException h = (Http.HttpException) e;
+        String err = "";
+        int code = -1;
+        try {
+            JSONObject j = new JSONObject(h.body);
+            err = j.optString("error");
+            code = j.optInt("error_code", -1);
+        } catch (Exception ignored) { }
+        if (err.equals("infringing_file") || code == 35 || h.code == 451) {
+            return new RdException("Real-Debrid has blocked this file. Pick another stream.", true);
+        }
+        if (err.equals("bad_token") || code == 8 || h.code == 401) {
+            return new RdException("Your Real-Debrid sign-in has expired. Sign in again in Settings → Real-Debrid.", false);
+        }
+        if (err.equals("permission_denied") || code == 9 || code == 20 || h.code == 403) {
+            return new RdException("Real-Debrid refused this request. Check that your account has Premium.", false);
+        }
+        if (code == 21 || err.equals("too_many_active_downloads")) {
+            return new RdException("Too many active downloads on your Real-Debrid account. Remove some in your Real-Debrid torrents list.", false);
+        }
+        if (code == 34 || h.code == 429) return new RdException("Real-Debrid is busy. Try again in a moment.", false);
+        if (code == 24 || code == 19 || err.contains("unavailable") || err.contains("dead")) {
+            return new RdException("This file isn't available on Real-Debrid. Pick another stream.", true);
+        }
+        if (h.code >= 500) return new RdException("Real-Debrid is having problems right now. Try again later.", false);
+        return new RdException("Real-Debrid: " + (err.isEmpty() ? "error " + h.code : err.replace('_', ' ')), false);
     }
 
     public static class DeviceCode {
@@ -120,6 +161,14 @@ public final class RealDebrid {
      * streaming URL. Throws NotCachedException when Real-Debrid doesn't already have it.
      */
     public static String resolve(String infoHash, int fileIdx, String filename, Status status) throws Exception {
+        try {
+            return resolveRaw(infoHash, fileIdx, filename, status);
+        } catch (Exception e) {
+            throw friendly(e);
+        }
+    }
+
+    private static String resolveRaw(String infoHash, int fileIdx, String filename, Status status) throws Exception {
         String tok = token();
         status.update("Adding to Real-Debrid…");
         String id = new JSONObject(Http.post(API + "torrents/addMagnet",
@@ -135,8 +184,7 @@ public final class RealDebrid {
                 info = waitFor(id, tok, 8, "downloaded");
             }
             if (!"downloaded".equals(info.optString("status"))) {
-                throw new NotCachedException("Not cached on Real-Debrid (" + info.optString("status")
-                        + ", " + info.optInt("progress") + "%). Try another stream.");
+                throw new NotCachedException("This one isn't ready on Real-Debrid yet. Pick another stream.");
             }
             JSONArray links = info.optJSONArray("links");
             if (links == null || links.length() == 0) throw new Exception("Real-Debrid returned no links");
@@ -158,7 +206,7 @@ public final class RealDebrid {
             info = new JSONObject(Http.get(API + "torrents/info/" + id, tok));
             String st = info.optString("status");
             for (String t : targets) if (t.equals(st)) return info;
-            if (FAILED.contains(st)) throw new Exception("Real-Debrid: " + st);
+            if (FAILED.contains(st)) throw new RdException("Real-Debrid couldn't use this file (" + st.replace('_', ' ') + "). Pick another stream.", true);
             Thread.sleep(1000);
         }
         return info;

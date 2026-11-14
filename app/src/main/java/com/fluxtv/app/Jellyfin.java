@@ -106,14 +106,16 @@ final class Jellyfin {
 
     // ------------------------------------------------------------ browsing
 
-    static List<Addons.Row> rows(MediaServer s) throws Exception {
-        List<Addons.Row> out = new ArrayList<>();
-        try {
-            JSONArray resume = new JSONObject(get(s, resumePath(s))).optJSONArray("Items");
-            List<JSONObject> items = previews(s, resume);
-            if (!items.isEmpty()) out.add(new Addons.Row("Continue watching · " + s.name, items));
-        } catch (Exception ignored) { }
+    private static final String FIELDS = "Fields=ProductionYear,Overview,DateCreated,UserData";
 
+    /** Items in progress ("Continue watching" on the server). */
+    static List<JSONObject> deck(MediaServer s) throws Exception {
+        return previews(s, new JSONObject(get(s, resumePath(s) + "&" + FIELDS)).optJSONArray("Items"));
+    }
+
+    /** Newest movies and shows in every library. */
+    static List<JSONObject> recent(MediaServer s) throws Exception {
+        List<JSONObject> out = new ArrayList<>();
         JSONArray views = new JSONObject(get(s, viewsPath(s))).optJSONArray("Items");
         if (views != null) for (int i = 0; i < views.length(); i++) {
             JSONObject v = views.optJSONObject(i);
@@ -121,22 +123,18 @@ final class Jellyfin {
             String ct = v.optString("CollectionType");
             if (!(ct.equals("movies") || ct.equals("tvshows") || ct.isEmpty())) continue;
             try {
-                List<JSONObject> items = previews(s, new JSONArray(get(s, latestPath(s, v.optString("Id")))));
-                if (!items.isEmpty()) out.add(new Addons.Row(v.optString("Name") + " · " + s.name, items));
+                out.addAll(previews(s, new JSONArray(get(s, latestPath(s, v.optString("Id")) + "&" + FIELDS))));
             } catch (Exception ignored) { }
         }
         return out;
     }
 
-    static List<Addons.Row> search(MediaServer s, String q) throws Exception {
-        String path = itemsPath(s, "SearchTerm=" + Http.enc(q) + "&Recursive=true&IncludeItemTypes=Movie,Series&Limit=40&Fields=ProductionYear");
-        List<JSONObject> items = previews(s, new JSONObject(get(s, path)).optJSONArray("Items"));
-        List<Addons.Row> out = new ArrayList<>();
-        if (!items.isEmpty()) out.add(new Addons.Row(s.name + " (" + s.kindLabel() + ")", items));
-        return out;
+    static List<JSONObject> search(MediaServer s, String q) throws Exception {
+        String path = itemsPath(s, "SearchTerm=" + Http.enc(q) + "&Recursive=true&IncludeItemTypes=Movie,Series&Limit=40&" + FIELDS);
+        return previews(s, new JSONObject(get(s, path)).optJSONArray("Items"));
     }
 
-    /** Movies and series become cards; episodes are shown as their series. */
+    /** Same card shape as Plex.previews: add-on fields plus badge, added, progress, sub, t. */
     private static List<JSONObject> previews(MediaServer s, JSONArray items) throws Exception {
         List<JSONObject> out = new ArrayList<>();
         if (items == null) return out;
@@ -145,18 +143,39 @@ final class Jellyfin {
             if (it == null) continue;
             String type = it.optString("Type");
             JSONObject p = new JSONObject();
+            boolean episode = type.equals("Episode") && !it.optString("SeriesId").isEmpty();
             if (type.equals("Movie") || type.equals("Series") || type.equals("Video")) {
-                p.put("id", s.prefix() + it.optString("Id"));
+                String id = it.optString("Id");
+                p.put("id", s.prefix() + id);
                 p.put("type", type.equals("Series") ? "series" : "movie");
                 p.put("name", it.optString("Name"));
-                p.put("poster", image(s, it.optString("Id"), "Primary", 300));
-            } else if (type.equals("Episode") && !it.optString("SeriesId").isEmpty()) {
-                p.put("id", s.prefix() + it.optString("SeriesId"));
+                p.put("poster", image(s, id, "Primary", 300));
+                p.put("background", image(s, id, "Backdrop", 1280));
+            } else if (episode) {
+                String sid = it.optString("SeriesId");
+                p.put("id", s.prefix() + sid);
                 p.put("type", "series");
-                p.put("name", it.optString("SeriesName") + " · S" + it.optInt("ParentIndexNumber") + " E" + it.optInt("IndexNumber"));
-                p.put("poster", image(s, it.optString("SeriesId"), "Primary", 300));
+                p.put("name", it.optString("SeriesName"));
+                p.put("poster", image(s, sid, "Primary", 300));
+                p.put("background", image(s, sid, "Backdrop", 1280));
+                p.put("still", image(s, it.optString("Id"), "Primary", 640));
+                p.put("label", "S" + it.optInt("ParentIndexNumber") + " E" + it.optInt("IndexNumber"));
             } else {
                 continue;
+            }
+            if (it.has("ProductionYear")) p.put("releaseInfo", String.valueOf(it.optInt("ProductionYear")));
+            p.put("description", it.optString("Overview"));
+            p.put("badge", s.kindLabel());
+            p.put("added", parseDate(it.optString("DateCreated")));
+            JSONObject ud = it.optJSONObject("UserData");
+            long dur = it.optLong("RunTimeTicks") / 10_000;
+            long pos = ud == null ? 0 : ud.optLong("PlaybackPositionTicks") / 10_000;
+            p.put("t", ud == null ? 0 : parseDate(ud.optString("LastPlayedDate")));
+            if (pos > 0 && dur > 0) {
+                p.put("progress", (double) pos / dur);
+                p.put("sub", (episode ? p.optString("label") + " · " : "") + Ui.left(pos, dur));
+            } else if (episode) {
+                p.put("sub", p.optString("label") + " · Up next");
             }
             out.add(p);
         }
@@ -208,6 +227,8 @@ final class Jellyfin {
                 v.put("season", e.optInt("ParentIndexNumber", 1));
                 v.put("episode", e.optInt("IndexNumber"));
                 v.put("released", e.optString("PremiereDate"));
+                v.put("thumbnail", image(s, e.optString("Id"), "Primary", 640));
+                v.put("overview", e.optString("Overview"));
                 videos.put(v);
                 importProgress(e, PlayInfo.of("series", id, vid, it.optString("Name"), m.optString("poster"),
                         "S" + v.optInt("season") + " E" + v.optInt("episode")));

@@ -227,6 +227,7 @@ public final class Store {
             e.put("poster", info.poster);
             e.put("videoId", info.videoId);
             e.put("label", info.label);
+            e.put("background", info.background);
             e.put("pos", pos);
             e.put("dur", dur);
             e.put("t", when);

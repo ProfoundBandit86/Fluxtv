@@ -42,16 +42,23 @@ public final class Sources {
 
     // ------------------------------------------------------------ browsing
 
-    public static List<Addons.Row> rows(MediaServer s) {
+    public static List<JSONObject> deck(MediaServer s) {
         try {
-            return plex(s) ? Plex.rows(s) : Jellyfin.rows(s);
+            return plex(s) ? Plex.deck(s) : Jellyfin.deck(s);
         } catch (Exception e) {
-            List<Addons.Row> none = new ArrayList<>();
-            return none;
+            return new ArrayList<>();
         }
     }
 
-    public static List<Addons.Row> search(MediaServer s, String q) {
+    public static List<JSONObject> recent(MediaServer s) {
+        try {
+            return plex(s) ? Plex.recent(s) : Jellyfin.recent(s);
+        } catch (Exception e) {
+            return new ArrayList<>();
+        }
+    }
+
+    public static List<JSONObject> search(MediaServer s, String q) {
         try {
             return plex(s) ? Plex.search(s, q) : Jellyfin.search(s, q);
         } catch (Exception e) {
@@ -66,7 +73,12 @@ public final class Sources {
 
     public static List<Addons.Stream> streams(String videoId) throws Exception {
         MediaServer s = serverFor(videoId);
-        return plex(s) ? Plex.streams(s, itemOf(videoId)) : Jellyfin.streams(s, itemOf(videoId));
+        return mark(plex(s) ? Plex.streams(s, itemOf(videoId)) : Jellyfin.streams(s, itemOf(videoId)));
+    }
+
+    private static List<Addons.Stream> mark(List<Addons.Stream> list) {
+        for (Addons.Stream st : list) st.library = true;
+        return list;
     }
 
     // ------------------------------------------------------------ "also on your server"
@@ -87,12 +99,13 @@ public final class Sources {
                 key = plex(s) ? Plex.episodeKey(s, key, season, episode) : Jellyfin.episodeId(s, key, season, episode);
                 if (key == null) return out;
             }
-            out.addAll(plex(s) ? Plex.streams(s, key) : Jellyfin.streams(s, key));
+            out.addAll(mark(plex(s) ? Plex.streams(s, key) : Jellyfin.streams(s, key)));
         } catch (Exception ignored) { }
         return out;
     }
 
-    private static Map<String, String> index(MediaServer s) throws Exception {
+    /** imdb id → item id on this server (cached for 15 minutes). */
+    public static Map<String, String> index(MediaServer s) throws Exception {
         String k = s.kind + ":" + s.id;
         Long t = imdbIndexTime.get(k);
         Map<String, String> m = imdbIndex.get(k);

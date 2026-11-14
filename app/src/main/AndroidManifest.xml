@@ -65,6 +65,7 @@
             android:windowSoftInputMode="adjustResize" />
         <activity android:name=".ServersActivity" android:exported="${testExported}" android:screenOrientation="landscape"
             android:windowSoftInputMode="adjustResize" />
+        <activity android:name=".SettingsActivity" android:exported="${testExported}" android:screenOrientation="landscape" />
         <activity android:name=".AppsActivity" android:exported="${testExported}" android:screenOrientation="landscape" />
         <activity
             android:name=".PlayerActivity"

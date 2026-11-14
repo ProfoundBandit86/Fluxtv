@@ -17,12 +17,18 @@ import java.util.concurrent.TimeUnit;
 public final class Addons {
 
     private static final Map<String, Addon> cache = new ConcurrentHashMap<>();
-    private static final ExecutorService POOL = Executors.newFixedThreadPool(8);
+    static final ExecutorService POOL = Executors.newFixedThreadPool(8);
     private static final int ROW_LIMIT = 30;
 
     public static class Row {
         public final String title;
         public final List<JSONObject> items;
+        /** movie / series / other add-on type */
+        public String type = "";
+        /** small grey text after the title, e.g. the add-on's name */
+        public String note = "";
+        /** true = wide 16:9 cards (Continue watching) */
+        public boolean wide = false;
 
         public Row(String title, List<JSONObject> items) {
             this.title = title;
@@ -34,6 +40,8 @@ public final class Addons {
         /** Add-on or server name shown in the stream list. */
         public final String source;
         public final JSONObject json;
+        /** From your Plex / Jellyfin / Emby library. */
+        public boolean library;
 
         public Stream(String source, JSONObject json) {
             this.source = source;
@@ -92,31 +100,36 @@ public final class Addons {
 
     // ------------------------------------------------------------ catalogs
 
-    /** Media-server rows first (your own library), then add-on catalogs. */
-    public static List<Row> homeRows() {
-        List<Future<List<Row>>> jobs = new ArrayList<>();
-        for (MediaServer s : Store.servers()) jobs.add(POOL.submit(() -> Sources.rows(s)));
+    /** Every home-screen catalog of every add-on, as jobs (blended with servers by Blend). */
+    static List<Future<Row>> catalogJobs() {
+        List<Future<Row>> jobs = new ArrayList<>();
         for (Addon a : all()) {
             for (JSONObject cat : a.catalogs()) {
                 if (!Addon.isHomeCatalog(cat)) continue;
-                jobs.add(POOL.submit(() -> Collections.singletonList(fetchRow(a, cat, null, catalogTitle(cat)))));
+                jobs.add(POOL.submit(() -> {
+                    Row r = fetchRow(a, cat, null, cat.optString("name", cat.optString("id")));
+                    r.type = cat.optString("type");
+                    r.note = a.name();
+                    return r;
+                }));
             }
         }
-        return collect(jobs);
+        return jobs;
     }
 
-    public static List<Row> search(String query) {
-        List<Future<List<Row>>> jobs = new ArrayList<>();
-        for (MediaServer s : Store.servers()) jobs.add(POOL.submit(() -> Sources.search(s, query)));
+    static List<Future<Row>> searchJobs(String query) {
+        List<Future<Row>> jobs = new ArrayList<>();
         for (Addon a : all()) {
             for (JSONObject cat : a.catalogs()) {
                 if (!Addon.isSearchCatalog(cat)) continue;
-                String title = capitalize(cat.optString("type")) + " · " + a.name();
-                jobs.add(POOL.submit(() -> Collections.singletonList(
-                        fetchRow(a, cat, "search=" + Http.enc(query), title))));
+                jobs.add(POOL.submit(() -> {
+                    Row r = fetchRow(a, cat, "search=" + Http.enc(query), a.name());
+                    r.type = cat.optString("type");
+                    return r;
+                }));
             }
         }
-        return collect(jobs);
+        return jobs;
     }
 
     private static Row fetchRow(Addon a, JSONObject cat, String extra, String title) throws Exception {
@@ -130,21 +143,6 @@ public final class Addons {
             items.add(m);
         }
         return new Row(title, items);
-    }
-
-    private static List<Row> collect(List<Future<List<Row>>> jobs) {
-        List<Row> out = new ArrayList<>();
-        for (Future<List<Row>> f : jobs) {
-            try {
-                for (Row r : f.get(40, TimeUnit.SECONDS)) if (!r.items.isEmpty()) out.add(r);
-            } catch (Exception ignored) { }
-        }
-        return out;
-    }
-
-    private static String catalogTitle(JSONObject cat) {
-        String name = cat.optString("name", cat.optString("id"));
-        return name + " · " + capitalize(cat.optString("type"));
     }
 
     static String capitalize(String s) {

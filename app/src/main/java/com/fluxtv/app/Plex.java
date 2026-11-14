@@ -116,13 +116,14 @@ final class Plex {
 
     // ------------------------------------------------------------ browsing
 
-    static List<Addons.Row> rows(MediaServer s) throws Exception {
-        List<Addons.Row> out = new ArrayList<>();
-        try {
-            List<JSONObject> deck = previews(s, get(s, "/library/onDeck").optJSONArray("Metadata"));
-            if (!deck.isEmpty()) out.add(new Addons.Row("On deck · " + s.name, deck));
-        } catch (Exception ignored) { }
+    /** On deck: in-progress and next-up items. */
+    static List<JSONObject> deck(MediaServer s) throws Exception {
+        return previews(s, get(s, "/library/onDeck").optJSONArray("Metadata"));
+    }
 
+    /** Newest movies and shows in every library. */
+    static List<JSONObject> recent(MediaServer s) throws Exception {
+        List<JSONObject> out = new ArrayList<>();
         JSONArray dirs = get(s, "/library/sections").optJSONArray("Directory");
         if (dirs != null) for (int i = 0; i < dirs.length(); i++) {
             JSONObject d = dirs.optJSONObject(i);
@@ -130,14 +131,13 @@ final class Plex {
             try {
                 JSONObject mc = get(s, "/library/sections/" + d.optString("key")
                         + "/all?sort=addedAt:desc&X-Plex-Container-Start=0&X-Plex-Container-Size=30");
-                List<JSONObject> items = previews(s, mc.optJSONArray("Metadata"));
-                if (!items.isEmpty()) out.add(new Addons.Row(d.optString("title") + " · " + s.name, items));
+                out.addAll(previews(s, mc.optJSONArray("Metadata")));
             } catch (Exception ignored) { }
         }
         return out;
     }
 
-    static List<Addons.Row> search(MediaServer s, String q) throws Exception {
+    static List<JSONObject> search(MediaServer s, String q) throws Exception {
         JSONArray hubs = get(s, "/hubs/search?query=" + Http.enc(q) + "&limit=30").optJSONArray("Hub");
         List<JSONObject> items = new ArrayList<>();
         if (hubs != null) for (int i = 0; i < hubs.length(); i++) {
@@ -145,12 +145,14 @@ final class Plex {
             if (h == null || !(h.optString("type").equals("movie") || h.optString("type").equals("show"))) continue;
             items.addAll(previews(s, h.optJSONArray("Metadata")));
         }
-        List<Addons.Row> out = new ArrayList<>();
-        if (!items.isEmpty()) out.add(new Addons.Row(s.name + " (Plex)", items));
-        return out;
+        return items;
     }
 
-    /** Movies and shows become cards; episodes are shown as their show. */
+    /**
+     * Card data in the same shape as add-on catalog items, plus: badge, added (ms),
+     * progress (0..1), sub (e.g. "S2 E4 · 24 min left"), t (last watched, ms).
+     * Episodes are shown as their show.
+     */
     private static List<JSONObject> previews(MediaServer s, JSONArray items) throws Exception {
         List<JSONObject> out = new ArrayList<>();
         if (items == null) return out;
@@ -159,18 +161,36 @@ final class Plex {
             if (it == null) continue;
             String type = it.optString("type");
             JSONObject p = new JSONObject();
+            boolean episode = type.equals("episode") && !it.optString("grandparentRatingKey").isEmpty();
             if (type.equals("movie") || type.equals("show")) {
                 p.put("id", s.prefix() + it.optString("ratingKey"));
                 p.put("type", type.equals("show") ? "series" : "movie");
                 p.put("name", it.optString("title"));
                 p.put("poster", image(s, it.optString("thumb"), 300, 450));
-            } else if (type.equals("episode") && !it.optString("grandparentRatingKey").isEmpty()) {
+                if (!it.optString("art").isEmpty()) p.put("background", image(s, it.optString("art"), 1280, 720));
+                if (it.has("year")) p.put("releaseInfo", String.valueOf(it.optInt("year")));
+            } else if (episode) {
                 p.put("id", s.prefix() + it.optString("grandparentRatingKey"));
                 p.put("type", "series");
-                p.put("name", it.optString("grandparentTitle") + " · S" + it.optInt("parentIndex") + " E" + it.optInt("index"));
+                p.put("name", it.optString("grandparentTitle"));
                 p.put("poster", image(s, it.optString("grandparentThumb"), 300, 450));
+                String art = it.optString("grandparentArt", it.optString("art"));
+                if (!art.isEmpty()) p.put("background", image(s, art, 1280, 720));
+                p.put("still", image(s, it.optString("thumb"), 640, 360));
+                p.put("label", "S" + it.optInt("parentIndex") + " E" + it.optInt("index"));
             } else {
                 continue;
+            }
+            p.put("description", it.optString("summary"));
+            p.put("badge", "Plex");
+            p.put("added", it.optLong("addedAt") * 1000L);
+            p.put("t", it.optLong("lastViewedAt") * 1000L);
+            long dur = it.optLong("duration"), pos = it.optLong("viewOffset");
+            if (pos > 0 && dur > 0) {
+                p.put("progress", (double) pos / dur);
+                p.put("sub", (episode ? p.optString("label") + " · " : "") + Ui.left(pos, dur));
+            } else if (episode) {
+                p.put("sub", p.optString("label") + " · Up next");
             }
             out.add(p);
         }
@@ -214,6 +234,8 @@ final class Plex {
                 v.put("season", e.optInt("parentIndex", 1));
                 v.put("episode", e.optInt("index"));
                 v.put("released", e.optString("originallyAvailableAt"));
+                v.put("thumbnail", image(s, e.optString("thumb"), 640, 360));
+                v.put("overview", e.optString("summary"));
                 videos.put(v);
                 importProgress(e, PlayInfo.of("series", id, vid, it.optString("title"), m.optString("poster"),
                         "S" + v.optInt("season") + " E" + v.optInt("episode")));
