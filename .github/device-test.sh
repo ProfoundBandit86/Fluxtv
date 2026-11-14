@@ -167,6 +167,7 @@ adb shell am start -W -n $P/.SearchActivity
 sleep 4; shot 11a-search-start; texts search-start 30
 adb shell am start -W -n $P/.SearchActivity --ez voice true
 sleep 3; top voice; shot 11-voice; sleep 5; texts voice 15; shot 11b-voice-after
+adb shell am start -W -n $P/.SearchActivity --ez demo_listen true; sleep 3; shot 11c-listening-demo
 crashes search
 
 # Themes

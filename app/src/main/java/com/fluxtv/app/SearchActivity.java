@@ -113,6 +113,10 @@ public class SearchActivity extends FluxActivity {
         if (q != null && !q.isEmpty() && savedInstanceState == null) {
             input.setText(q);
             search();
+        } else if (BuildConfig.TEST_BUILD && getIntent().getBooleanExtra("demo_listen", false)) {
+            showListening("Listening… say a title, or describe what you feel like watching");
+            heard.setText("funny heist movies from the nineties");
+            wave.setLevel(6f);
         } else if (getIntent().getBooleanExtra("voice", false) && savedInstanceState == null) {
             mic.post(this::voice);
         } else {

@@ -256,7 +256,12 @@ public class SettingsActivity extends FluxActivity {
         LinearLayout grid = null;
         int current = Theme.themeIndex();
         for (int i = 0; i < Theme.THEMES.length; i++) {
-            if (i % 6 == 0) grid = buttonRow();
+            if (i % 4 == 0) {
+                grid = Ui.horizontal(this);
+                grid.setBaselineAligned(false);
+                grid.setGravity(Gravity.TOP);
+                content.addView(grid, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+            }
             int idx = i;
             grid.addView(themeTile(i, i == current, v -> {
                 Theme.setTheme(idx);
