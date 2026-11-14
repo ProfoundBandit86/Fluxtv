@@ -252,6 +252,7 @@ public class MainActivity extends Activity {
         drawerOpen = true;
         lastContentFocus = getCurrentFocus();
         drawer.setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
+        contentRoot.setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);   // focus stays in the menu
         drawer.animate().translationX(0).setDuration(220).setInterpolator(new DecelerateInterpolator()).start();
         dim.setVisibility(View.VISIBLE);
         dim.animate().alpha(1f).setDuration(220).start();
@@ -265,6 +266,7 @@ public class MainActivity extends Activity {
         drawer.animate().translationX(-Ui.dp(this, 250)).setDuration(200).setInterpolator(new DecelerateInterpolator()).start();
         dim.animate().alpha(0f).setDuration(200).withEndAction(() -> dim.setVisibility(View.GONE)).start();
         drawer.setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);
+        contentRoot.setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
         if (restoreFocus) focusContent();
     }
 
@@ -292,6 +294,14 @@ public class MainActivity extends Activity {
             }
             if (drawerOpen && k == KeyEvent.KEYCODE_DPAD_RIGHT) {
                 closeDrawer(true);
+                return true;
+            }
+            if (drawerOpen && (k == KeyEvent.KEYCODE_DPAD_UP || k == KeyEvent.KEYCODE_DPAD_DOWN)) {
+                List<View> items = new ArrayList<>();
+                for (int i = 0; i < drawer.getChildCount(); i++) if (drawer.getChildAt(i).isFocusable()) items.add(drawer.getChildAt(i));
+                int at = items.indexOf(getCurrentFocus());
+                int next = Math.max(0, Math.min(items.size() - 1, at + (k == KeyEvent.KEYCODE_DPAD_UP ? -1 : 1)));
+                if (!items.isEmpty()) items.get(at < 0 ? 0 : next).requestFocus();
                 return true;
             }
             if (!drawerOpen && k == KeyEvent.KEYCODE_DPAD_LEFT) {

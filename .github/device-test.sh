@@ -36,7 +36,8 @@ nudge; top home; texts home 50; shot 01-home
 for i in 1 2 3; do key DPAD_DOWN 1; done; sleep 2; texts home-scrolled 40; shot 02-home-scrolled
 # Sidebar: ← from the first card opens it
 key DPAD_LEFT 1; key DPAD_LEFT 1; key DPAD_LEFT 2; texts drawer 20; shot 03-drawer
-key DPAD_DOWN 1; key DPAD_DOWN 1; key DPAD_CENTER 20; texts movies 20; shot 04-movies
+key DPAD_DOWN 1; texts drawer-down 30; key DPAD_CENTER 20; top movies; texts movies 30; shot 04-movies
+key DPAD_DOWN 2; key DPAD_DOWN 2; shot 04b-movies-scrolled
 crashes home
 
 # Service page
@@ -50,7 +51,7 @@ sleep 12; nudge; texts detail 30; shot 06-detail
 adb shell am start -W -n $P/.CreditsActivity --es id tt0111161 --es type movie --es name "The Shawshank Redemption"
 sleep 8; nudge; texts credits 20; shot 07-credits
 key DPAD_CENTER 8; top person; texts person 40; shot 08-person
-key DPAD_CENTER 10; top person-click; texts person-click 10; shot 09-person-to-title
+nudge; key DPAD_CENTER 10; top person-click; texts person-click 10; shot 09-person-to-title
 crashes credits
 
 # Gemini search (typed), then voice
