@@ -207,6 +207,7 @@ public final class Addons {
     // ------------------------------------------------------------ meta + streams
 
     public static JSONObject meta(String type, String id) throws Exception {
+        if (id.startsWith("tmdb:")) return Tmdb.resolve(id);
         if (Sources.isServerId(id)) return Sources.meta(id);
         Exception last = null;
         for (Addon a : all()) {

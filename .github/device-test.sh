@@ -19,44 +19,47 @@ curl -s -m 30 -X POST --data-urlencode "key=DUMMYTOKEN123" http://127.0.0.1:8090
 adb shell am force-stop $P
 adb logcat -c
 
-# ---------------- IPTV with a fake Xtream server + M3U/EPG
-nohup python3 .github/fake_xtream.py > /tmp/fake_xtream.log 2>&1 < /dev/null &
+# ---------------- fake TMDB + Gemini
+nohup python3 .github/fake_xtream.py > /tmp/fake.log 2>&1 < /dev/null &
 FAKE_PID=$!
 sleep 2
-curl -s "http://127.0.0.1:8000/player_api.php?username=test&password=test" | head -c 200; echo
-adb shell am start -W -n $P/.IptvActivity; sleep 4
+adb shell am start -W -n $P/.AddonsActivity; sleep 4
 adb forward tcp:8090 tcp:8090
-curl -s -m 60 -X POST --data-urlencode "url=http://10.0.2.2:8000" --data-urlencode "user=test" --data-urlencode "pass=wrong" http://127.0.0.1:8090/iptv-xtream | grep -o "<p class='m'>[^<]*"
-curl -s -m 60 -X POST --data-urlencode "url=http://10.0.2.2:8000/player_api.php?username=x" --data-urlencode "user=test" --data-urlencode "pass=test" http://127.0.0.1:8090/iptv-xtream | grep -o "<p class='m'>[^<]*"
-curl -s -m 60 -X POST --data-urlencode "m3u=http://10.0.2.2:8000/list.m3u" --data-urlencode "epg=http://10.0.2.2:8000/epg.xml" http://127.0.0.1:8090/iptv-m3u | grep -o "<p class='m'>[^<]*"
-sleep 2; texts iptv-settings 30; shot 10-iptv-settings
+curl -s -m 30 -X POST --data-urlencode "tmdb=http://10.0.2.2:8000/3" --data-urlencode "gemini=http://10.0.2.2:8000/gemini/" http://127.0.0.1:8090/test-config | grep -o "<p class='m'>[^<]*"
+curl -s -m 30 -X POST --data-urlencode "tmdb=fakeTmdbKey" --data-urlencode "gemini=fakeGeminiKey" http://127.0.0.1:8090/keys | grep -o "<p class='m'>[^<]*"
 adb shell am force-stop $P
 
-adb shell am start -W -n $P/.LiveActivity
-sleep 12; nudge; top live; texts live 40; shot 11-live
-crashes live
-key DPAD_RIGHT 2; focus live-focus 2>/dev/null; key DPAD_CENTER 3; key BACK 2
-adb logcat -c
-adb shell am start -W -n $P/.PlayerActivity --ez live true --es live_source ca0e9097 --es live_category 1 --ei live_index 0 --es url "http://10.0.2.2:8000/live/test/test/1001.ts" --es pi_name "Flux News"
-sleep 20
-top live-player; texts live-player 10; shot 12-live-player
-key DPAD_DOWN 4; texts channel-down 10; shot 13-channel-down
-crashes live-player
-adb logcat -d | grep -E "ExoPlayerImplInternal|fluxtv" | tail -15
-key BACK 2; key BACK 2
-
-# Movies section shows the provider's categories
+# Home: Continue watching, apps, services, rows
 adb shell am start -W -n $P/.MainActivity
 sleep 35
-nudge; key DPAD_DOWN 1; key DPAD_DOWN 1; key DPAD_CENTER 30
-key DPAD_RIGHT 2; key DPAD_DOWN 2; key DPAD_DOWN 2; sleep 2
-texts movies-with-iptv 80; shot 14-movies-iptv
-crashes movies-iptv
+nudge; top home; texts home 50; shot 01-home
+for i in 1 2 3; do key DPAD_DOWN 1; done; sleep 2; texts home-scrolled 40; shot 02-home-scrolled
+# Sidebar: ← from the first card opens it
+key DPAD_LEFT 1; key DPAD_LEFT 1; key DPAD_LEFT 2; texts drawer 20; shot 03-drawer
+key DPAD_DOWN 1; key DPAD_DOWN 1; key DPAD_CENTER 20; texts movies 20; shot 04-movies
+crashes home
 
-# Search blends provider movies & series
+# Service page
+adb shell am start -W -n $P/.ServiceActivity --es service netflix
+sleep 12; nudge; texts service 30; shot 05-service
+crashes service
+
+# Title page -> Cast & Crew -> person -> filmography
+adb shell am start -W -n $P/.DetailActivity --es type movie --es id tt0111161 --es name Test
+sleep 12; nudge; texts detail 30; shot 06-detail
+adb shell am start -W -n $P/.CreditsActivity --es id tt0111161 --es type movie --es name "The Shawshank Redemption"
+sleep 8; nudge; texts credits 20; shot 07-credits
+key DPAD_CENTER 8; top person; texts person 40; shot 08-person
+key DPAD_CENTER 10; top person-click; texts person-click 10; shot 09-person-to-title
+crashes credits
+
+# Gemini search (typed), then voice
 adb shell am start -W -n $P/.SearchActivity
-sleep 3; adb shell input text "Test"; key ENTER 25
-texts search-iptv 40; shot 15-search-iptv
+sleep 3; adb shell input text "mind%sbending%smovies"; key ENTER 20
+texts gemini 40; shot 10-gemini
+adb shell am force-stop $P
+adb shell am start -W -n $P/.SearchActivity --ez voice true
+sleep 6; top voice; texts voice 15; shot 11-voice
 crashes search
 
 adb logcat -d > out/logcat.txt

@@ -85,7 +85,7 @@ public class StreamsActivity extends Activity {
         root.addView(left, new FrameLayout.LayoutParams(Ui.dp(this, 340), ViewGroup.LayoutParams.WRAP_CONTENT));
 
         // Panel on the right.
-        ScrollView scroll = new ScrollView(this);
+        ScrollView scroll = new FocusScroll.Vertical(this);
         scroll.setBackgroundColor(Ui.PANEL);
         scroll.setVerticalScrollBarEnabled(false);
         LinearLayout panel = Ui.vertical(this);

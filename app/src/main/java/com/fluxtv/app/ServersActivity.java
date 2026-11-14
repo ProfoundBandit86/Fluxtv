@@ -23,7 +23,7 @@ public class ServersActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        ScrollView scroll = new ScrollView(this);
+        ScrollView scroll = new FocusScroll.Vertical(this);
         scroll.setBackgroundColor(Ui.BG);
         content = Ui.vertical(this);
         int pad = Ui.dp(this, 48);

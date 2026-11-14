@@ -39,7 +39,7 @@ public class LiveActivity extends Activity {
         LinearLayout root = Ui.horizontal(this);
         root.setBackgroundColor(Ui.BG);
 
-        ScrollView left = new ScrollView(this);
+        ScrollView left = new FocusScroll.Vertical(this);
         left.setBackgroundColor(Ui.PANEL);
         left.setVerticalScrollBarEnabled(false);
         groups = Ui.vertical(this);
@@ -54,7 +54,7 @@ public class LiveActivity extends Activity {
         status = Ui.text(this, "", 13, Ui.MUTED);
         status.setPadding(0, Ui.dp(this, 6), 0, Ui.dp(this, 10));
         right.addView(status);
-        ScrollView sc = new ScrollView(this);
+        ScrollView sc = new FocusScroll.Vertical(this);
         sc.setVerticalScrollBarEnabled(false);
         channels = Ui.vertical(this);
         channels.setPadding(0, 0, 0, Ui.dp(this, 40));

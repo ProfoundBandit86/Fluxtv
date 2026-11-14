@@ -149,6 +149,20 @@ public final class ConfigServer {
                             Iptv.remove(form.get("id") == null ? "" : form.get("id"));
                             message = "IPTV provider removed";
                             break;
+                        case "/test-config":
+                            if (!BuildConfig.TEST_BUILD) break;
+                            Store.put("test_tmdb", form.get("tmdb") == null ? "" : form.get("tmdb"));
+                            Store.put("test_gemini", form.get("gemini") == null ? "" : form.get("gemini"));
+                            Store.put("gemini_model_t", "0");
+                            message = "Test endpoints set";
+                            break;
+                        case "/keys":
+                            String gk = form.get("gemini"), tk = form.get("tmdb");
+                            if (gk != null && !gk.trim().isEmpty()) Store.put("gemini_key", gk.trim());
+                            if (tk != null && !tk.trim().isEmpty()) Store.put("tmdb_key", tk.trim());
+                            Store.bumpSources();
+                            message = "Keys saved";
+                            break;
                         case "/server-remove":
                             String[] k = (form.get("key") == null ? "" : form.get("key")).split(":", 2);
                             if (k.length == 2) Store.removeServer(k[0], k[1]);
@@ -206,6 +220,12 @@ public final class ConfigServer {
           .append("<form method='post' action='/plex-manual'><input name='url' placeholder='http://192.168.1.10:32400' autocomplete='off'>")
           .append("<input name='token' placeholder='X-Plex-Token' autocomplete='off' style='margin-top:8px'>")
           .append("<button>Add Plex server</button></form>");
+        sb.append("<h2>Search &amp; discovery keys</h2><p class='u'>Gemini: ")
+          .append(Store.get("gemini_key").isEmpty() ? "not set" : "saved").append(" · TMDB: ")
+          .append(Store.get("tmdb_key").isEmpty() ? "not set" : "saved").append("</p>")
+          .append("<form method='post' action='/keys'><input name='gemini' placeholder='Gemini API key (aistudio.google.com)' autocomplete='off'>")
+          .append("<input name='tmdb' placeholder='TMDB API key or read token' autocomplete='off' style='margin-top:8px'>")
+          .append("<button>Save keys</button></form>");
         sb.append("<h2>Live TV &amp; IPTV</h2>");
         for (Iptv.Source is : Iptv.sources()) {
             sb.append("<div class='a'><b>").append(esc(is.name)).append("</b><div class='u'>")

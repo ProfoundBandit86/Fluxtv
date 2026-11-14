@@ -51,6 +51,7 @@ public class DetailActivity extends Activity {
                 .putExtra("id", m.optString("id"))
                 .putExtra("serverId", m.optString("serverId"))
                 .putExtra("badge", m.optString("badge"))
+                .putExtra("service", m.optString("service"))
                 .putExtra("name", m.optString("name"))
                 .putExtra("poster", m.optString("poster"))
                 .putExtra("background", m.optString("background")));
@@ -85,7 +86,7 @@ public class DetailActivity extends Activity {
         String bg = getIntent().getStringExtra("background");
         ImageLoader.load(backdrop, bg == null || bg.isEmpty() ? getIntent().getStringExtra("poster") : bg, Ui.dp(this, 1100));
 
-        ScrollView scroll = new ScrollView(this);
+        ScrollView scroll = new FocusScroll.Vertical(this);
         scroll.setVerticalScrollBarEnabled(false);
         scroll.setClipChildren(false);
         LinearLayout content = Ui.vertical(this);
@@ -127,6 +128,7 @@ public class DetailActivity extends Activity {
 
         description = Ui.text(this, "Loading…", 15, Ui.alpha(Ui.TEXT, 0.86f));
         description.setMaxLines(4);
+        description.setMaxWidth(Ui.dp(this, 640));
         description.setEllipsize(TextUtils.TruncateAt.END);
         description.setLineSpacing(0, 1.3f);
         hero.addView(description);
@@ -136,9 +138,11 @@ public class DetailActivity extends Activity {
         hero.addView(credits);
 
         buttons = Ui.horizontal(this);
-        buttons.setPadding(0, Ui.dp(this, 22), 0, 0);
-        hero.addView(buttons);
-        content.addView(hero, new LinearLayout.LayoutParams(Ui.dp(this, 640), ViewGroup.LayoutParams.WRAP_CONTENT));
+        buttons.setPadding(0, Ui.dp(this, 22), Ui.dp(this, 40), Ui.dp(this, 6));
+        android.widget.HorizontalScrollView buttonScroll = new FocusScroll.Horizontal(this);
+        buttonScroll.addView(buttons);
+        hero.addView(buttonScroll);
+        content.addView(hero, new LinearLayout.LayoutParams(Ui.dp(this, 860), ViewGroup.LayoutParams.WRAP_CONTENT));
 
         // ---- episodes
         LinearLayout epGroup = Ui.vertical(this);
@@ -310,6 +314,27 @@ public class DetailActivity extends Activity {
             if (b != null) b.requestFocus();
         }));
 
+        String metaId = meta.optString("id", id);
+        if (Tmdb.canCredit(metaId)) {
+            String t = isSeries() ? "series" : "movie";
+            buttons.addView(Ui.button(this, R.drawable.ic_people, "Cast & Crew",
+                    v -> CreditsActivity.open(this, metaId, t, meta.optString("name"))));
+        }
+        String serviceKey = getIntent().getStringExtra("service");
+        if (serviceKey != null && !serviceKey.isEmpty()) {
+            App.async(() -> Tmdb.service(serviceKey), s -> {
+                if (s == null || buttons.findViewWithTag("svc") != null) return;
+                for (String pkg : s.packages) {
+                    if (Apps.isInstalled(this, pkg)) {
+                        View b = Ui.button(this, R.drawable.ic_apps, "Open " + s.name, v -> Apps.launch(this, pkg));
+                        b.setTag("svc");
+                        buttons.addView(b);
+                        break;
+                    }
+                }
+            }, null);
+        }
+
         String trailer = trailerId();
         if (trailer != null) {
             buttons.addView(Ui.button(this, R.drawable.ic_trailer, "Trailer", v -> {
@@ -454,7 +479,6 @@ public class DetailActivity extends Activity {
                 selectedSeason = s;
                 renderSeasons();
             });
-            pill.setOnFocusChangeListener((x, has) -> { if (has) x.post(() -> Ui.reveal(x)); });
             seasonsBar.addView(pill);
             if (s == selectedSeason) selectedPill = pill;
         }

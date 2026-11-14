@@ -29,7 +29,7 @@ public class AppsActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        ScrollView scroll = new ScrollView(this);
+        ScrollView scroll = new FocusScroll.Vertical(this);
         scroll.setBackgroundColor(Ui.BG);
         scroll.setClipChildren(false);
         LinearLayout content = Ui.vertical(this);

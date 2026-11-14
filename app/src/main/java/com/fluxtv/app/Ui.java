@@ -306,7 +306,6 @@ public final class Ui {
         f.setOnFocusChangeListener((v, has) -> {
             grow(1.06f).onFocusChange(v, has);
             t.setTextColor(has ? TEXT : DIM);
-            if (has) col.post(() -> reveal(col));
             if (has && onFocus != null) onFocus.run();
         });
         return col;
@@ -346,7 +345,6 @@ public final class Ui {
         }
         f.setOnFocusChangeListener((v, has) -> {
             grow(1.04f).onFocusChange(v, has);
-            if (has) col.post(() -> reveal(col));
             if (has && onFocus != null) onFocus.run();
         });
         return col;
@@ -375,10 +373,7 @@ public final class Ui {
             }
             parent.addView(h);
         }
-        HorizontalScrollView hs = new HorizontalScrollView(c);
-        hs.setHorizontalScrollBarEnabled(false);
-        hs.setClipToPadding(false);
-        hs.setClipChildren(false);
+        HorizontalScrollView hs = new FocusScroll.Horizontal(c);
         hs.setPadding(dp(c, 4), 0, dp(c, 48), 0);
         LinearLayout items = new LinearLayout(c);
         items.setOrientation(LinearLayout.HORIZONTAL);
@@ -403,7 +398,7 @@ public final class Ui {
 
     /** Standard scrolling page for the simpler screens (settings, add-ons, servers…). */
     public static LinearLayout page(android.app.Activity a, String title) {
-        android.widget.ScrollView scroll = new android.widget.ScrollView(a);
+        android.widget.ScrollView scroll = new FocusScroll.Vertical(a);
         scroll.setBackgroundColor(BG);
         LinearLayout content = vertical(a);
         content.setPadding(dp(a, 56), dp(a, 36), dp(a, 56), dp(a, 48));

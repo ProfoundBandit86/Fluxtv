@@ -73,6 +73,26 @@ public class SettingsActivity extends Activity {
         src.addView(Ui.button(this, R.drawable.ic_live, "Live TV & IPTV", v -> startActivity(new Intent(this, IptvActivity.class))));
         content.addView(src);
 
+        content.addView(section("Search & discovery"));
+        content.addView(label("Gemini API key (smart voice search) · from aistudio.google.com"));
+        content.addView(keyField("gemini_key", "Gemini API key"));
+        content.addView(label("TMDB API key or read token (services, cast & crew) · from themoviedb.org/settings/api"));
+        content.addView(keyField("tmdb_key", "TMDB API key"));
+        content.addView(label("Region for streaming services"));
+        LinearLayout regions = Ui.horizontal(this);
+        String current = Tmdb.region();
+        for (String r : new String[]{"US", "CA", "GB", "AU", "IE", "DE", "FR", "NL"}) {
+            regions.addView(Ui.pill(this, r, r.equals(current), v -> {
+                Store.put("region", r);
+                Store.bumpSources();
+                render();
+            }));
+        }
+        content.addView(regions);
+        LinearLayout homeRow = Ui.horizontal(this);
+        homeRow.addView(Ui.button(this, R.drawable.ic_home, "Customize Home rows", v -> startActivity(new Intent(this, HomeRowsActivity.class))));
+        content.addView(homeRow);
+
         content.addView(section("System"));
         LinearLayout sys = Ui.horizontal(this);
         sys.addView(Ui.button(this, R.drawable.ic_update, "Check for updates · " + Updater.currentName(this),
@@ -89,6 +109,34 @@ public class SettingsActivity extends Activity {
 
         View f = firstFocus;
         if (f != null) f.post(f::requestFocus);
+    }
+
+    /** A key field that shows only the last characters of a saved key. */
+    private View keyField(String storeKey, String hint) {
+        LinearLayout row = Ui.horizontal(this);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        android.widget.EditText e = new android.widget.EditText(this);
+        e.setSingleLine(true);
+        String saved = Store.get(storeKey);
+        e.setHint(saved.isEmpty() ? hint + " (not set)" : "Saved ••••" + saved.substring(Math.max(0, saved.length() - 4)));
+        e.setTextColor(Ui.TEXT);
+        e.setHintTextColor(saved.isEmpty() ? Ui.DIM : Ui.GOOD);
+        e.setTextSize(15);
+        row.addView(e, new LinearLayout.LayoutParams(Ui.dp(this, 460), ViewGroup.LayoutParams.WRAP_CONTENT));
+        row.addView(Ui.button(this, "Save", v -> {
+            String k = e.getText().toString().trim();
+            if (k.isEmpty()) return;
+            Store.put(storeKey, k);
+            Store.bumpSources();
+            Toast.makeText(this, "Saved", Toast.LENGTH_SHORT).show();
+            render();
+        }));
+        if (!saved.isEmpty()) row.addView(Ui.button(this, "Remove", v -> {
+            Store.put(storeKey, "");
+            Store.bumpSources();
+            render();
+        }));
+        return row;
     }
 
     private TextView section(String s) {

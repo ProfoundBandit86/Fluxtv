@@ -3,18 +3,23 @@ package com.fluxtv.app;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
+import android.content.pm.ResolveInfo;
 import android.content.res.ColorStateList;
 import android.graphics.Color;
 import android.graphics.PorterDuff;
-import android.graphics.Typeface;
+import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.StateListDrawable;
+import android.os.Build;
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.text.format.DateFormat;
+import android.view.FocusFinder;
 import android.view.Gravity;
+import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.animation.DecelerateInterpolator;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
@@ -26,26 +31,42 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
-/** Home screen and TV launcher: icon rail, a featured area that follows focus, and blended rows. */
+/**
+ * Home screen and TV launcher. A sidebar that hides off-screen (press ← at the left edge),
+ * a featured area that follows focus, and sections: Home, Movies, TV Shows, Favorites.
+ * Home: Continue watching (everything), your apps, streaming services, then your rows.
+ */
 public class MainActivity extends Activity {
 
-    private LinearLayout rail, rows;
+    private FrameLayout contentRoot;
+    private LinearLayout drawer, rows;
+    private View dim;
     private ScrollView scroll;
-    private TextView clock, status, avatar;
+    private TextView clock, status, avatarText;
     private ImageView heroImage;
     private TextView heroEyebrow, heroTitle, heroMeta, heroText;
-    private View homeItem;
-    private final java.util.Map<String, View> railItems = new java.util.HashMap<>();
-    /** home, movie, series, favorites */
+    private boolean drawerOpen;
+    private View lastContentFocus;
+    private final Map<String, View> drawerItems = new HashMap<>();
+
     private String section = "home";
     private Blend.Home home;
-    private final java.util.Map<String, List<Addons.Row>> genreRows = new java.util.HashMap<>();
-    private int loadedVersion = -1, themeVersion = -1;
+    private List<JSONObject> external = new ArrayList<>();
+    private List<Tmdb.Service> services = new ArrayList<>();
+    private final Map<String, List<Addons.Row>> extraRows = new HashMap<>();
+    private int loadedVersion = -1, themeVersion = -1, renderedChanges = -1, sectionGen = 0;
     private String loadedProfile = "";
-    private JSONObject heroItem;
+    private JSONObject heroItem, firstItem;
+    private String firstEyebrow = "";
+
+    private LinearLayout appRow;
+    private String movingApp;   // package being moved in the app row, or null
 
     private final Runnable clockTick = new Runnable() {
         @Override public void run() {
@@ -59,153 +80,245 @@ public class MainActivity extends Activity {
         super.onCreate(savedInstanceState);
         themeVersion = Theme.version();
 
-        LinearLayout root = Ui.horizontal(this);
+        FrameLayout root = new FrameLayout(this);
         root.setBackgroundColor(Ui.BG);
-        buildRail();
-        root.addView(rail, new LinearLayout.LayoutParams(Ui.dp(this, 76), ViewGroup.LayoutParams.MATCH_PARENT));
+        contentRoot = new FrameLayout(this);
+        root.addView(contentRoot, new FrameLayout.LayoutParams(-1, -1));
+        buildContent();
 
-        FrameLayout main = new FrameLayout(this);
-        root.addView(main, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f));
+        dim = new View(this);
+        dim.setBackgroundColor(Ui.alpha(Color.BLACK, 0.55f));
+        dim.setAlpha(0f);
+        dim.setVisibility(View.GONE);
+        root.addView(dim, new FrameLayout.LayoutParams(-1, -1));
+        buildDrawer();
+        root.addView(drawer, new FrameLayout.LayoutParams(Ui.dp(this, 250), ViewGroup.LayoutParams.MATCH_PARENT));
+        setContentView(root);
+    }
 
-        // Featured backdrop, top-right, fading into the background.
+    // ------------------------------------------------------------ layout
+
+    private void buildContent() {
         heroImage = new ImageView(this);
         heroImage.setScaleType(ImageView.ScaleType.CENTER_CROP);
-        FrameLayout.LayoutParams hp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 330), Gravity.TOP | Gravity.END);
-        hp.setMargins(Ui.dp(this, 220), 0, 0, 0);
-        main.addView(heroImage, hp);
+        FrameLayout.LayoutParams hp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 340), Gravity.TOP | Gravity.END);
+        hp.setMargins(Ui.dp(this, 260), 0, 0, 0);
+        contentRoot.addView(heroImage, hp);
         View scrimLeft = new View(this);
         scrimLeft.setBackground(Ui.scrim(GradientDrawable.Orientation.LEFT_RIGHT, Ui.BG, 1f));
-        FrameLayout.LayoutParams sl = new FrameLayout.LayoutParams(Ui.dp(this, 520), Ui.dp(this, 330), Gravity.TOP | Gravity.START);
-        sl.setMargins(Ui.dp(this, 220), 0, 0, 0);
-        main.addView(scrimLeft, sl);
+        FrameLayout.LayoutParams sl = new FrameLayout.LayoutParams(Ui.dp(this, 520), Ui.dp(this, 340));
+        sl.setMargins(Ui.dp(this, 260), 0, 0, 0);
+        contentRoot.addView(scrimLeft, sl);
         View fillLeft = new View(this);
         fillLeft.setBackgroundColor(Ui.BG);
-        main.addView(fillLeft, new FrameLayout.LayoutParams(Ui.dp(this, 221), Ui.dp(this, 330)));
+        contentRoot.addView(fillLeft, new FrameLayout.LayoutParams(Ui.dp(this, 261), Ui.dp(this, 340)));
         View scrimBottom = new View(this);
         scrimBottom.setBackground(Ui.scrim(GradientDrawable.Orientation.BOTTOM_TOP, Ui.BG, 1f));
-        FrameLayout.LayoutParams sb = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 150), Gravity.TOP);
-        sb.setMargins(0, Ui.dp(this, 182), 0, 0);
-        main.addView(scrimBottom, sb);
-
+        FrameLayout.LayoutParams sb = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 160), Gravity.TOP);
+        sb.setMargins(0, Ui.dp(this, 181), 0, 0);
+        contentRoot.addView(scrimBottom, sb);
         View scrimTop = new View(this);
         scrimTop.setBackground(Ui.scrim(GradientDrawable.Orientation.TOP_BOTTOM, Ui.BG, 0.85f));
-        main.addView(scrimTop, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 90), Gravity.TOP));
+        contentRoot.addView(scrimTop, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 90), Gravity.TOP));
 
-        // Top bar: greeting, sources, clock.
         LinearLayout top = Ui.horizontal(this);
         top.setGravity(Gravity.CENTER_VERTICAL);
-        top.setPadding(Ui.dp(this, 40), Ui.dp(this, 22), Ui.dp(this, 36), 0);
+        top.setPadding(Ui.dp(this, 56), Ui.dp(this, 22), Ui.dp(this, 40), 0);
         status = Ui.text(this, "", 12, Ui.MUTED);
         top.addView(status, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
         clock = Ui.heading(this, "", 15);
         top.addView(clock);
-        main.addView(top, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        contentRoot.addView(top, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
-        // Featured text block.
         LinearLayout hero = Ui.vertical(this);
-        hero.setPadding(Ui.dp(this, 40), Ui.dp(this, 70), 0, 0);
+        hero.setPadding(Ui.dp(this, 56), Ui.dp(this, 64), 0, 0);
         heroEyebrow = Ui.eyebrow(this, "");
-        heroTitle = Ui.single(Ui.heading(this, "Flux", 38));
+        heroTitle = Ui.single(Ui.heading(this, "Flux", 36));
         heroTitle.setPadding(0, Ui.dp(this, 8), 0, Ui.dp(this, 8));
         heroMeta = Ui.single(Ui.text(this, "", 13, Ui.MUTED));
         heroText = Ui.text(this, "", 14, Ui.alpha(Ui.TEXT, 0.82f));
-        heroText.setMaxLines(3);
+        heroText.setMaxLines(2);
         heroText.setEllipsize(TextUtils.TruncateAt.END);
         heroText.setPadding(0, Ui.dp(this, 10), 0, 0);
         hero.addView(heroEyebrow);
         hero.addView(heroTitle);
         hero.addView(heroMeta);
         hero.addView(heroText);
-        main.addView(hero, new FrameLayout.LayoutParams(Ui.dp(this, 520), ViewGroup.LayoutParams.WRAP_CONTENT));
+        contentRoot.addView(hero, new FrameLayout.LayoutParams(Ui.dp(this, 600), ViewGroup.LayoutParams.WRAP_CONTENT));
 
-        // Rows, below the featured area.
-        scroll = new ScrollView(this);
-        scroll.setClipChildren(false);
-        scroll.setVerticalScrollBarEnabled(false);
-        scroll.setFillViewport(true);
+        scroll = new FocusScroll.Vertical(this);
         rows = Ui.vertical(this);
         rows.setClipChildren(false);
-        rows.setPadding(Ui.dp(this, 40), 0, 0, Ui.dp(this, 160));
+        rows.setPadding(Ui.dp(this, 56), 0, 0, Ui.dp(this, 200));
         scroll.addView(rows);
-        FrameLayout.LayoutParams rp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
-        // Rows start below the featured area; on short screens the featured text shrinks so rows fit.
         float heightDp = getResources().getDisplayMetrics().heightPixels / getResources().getDisplayMetrics().density;
-        int rowsTop = heightDp >= 520 ? 250 : 190;
-        if (rowsTop < 250) heroText.setMaxLines(1);
+        int rowsTop = heightDp >= 520 ? 236 : 186;
+        if (rowsTop < 236) heroText.setMaxLines(1);
+        FrameLayout.LayoutParams rp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
         rp.setMargins(0, Ui.dp(this, rowsTop), 0, 0);
-        main.addView(scroll, rp);
-
-        setContentView(root);
+        contentRoot.addView(scroll, rp);
     }
 
-    // ------------------------------------------------------------ rail
+    // ------------------------------------------------------------ sidebar
 
-    private void buildRail() {
-        rail = Ui.vertical(this);
-        rail.setGravity(Gravity.CENTER_HORIZONTAL);
-        rail.setBackgroundColor(Ui.PANEL);
-        rail.setPadding(0, Ui.dp(this, 16), 0, Ui.dp(this, 14));
+    private void buildDrawer() {
+        drawer = Ui.vertical(this);
+        drawer.setPadding(Ui.dp(this, 16), Ui.dp(this, 26), Ui.dp(this, 16), Ui.dp(this, 20));
+        drawer.setBackground(new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
+                new int[]{Ui.PANEL, Ui.alpha(Ui.PANEL, 0.97f)}));
+        drawer.setElevation(Ui.dp(this, 12));
+        drawer.setTranslationX(-Ui.dp(this, 250));
+        drawer.setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);
 
-        homeItem = railItem(R.drawable.ic_home, "Home", "home", v -> showSection("home"));
-        railItem(R.drawable.ic_search, "Search", null, v -> startActivity(new Intent(this, SearchActivity.class)));
-        railItem(R.drawable.ic_movie, "Movies", "movie", v -> showSection("movie"));
-        railItem(R.drawable.ic_tv, "TV Shows", "series", v -> showSection("series"));
-        railItem(R.drawable.ic_live, "Live TV", null, v -> startActivity(new Intent(this, LiveActivity.class)));
-        railItem(R.drawable.ic_heart, "Favorites", "favorites", v -> showSection("favorites"));
-        railItem(R.drawable.ic_apps, "Apps", null, v -> startActivity(new Intent(this, AppsActivity.class)));
-        View spacer = new View(this);
-        rail.addView(spacer, new LinearLayout.LayoutParams(1, 0, 1f));
-        railItem(R.drawable.ic_settings, "Settings", null, v -> startActivity(new Intent(this, SettingsActivity.class)));
+        TextView logo = Ui.heading(this, "Flux", 22);
+        logo.setTextColor(Ui.ACCENT);
+        logo.setPadding(Ui.dp(this, 14), 0, 0, Ui.dp(this, 18));
+        drawer.addView(logo);
 
-        avatar = Ui.heading(this, "", 15);
-        avatar.setGravity(Gravity.CENTER);
-        avatar.setFocusable(true);
-        avatar.setClickable(true);
-        avatar.setContentDescription("Profile");
-        StateListDrawable s = new StateListDrawable();
-        s.addState(new int[]{android.R.attr.state_focused}, Ui.rounded(this, Ui.TEXT, Ui.ACCENT, 999));
-        s.addState(new int[]{}, Ui.rounded(this, Ui.BUTTON, 0, 999));
-        avatar.setBackground(s);
-        avatar.setTextColor(Ui.onFocusDark(Ui.TEXT));
-        avatar.setOnClickListener(v -> chooseProfile());
-        LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(Ui.dp(this, 38), Ui.dp(this, 38));
-        ap.setMargins(0, Ui.dp(this, 10), 0, 0);
-        rail.addView(avatar, ap);
+        drawerItem(R.drawable.ic_search, "Search", null, () -> startActivity(new Intent(this, SearchActivity.class).putExtra("voice", true)));
+        drawerItem(R.drawable.ic_home, "Home", "home", () -> showSection("home"));
+        drawerItem(R.drawable.ic_movie, "Movies", "movie", () -> showSection("movie"));
+        drawerItem(R.drawable.ic_tv, "TV Shows", "series", () -> showSection("series"));
+        drawerItem(R.drawable.ic_live, "Live TV", null, () -> startActivity(new Intent(this, LiveActivity.class)));
+        drawerItem(R.drawable.ic_heart, "Favorites", "favorites", () -> showSection("favorites"));
+        drawerItem(R.drawable.ic_apps, "Apps", null, () -> startActivity(new Intent(this, AppsActivity.class)));
+        drawer.addView(new View(this), new LinearLayout.LayoutParams(1, 0, 1f));
+        drawerItem(R.drawable.ic_settings, "Settings", null, () -> startActivity(new Intent(this, SettingsActivity.class)));
+
+        LinearLayout profile = drawerRow();
+        avatarText = Ui.heading(this, "", 13);
+        avatarText.setGravity(Gravity.CENTER);
+        avatarText.setBackground(Ui.rounded(this, Ui.ACCENT, 0, 999));
+        avatarText.setTextColor(Ui.BG);
+        profile.addView(avatarText, new LinearLayout.LayoutParams(Ui.dp(this, 26), Ui.dp(this, 26)));
+        TextView pl = label("Profile");
+        pl.setTag("profileLabel");
+        profile.addView(pl);
+        profile.setOnClickListener(v -> chooseProfile());
+        drawer.addView(profile);
     }
 
-    private View railItem(int icon, String label, String sectionKey, View.OnClickListener click) {
-        LinearLayout item = Ui.vertical(this);
-        item.setGravity(Gravity.CENTER);
+    private LinearLayout drawerRow() {
+        LinearLayout item = Ui.horizontal(this);
+        item.setGravity(Gravity.CENTER_VERTICAL);
         item.setFocusable(true);
         item.setClickable(true);
-        item.setOnClickListener(click);
-        item.setContentDescription(label);
+        item.setPadding(Ui.dp(this, 14), 0, Ui.dp(this, 14), 0);
         StateListDrawable s = new StateListDrawable();
         s.addState(new int[]{android.R.attr.state_focused}, Ui.rounded(this, Ui.TEXT, 0, 12));
         s.addState(new int[]{android.R.attr.state_selected}, Ui.rounded(this, Ui.BUTTON, 0, 12));
         s.addState(new int[]{}, Ui.rounded(this, Color.TRANSPARENT, 0, 12));
         item.setBackground(s);
-        ColorStateList tint = new ColorStateList(
-                new int[][]{{android.R.attr.state_focused}, {android.R.attr.state_selected}, {}},
-                new int[]{Ui.BG, Ui.ACCENT, Ui.DIM});
-        if (sectionKey != null) railItems.put(sectionKey, item);
-        ImageView ic = Ui.icon(this, icon, 20, Ui.TEXT);
-        ic.setColorFilter(null);
-        ic.setImageTintList(tint);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 44));
+        lp.setMargins(0, Ui.dp(this, 2), 0, Ui.dp(this, 2));
+        item.setLayoutParams(lp);
+        return item;
+    }
+
+    private ColorStateList tint() {
+        return new ColorStateList(new int[][]{{android.R.attr.state_focused}, {android.R.attr.state_selected}, {}},
+                new int[]{Ui.BG, Ui.TEXT, Ui.MUTED});
+    }
+
+    private TextView label(String s) {
+        TextView t = Ui.single(Ui.text(this, s, 15, Ui.MUTED));
+        t.setTextColor(tint());
+        t.setTypeface(android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL));
+        t.setPadding(Ui.dp(this, 14), 0, 0, 0);
+        t.setDuplicateParentStateEnabled(true);
+        return t;
+    }
+
+    private void drawerItem(int icon, String text, String sectionKey, Runnable action) {
+        LinearLayout item = drawerRow();
+        ImageView ic = new ImageView(this);
+        ic.setImageResource(icon);
+        ic.setImageTintList(new ColorStateList(new int[][]{{android.R.attr.state_focused}, {android.R.attr.state_selected}, {}},
+                new int[]{Ui.BG, Ui.ACCENT, Ui.MUTED}));
         ic.setImageTintMode(PorterDuff.Mode.SRC_IN);
         ic.setDuplicateParentStateEnabled(true);
-        item.addView(ic);
-        TextView t = Ui.text(this, label, 9, Ui.DIM);
-        t.setGravity(Gravity.CENTER);
-        t.setSingleLine(true);
-        t.setTextColor(tint);
-        t.setPadding(0, Ui.dp(this, 4), 0, 0);
-        t.setDuplicateParentStateEnabled(true);
-        item.addView(t, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(Ui.dp(this, 62), Ui.dp(this, 48));
-        lp.setMargins(0, Ui.dp(this, 2), 0, Ui.dp(this, 2));
-        rail.addView(item, lp);
-        return item;
+        item.addView(ic, new LinearLayout.LayoutParams(Ui.dp(this, 20), Ui.dp(this, 20)));
+        item.addView(label(text));
+        item.setOnClickListener(v -> {
+            closeDrawer(sectionKey != null);
+            action.run();
+        });
+        if (sectionKey != null) drawerItems.put(sectionKey, item);
+        drawer.addView(item);
+    }
+
+    private void openDrawer() {
+        if (drawerOpen) return;
+        drawerOpen = true;
+        lastContentFocus = getCurrentFocus();
+        drawer.setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
+        drawer.animate().translationX(0).setDuration(220).setInterpolator(new DecelerateInterpolator()).start();
+        dim.setVisibility(View.VISIBLE);
+        dim.animate().alpha(1f).setDuration(220).start();
+        View target = drawerItems.get(section);
+        (target != null ? target : drawer.getChildAt(1)).requestFocus();
+    }
+
+    private void closeDrawer(boolean restoreFocus) {
+        if (!drawerOpen) return;
+        drawerOpen = false;
+        drawer.animate().translationX(-Ui.dp(this, 250)).setDuration(200).setInterpolator(new DecelerateInterpolator()).start();
+        dim.animate().alpha(0f).setDuration(200).withEndAction(() -> dim.setVisibility(View.GONE)).start();
+        drawer.setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);
+        if (restoreFocus) focusContent();
+    }
+
+    private void focusContent() {
+        View f = lastContentFocus;
+        if (f != null && f.isAttachedToWindow() && f.isShown() && f.requestFocus()) return;
+        View first = FocusFinder.getInstance().findNextFocus(rows, null, View.FOCUS_DOWN);
+        if (first != null) first.requestFocus();
+    }
+
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent e) {
+        if (e.getAction() == KeyEvent.ACTION_DOWN) {
+            int k = e.getKeyCode();
+            if (movingApp != null) {
+                if (k == KeyEvent.KEYCODE_DPAD_LEFT || k == KeyEvent.KEYCODE_DPAD_RIGHT) {
+                    moveApp(k == KeyEvent.KEYCODE_DPAD_LEFT ? -1 : 1);
+                    return true;
+                }
+                if (k == KeyEvent.KEYCODE_DPAD_CENTER || k == KeyEvent.KEYCODE_ENTER || k == KeyEvent.KEYCODE_BACK
+                        || k == KeyEvent.KEYCODE_DPAD_UP || k == KeyEvent.KEYCODE_DPAD_DOWN) {
+                    stopMoving();
+                    return true;
+                }
+            }
+            if (drawerOpen && k == KeyEvent.KEYCODE_DPAD_RIGHT) {
+                closeDrawer(true);
+                return true;
+            }
+            if (!drawerOpen && k == KeyEvent.KEYCODE_DPAD_LEFT) {
+                View f = getCurrentFocus();
+                if (f == null || FocusFinder.getInstance().findNextFocus(contentRoot, f, View.FOCUS_LEFT) == null) {
+                    openDrawer();
+                    return true;
+                }
+            }
+        }
+        return super.dispatchKeyEvent(e);
+    }
+
+    @Override
+    public void onBackPressed() {
+        // We may be the TV's home screen, so never close.
+        if (drawerOpen) {
+            closeDrawer(true);
+        } else if (!section.equals("home")) {
+            showSection("home");
+        } else if (scroll.getScrollY() > 0) {
+            scroll.smoothScrollTo(0, 0);
+            lastContentFocus = null;
+            focusContent();
+        } else {
+            openDrawer();
+        }
     }
 
     // ------------------------------------------------------------ lifecycle
@@ -213,44 +326,96 @@ public class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
-        if (themeVersion != Theme.version()) {   // colours changed in Settings
+        if (themeVersion != Theme.version()) {
             recreate();
             return;
         }
         String name = Store.profile();
-        avatar.setText(name.isEmpty() ? "?" : name.substring(0, 1).toUpperCase());
+        avatarText.setText(name.isEmpty() ? "?" : name.substring(0, 1).toUpperCase());
+        View pl = drawer.findViewWithTag("profileLabel");
+        if (pl instanceof TextView) ((TextView) pl).setText(name);
         updateStatus();
         if (Store.addonsVersion() != loadedVersion || !name.equals(loadedProfile)) {
-            genreRows.clear();
+            extraRows.clear();
             load();
+        } else if (Store.changes() != renderedChanges) {
+            renderSection();
+        } else if (section.equals("home")) {
+            refreshExternal();
         }
-        else if (Store.changes() != renderedChanges) renderSection();   // favorites / progress changed
         App.MAIN.removeCallbacks(clockTick);
         clockTick.run();
-        Updater.check(this, false);   // automatic update check on every reload of the home screen
+        Updater.check(this, false);
         showLastCrash();
-        if (getCurrentFocus() == null) homeItem.post(homeItem::requestFocus);
+        askWatchNextPermission();
+        if (getCurrentFocus() == null && !drawerOpen) rows.post(this::focusContent);
     }
 
     @Override
     protected void onPause() {
         super.onPause();
         App.MAIN.removeCallbacks(clockTick);
+        stopMoving();
+    }
+
+    private boolean askedPermission;
+
+    private void askWatchNextPermission() {
+        if (askedPermission || Build.VERSION.SDK_INT < 26 || WatchNext.allowed(this)) return;
+        askedPermission = true;
+        try {
+            requestPermissions(new String[]{WatchNext.PERMISSION}, 7);
+        } catch (Exception ignored) { }
     }
 
     @Override
-    public void onBackPressed() {
-        // We may be the TV's home screen, so never close.
-        View f = getCurrentFocus();
-        boolean inRail = f != null && f.getParent() == rail;
-        if (!section.equals("home") && inRail) {
-            showSection("home");
-            homeItem.requestFocus();
-            return;
-        }
-        View current = railItems.get(section);
-        (current != null ? current : homeItem).requestFocus();
-        scroll.smoothScrollTo(0, 0);
+    public void onRequestPermissionsResult(int code, String[] perms, int[] results) {
+        if (code == 7) refreshExternal();
+    }
+
+    private void updateStatus() {
+        List<String> parts = new ArrayList<>();
+        for (MediaServer s : Store.servers()) parts.add("● " + s.name);
+        if (RealDebrid.isSignedIn()) parts.add("● Real-Debrid");
+        if (!Iptv.sources().isEmpty()) parts.add("● IPTV");
+        String hello = "Hi, " + Store.profile() + "   ·   ← for menu";
+        status.setText(parts.isEmpty() ? hello : hello + "      " + TextUtils.join("     ", parts));
+    }
+
+    // ------------------------------------------------------------ data
+
+    private void load() {
+        loadedVersion = Store.addonsVersion();
+        loadedProfile = Store.profile();
+        rows.removeAllViews();
+        TextView loading = Ui.text(this, "Loading…", 14, Ui.MUTED);
+        loading.setPadding(0, Ui.dp(this, 40), 0, 0);
+        rows.addView(loading);
+        android.content.Context app = getApplicationContext();
+        App.async(() -> {
+            Blend.Home h = Blend.home();
+            external = WatchNext.load(app);
+            services = Tmdb.services();
+            return h;
+        }, h -> {
+            home = h;
+            HomeLayout.available.clear();
+            HomeLayout.available.addAll(h.rows);
+            renderSection();
+            if (!drawerOpen) rows.post(this::focusContent);
+        }, e -> {
+            rows.removeAllViews();
+            rows.addView(Ui.text(this, "Couldn't load: " + App.message(e), 14, Ui.MUTED));
+        });
+    }
+
+    private void refreshExternal() {
+        android.content.Context app = getApplicationContext();
+        App.async(() -> WatchNext.load(app), list -> {
+            boolean changed = list.size() != external.size();
+            external = list;
+            if (changed && section.equals("home") && home != null) renderSection();
+        }, null);
     }
 
     private void showSection(String key) {
@@ -258,45 +423,18 @@ public class MainActivity extends Activity {
             section = key;
             scroll.scrollTo(0, 0);
             heroItem = null;
+            lastContentFocus = null;
             renderSection();
-        } else {
-            scroll.smoothScrollTo(0, 0);
         }
-        for (java.util.Map.Entry<String, View> e : railItems.entrySet()) e.getValue().setSelected(e.getKey().equals(section));
+        for (Map.Entry<String, View> e : drawerItems.entrySet()) e.getValue().setSelected(e.getKey().equals(section));
+        rows.post(this::focusContent);
     }
-
-    private void updateStatus() {
-        List<String> parts = new ArrayList<>();
-        for (MediaServer s : Store.servers()) parts.add("● " + s.name);
-        if (RealDebrid.isSignedIn()) parts.add("● Real-Debrid");
-        String hello = "Hi, " + Store.profile();
-        status.setText(parts.isEmpty() ? hello : hello + "      " + TextUtils.join("     ", parts));
-    }
-
-    // ------------------------------------------------------------ content
-
-    private void load() {
-        loadedVersion = Store.addonsVersion();
-        loadedProfile = Store.profile();
-        rows.removeAllViews();
-        TextView loading = Ui.text(this, "Loading your movies and shows…", 14, Ui.MUTED);
-        loading.setPadding(0, Ui.dp(this, 40), 0, 0);
-        rows.addView(loading);
-        App.async(Blend::home, h -> {
-            home = h;
-            renderSection();
-        }, e -> {
-            rows.removeAllViews();
-            rows.addView(Ui.text(this, "Couldn't load: " + App.message(e), 14, Ui.MUTED));
-        });
-    }
-
-    private int renderedChanges = -1;
 
     private void renderSection() {
         renderedChanges = Store.changes();
-        for (java.util.Map.Entry<String, View> e : railItems.entrySet()) e.getValue().setSelected(e.getKey().equals(section));
+        for (Map.Entry<String, View> e : drawerItems.entrySet()) e.getValue().setSelected(e.getKey().equals(section));
         if (home == null) return;
+        sectionGen++;
         rows.removeAllViews();
         firstItem = null;
         firstEyebrow = "";
@@ -309,9 +447,13 @@ public class MainActivity extends Activity {
         if (rows.getChildCount() == 0) {
             TextView t = Ui.text(this, section.equals("favorites")
                     ? "No favorites yet. Open any movie or show and press ♥ Favorite to keep it here."
-                    : "Nothing here yet. Add streaming add-ons or a Plex / Jellyfin / Emby server in Settings.", 15, Ui.MUTED);
+                    : "Nothing here yet. Add sources in Settings.", 15, Ui.MUTED);
             t.setPadding(0, Ui.dp(this, 40), Ui.dp(this, 40), 0);
             rows.addView(t);
+        }
+        if (firstItem != null) {
+            feature(firstItem, firstEyebrow);
+        } else {
             heroTitle.setText(section.equals("favorites") ? "Favorites" : section.equals("movie") ? "Movies"
                     : section.equals("series") ? "TV Shows" : "Flux");
             heroEyebrow.setText("");
@@ -319,29 +461,36 @@ public class MainActivity extends Activity {
             heroText.setText("");
             heroImage.setImageDrawable(null);
         }
-        if (firstItem != null) feature(firstItem, firstEyebrow);
     }
 
-    private JSONObject firstItem;
-    private int sectionGen = 0;
-    private String firstEyebrow = "";
+    // ------------------------------------------------------------ rows
+
+    private void note(JSONObject p, String eyebrow) {
+        if (firstItem == null) {
+            firstItem = p;
+            firstEyebrow = eyebrow;
+        }
+    }
 
     private void continueRow(String type) {
         List<JSONObject> list = new ArrayList<>();
         for (JSONObject p : home.continueWatching) if (type == null || type.equals(p.optString("type"))) list.add(p);
+        if (type == null) {
+            list.addAll(external);
+            Collections.sort(list, (a, b) -> Long.compare(b.optLong("t"), a.optLong("t")));
+        }
         if (list.isEmpty()) return;
         LinearLayout row = Ui.row(this, rows, "Continue watching");
         for (JSONObject p : list) {
+            boolean ext = "external".equals(p.optString("type"));
             String img = !p.optString("still").isEmpty() ? p.optString("still")
                     : !p.optString("background").isEmpty() ? p.optString("background") : p.optString("poster");
             row.addView(Ui.landscape(this, img, p.optString("name"), p.optString("sub"), p.optString("badge"),
-                    p.optDouble("progress", 0), 196, v -> DetailActivity.open(this, p), () -> feature(p, "Continue watching")));
-            if (firstItem == null) { firstItem = p; firstEyebrow = "Continue watching"; }
+                    p.optDouble("progress", 0), 196,
+                    v -> { if (ext) WatchNext.open(this, p); else DetailActivity.open(this, p); },
+                    () -> feature(p, ext ? "Continue in " + p.optString("badge") : "Continue watching")));
+            note(p, "Continue watching");
         }
-    }
-
-    private void posterRow(String title, String note, List<JSONObject> items) {
-        posterRow(rows, title, note, items);
     }
 
     private void posterRow(ViewGroup target, String title, String note, List<JSONObject> items) {
@@ -349,7 +498,7 @@ public class MainActivity extends Activity {
         LinearLayout row = Ui.row(this, target, title, note);
         for (JSONObject p : items) {
             row.addView(Ui.poster(this, p, v -> DetailActivity.open(this, p), () -> feature(p, title)));
-            if (firstItem == null) { firstItem = p; firstEyebrow = title; }
+            note(p, title);
         }
     }
 
@@ -361,71 +510,261 @@ public class MainActivity extends Activity {
 
     private void renderHome() {
         continueRow(null);
-        posterRow("Favorites", null, favorites(null));
-        for (Addons.Row r : home.rows) posterRow(r.title, r.note, r.items);
+        renderAppRow();
+        renderServices();
+        posterRow(rows, "Favorites", null, favorites(null));
+        for (Addons.Row r : HomeLayout.visible(home.rows)) posterRow(rows, r.title, r.note, r.items);
+        LinearLayout tail = Ui.horizontal(this);
+        tail.setPadding(0, Ui.dp(this, 22), 0, 0);
+        tail.addView(Ui.button(this, R.drawable.ic_settings, "Customize Home", v -> startActivity(new Intent(this, HomeRowsActivity.class))));
+        rows.addView(tail);
     }
 
-    /** Movies or TV Shows: only that type, plus genre rows. */
     private void renderType(String type) {
         continueRow(type);
-        posterRow("Favorites", null, favorites(type));
+        posterRow(rows, "Favorites", null, favorites(type));
         for (Addons.Row r : home.rows) {
             if (!type.equals(r.type) || "IPTV".equals(r.note)) continue;
-            String t = r.title.replace(" · Movies", "").replace(" · Shows", "");
-            posterRow(t, r.note, r.items);
+            posterRow(rows, r.title.replace(" · Movies", "").replace(" · Shows", ""), r.note, r.items);
         }
-        // Fixed slots so rows that load later keep their place: IPTV categories, then genres.
         LinearLayout iptvSlot = Ui.vertical(this), genreSlot = Ui.vertical(this);
         iptvSlot.setClipChildren(false);
         genreSlot.setClipChildren(false);
         rows.addView(iptvSlot);
         rows.addView(genreSlot);
-        int gen = ++sectionGen;
-        List<Addons.Row> iptv = genreRows.get("iptv:" + type);
+        int gen = sectionGen;
+        List<Addons.Row> iptv = extraRows.get("iptv:" + type);
         if (iptv != null) {
             for (Addons.Row r : iptv) posterRow(iptvSlot, r.title, "IPTV", r.items);
         } else if (Iptv.vodEnabled() && !Iptv.sources().isEmpty()) {
             App.async(() -> Iptv.vodRows(type, 8), list -> {
-                genreRows.put("iptv:" + type, list);
+                extraRows.put("iptv:" + type, list);
                 if (gen == sectionGen) for (Addons.Row r : list) posterRow(iptvSlot, r.title, "IPTV", r.items);
             }, null);
         }
-        List<Addons.Row> genres = genreRows.get(type);
+        List<Addons.Row> genres = extraRows.get(type);
         if (genres != null) {
             for (Addons.Row r : genres) posterRow(genreSlot, r.title, null, r.items);
         } else {
             App.async(() -> Addons.genreRows(type, 10), list -> {
-                genreRows.put(type, list);
+                extraRows.put(type, list);
                 if (gen == sectionGen) for (Addons.Row r : list) posterRow(genreSlot, r.title, null, r.items);
             }, null);
         }
     }
 
-    /** All favorites as a grid, movies then shows. */
     private void renderFavorites() {
         for (String type : new String[]{"movie", "series"}) {
             List<JSONObject> list = favorites(type);
             if (list.isEmpty()) continue;
-            String title = type.equals("movie") ? "Movies" : "TV Shows";
-            TextView h = Ui.heading(this, title, 17);
+            LinearLayout block = Ui.vertical(this);
+            block.setClipChildren(false);
+            rows.addView(block);
+            TextView h = Ui.heading(this, type.equals("movie") ? "Movies" : "TV Shows", 17);
             h.setPadding(0, Ui.dp(this, 18), 0, Ui.dp(this, 4));
-            rows.addView(h);
-            int perRow = 7;
+            block.addView(h);
             LinearLayout line = null;
             for (int i = 0; i < list.size(); i++) {
-                if (i % perRow == 0) {
+                if (i % 7 == 0) {
                     line = Ui.horizontal(this);
                     line.setClipChildren(false);
-                    rows.addView(line);
+                    line.setTag("row");
+                    block.addView(line);
                 }
                 JSONObject p = list.get(i);
                 line.addView(Ui.poster(this, p, v -> DetailActivity.open(this, p), () -> feature(p, "Favorites")));
-                if (firstItem == null) { firstItem = p; firstEyebrow = "Favorites"; }
+                note(p, "Favorites");
             }
         }
     }
 
-    /** Shows the focused title in the featured area. */
+    // ------------------------------------------------------------ app row (circles)
+
+    private void renderAppRow() {
+        appRow = Ui.row(this, rows, "Your apps", "Hold OK to move or remove");
+        fillAppRow();
+    }
+
+    private void fillAppRow() {
+        appRow.removeAllViews();
+        for (String pkg : Apps.dock(this)) appRow.addView(appCircle(pkg));
+        appRow.addView(addCircle());
+    }
+
+    private View circleShell(String name, View.OnClickListener click) {
+        LinearLayout col = Ui.vertical(this);
+        col.setGravity(Gravity.CENTER_HORIZONTAL);
+        LinearLayout.LayoutParams clp = new LinearLayout.LayoutParams(Ui.dp(this, 84), ViewGroup.LayoutParams.WRAP_CONTENT);
+        clp.setMargins(0, Ui.dp(this, 6), Ui.dp(this, 8), Ui.dp(this, 6));
+        col.setLayoutParams(clp);
+        FrameLayout circle = new FrameLayout(this);
+        circle.setFocusable(true);
+        circle.setClickable(true);
+        circle.setOnClickListener(click);
+        StateListDrawable bg = new StateListDrawable();
+        bg.addState(new int[]{android.R.attr.state_selected}, oval(Ui.BUTTON, Ui.ACCENT));
+        bg.addState(new int[]{android.R.attr.state_focused}, oval(Ui.BUTTON, Ui.TEXT));
+        bg.addState(new int[]{}, oval(Ui.alpha(Color.WHITE, 0.07f), 0));
+        circle.setBackground(bg);
+        col.addView(circle, new LinearLayout.LayoutParams(Ui.dp(this, 66), Ui.dp(this, 66)));
+        TextView t = Ui.single(Ui.text(this, name, 11, Ui.DIM));
+        t.setGravity(Gravity.CENTER);
+        t.setPadding(0, Ui.dp(this, 6), 0, 0);
+        col.addView(t, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        circle.setOnFocusChangeListener((v, has) -> {
+            v.animate().scaleX(has ? 1.1f : 1f).scaleY(has ? 1.1f : 1f).setDuration(140).start();
+            t.setTextColor(has ? Ui.TEXT : Ui.DIM);
+        });
+        col.setTag(circle);
+        return col;
+    }
+
+    private GradientDrawable oval(int fill, int stroke) {
+        GradientDrawable d = new GradientDrawable();
+        d.setShape(GradientDrawable.OVAL);
+        d.setColor(fill);
+        if (stroke != 0) d.setStroke(Ui.dp(this, 3), stroke);
+        return d;
+    }
+
+    private View appCircle(String pkg) {
+        View col = circleShell(Apps.label(this, pkg), v -> Apps.launch(this, pkg));
+        FrameLayout circle = (FrameLayout) col.getTag();
+        ImageView img = new ImageView(this);
+        Drawable d = Apps.icon(this, pkg);
+        if (d != null) img.setImageDrawable(d);
+        circle.addView(img, new FrameLayout.LayoutParams(Ui.dp(this, 40), Ui.dp(this, 40), Gravity.CENTER));
+        circle.setContentDescription(Apps.label(this, pkg));
+        circle.setSelected(pkg.equals(movingApp));
+        circle.setOnLongClickListener(v -> {
+            new AlertDialog.Builder(this)
+                    .setTitle(Apps.label(this, pkg))
+                    .setItems(new String[]{"Move", "Remove from row", "Open"}, (dlg, which) -> {
+                        if (which == 0) {
+                            movingApp = pkg;
+                            fillAppRow();
+                            focusApp(pkg);
+                        } else if (which == 1) {
+                            List<String> list = Apps.dock(this);
+                            list.remove(pkg);
+                            Apps.saveDock(list);
+                            fillAppRow();
+                            if (appRow.getChildCount() > 0) ((View) appRow.getChildAt(0).getTag()).requestFocus();
+                        } else {
+                            Apps.launch(this, pkg);
+                        }
+                    })
+                    .show();
+            return true;
+        });
+        return col;
+    }
+
+    private View addCircle() {
+        View col = circleShell("Add app", v -> pickApp());
+        FrameLayout circle = (FrameLayout) col.getTag();
+        ImageView plus = Ui.icon(this, R.drawable.ic_plus, 26, Ui.MUTED);
+        circle.addView(plus, new FrameLayout.LayoutParams(Ui.dp(this, 26), Ui.dp(this, 26), Gravity.CENTER));
+        return col;
+    }
+
+    private void focusApp(String pkg) {
+        List<String> list = Apps.dock(this);
+        int i = list.indexOf(pkg);
+        if (i >= 0 && i < appRow.getChildCount()) ((View) appRow.getChildAt(i).getTag()).requestFocus();
+    }
+
+    private void moveApp(int delta) {
+        List<String> list = Apps.dock(this);
+        int i = list.indexOf(movingApp), j = i + delta;
+        if (i < 0 || j < 0 || j >= list.size()) return;
+        Collections.swap(list, i, j);
+        Apps.saveDock(list);
+        fillAppRow();
+        focusApp(movingApp);
+    }
+
+    private void stopMoving() {
+        if (movingApp == null) return;
+        String pkg = movingApp;
+        movingApp = null;
+        if (appRow != null && appRow.isAttachedToWindow()) {
+            fillAppRow();
+            focusApp(pkg);
+        }
+    }
+
+    private void pickApp() {
+        List<String> dock = Apps.dock(this);
+        List<ResolveInfo> apps = new ArrayList<>();
+        for (ResolveInfo ri : Apps.installed(this)) if (!dock.contains(ri.activityInfo.packageName)) apps.add(ri);
+        String[] names = new String[apps.size()];
+        for (int i = 0; i < apps.size(); i++) names[i] = apps.get(i).loadLabel(getPackageManager()).toString();
+        new AlertDialog.Builder(this)
+                .setTitle("Add an app")
+                .setItems(names, (d, which) -> {
+                    dock.add(apps.get(which).activityInfo.packageName);
+                    Apps.saveDock(dock);
+                    fillAppRow();
+                    focusApp(apps.get(which).activityInfo.packageName);
+                })
+                .show();
+    }
+
+    // ------------------------------------------------------------ streaming services
+
+    private void renderServices() {
+        if (services.isEmpty()) return;
+        LinearLayout row = Ui.row(this, rows, "Streaming services",
+                Tmdb.enabled() ? null : "Add a TMDB key in Settings to browse them");
+        for (Tmdb.Service s : services) row.addView(serviceTile(s));
+    }
+
+    private View serviceTile(Tmdb.Service s) {
+        LinearLayout col = Ui.vertical(this);
+        col.setGravity(Gravity.CENTER_HORIZONTAL);
+        LinearLayout.LayoutParams clp = new LinearLayout.LayoutParams(Ui.dp(this, 176), ViewGroup.LayoutParams.WRAP_CONTENT);
+        clp.setMargins(0, Ui.dp(this, 6), Ui.dp(this, 14), Ui.dp(this, 6));
+        col.setLayoutParams(clp);
+        FrameLayout tile = new FrameLayout(this);
+        tile.setFocusable(true);
+        tile.setClickable(true);
+        tile.setContentDescription(s.name);
+        StateListDrawable bg = new StateListDrawable();
+        bg.addState(new int[]{android.R.attr.state_focused}, Ui.rounded(this, Ui.BUTTON, Ui.ACCENT, 14));
+        bg.addState(new int[]{}, Ui.rounded(this, Ui.alpha(Color.WHITE, 0.07f), Ui.alpha(Color.WHITE, 0.08f), 14));
+        tile.setBackground(bg);
+        TextView fallback = Ui.heading(this, s.name, 17);
+        fallback.setGravity(Gravity.CENTER);
+        tile.addView(fallback, new FrameLayout.LayoutParams(-1, -1));
+        if (!s.wordmark.isEmpty()) {
+            ImageView logo = new ImageView(this);
+            logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
+            logo.setColorFilter(Color.WHITE, PorterDuff.Mode.SRC_IN);   // monochrome wordmark
+            FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(-1, -1);
+            lp.setMargins(Ui.dp(this, 22), Ui.dp(this, 22), Ui.dp(this, 22), Ui.dp(this, 22));
+            tile.addView(logo, lp);
+            ImageLoader.load(logo, s.wordmark, Ui.dp(this, 140), () -> fallback.setVisibility(View.GONE));
+        } else if (!s.logo.isEmpty()) {
+            ImageView logo = Ui.image(this, Color.TRANSPARENT, 12);
+            tile.addView(logo, new FrameLayout.LayoutParams(Ui.dp(this, 54), Ui.dp(this, 54), Gravity.CENTER));
+            ImageLoader.load(logo, s.logo, Ui.dp(this, 54), () -> fallback.setVisibility(View.GONE));
+        }
+        col.addView(tile, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 98)));
+        TextView t = Ui.single(Ui.text(this, s.name, 12, Ui.DIM));
+        t.setGravity(Gravity.CENTER);
+        t.setPadding(0, Ui.dp(this, 7), 0, 0);
+        col.addView(t);
+        tile.setOnFocusChangeListener((v, has) -> {
+            v.animate().scaleX(has ? 1.05f : 1f).scaleY(has ? 1.05f : 1f).setDuration(140).start();
+            t.setTextColor(has ? Ui.TEXT : Ui.DIM);
+        });
+        tile.setOnClickListener(v -> startActivity(new Intent(this, ServiceActivity.class).putExtra("service", s.key)));
+        return col;
+    }
+
+    // ------------------------------------------------------------ featured area
+
     private void feature(JSONObject p, String eyebrow) {
         if (p == heroItem) return;
         heroItem = p;
@@ -435,6 +774,7 @@ public class MainActivity extends Activity {
         List<String> meta = new ArrayList<>();
         if (!p.optString("releaseInfo").isEmpty()) meta.add(p.optString("releaseInfo"));
         if (!p.optString("imdbRating").isEmpty()) meta.add("★ " + p.optString("imdbRating"));
+        else if (!p.optString("rating").isEmpty()) meta.add("★ " + p.optString("rating"));
         JSONArray genres = p.optJSONArray("genres");
         if (genres == null) genres = p.optJSONArray("genre");
         if (genres != null && genres.length() > 0) {
@@ -442,7 +782,7 @@ public class MainActivity extends Activity {
             for (int i = 0; i < genres.length() && i < 3; i++) g.add(genres.optString(i));
             meta.add(TextUtils.join(", ", g));
         }
-        if (!p.optString("badge").isEmpty()) meta.add("On your " + p.optString("badge"));
+        if (!p.optString("badge").isEmpty()) meta.add("external".equals(p.optString("type")) ? p.optString("badge") : "On your " + p.optString("badge"));
         heroMeta.setText(TextUtils.join("   ·   ", meta));
         heroText.setText(p.optString("description"));
         String bg = p.optString("background");
@@ -454,7 +794,6 @@ public class MainActivity extends Activity {
 
     // ------------------------------------------------------------ dialogs
 
-    /** If Flux crashed last time, show the error so it can be reported. */
     private void showLastCrash() {
         String crash = Store.get("last_crash");
         if (crash.isEmpty()) return;
@@ -500,9 +839,11 @@ public class MainActivity extends Activity {
     }
 
     private void switchProfile(String name) {
-        genreRows.clear();
+        extraRows.clear();
         Store.setProfile(name);
-        avatar.setText(name.substring(0, 1).toUpperCase());
+        avatarText.setText(name.substring(0, 1).toUpperCase());
+        View pl = drawer.findViewWithTag("profileLabel");
+        if (pl instanceof TextView) ((TextView) pl).setText(name);
         updateStatus();
         load();
     }
