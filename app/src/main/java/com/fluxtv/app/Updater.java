@@ -44,6 +44,7 @@ public final class Updater {
 
     /** Called from the home screen's onResume. force = user pressed "Check for updates". */
     public static void check(Activity a, boolean force) {
+        if (BuildConfig.TEST_BUILD) return;
         long now = System.currentTimeMillis();
         if (busy || (!force && now - lastCheck < MIN_INTERVAL_MS)) return;
         lastCheck = now;
