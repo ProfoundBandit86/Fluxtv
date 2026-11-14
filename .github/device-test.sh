@@ -12,6 +12,23 @@ nudge() { key DPAD_DOWN 1; key DPAD_UP 1; }
 crashes() { echo "== CRASHES ($1)"; adb logcat -d -b crash | tail -60; }
 
 adb install -r flux-test.apk
+# Quick mode: only the Home button test
+if [ -f .github/QUICK_HOME ]; then
+  adb shell settings put secure enabled_accessibility_services $P/$P.HomeButtonService
+  adb shell settings put secure accessibility_enabled 1
+  sleep 5
+  adb shell dumpsys accessibility | grep -i -E "flux|bound|enabled services|Filter|keyEvent" | head -30
+  adb shell cmd package set-home-activity com.google.android.apps.nexuslauncher/.NexusLauncherActivity
+  adb shell am start -W -n $P/.SettingsActivity; sleep 4
+  adb shell input keyevent HOME; sleep 7; top sw-home-7s
+  adb shell am start -W -n $P/.SettingsActivity; sleep 3
+  adb emu event send EV_KEY:KEY_HOMEPAGE:1 EV_SYN:0:0; sleep 0.1; adb emu event send EV_KEY:KEY_HOMEPAGE:0 EV_SYN:0:0
+  sleep 4; top hw-home-4s
+  adb shell getevent -lp 2>/dev/null | grep -i -B3 HOMEPAGE | head
+  adb logcat -d | grep -E "FluxHome|AccessibilityManager|fluxtv" | grep -v NodeInfoDumper | tail -40
+  shot quick-home
+  exit 0
+fi
 adb shell am start -W -n $P/.AddonsActivity; sleep 5
 adb forward tcp:8090 tcp:8090
 curl -s -m 90 -X POST --data-urlencode "url=https://torrentio.strem.fun/manifest.json" http://127.0.0.1:8090/install | grep -o "<p class='m'>[^<]*"
