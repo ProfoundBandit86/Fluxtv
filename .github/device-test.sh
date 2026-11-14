@@ -24,18 +24,21 @@ adb logcat -c
 adb shell am start -W -n $P/.MainActivity
 sleep 30
 top home; focus home; texts home; shot 1-home
-key DPAD_RIGHT 2; focus after-right; shot 2-poster-focused
-key DPAD_CENTER 12
-top after-poster-ok; focus details; texts details; shot 3-details
-crashes poster-ok
-key DPAD_CENTER 30
-top after-play-ok; focus streams; texts streams 8; shot 4-streams
-crashes play-ok
-key DPAD_CENTER 3
-top after-stream-ok-3s; texts dialog-3s 10; shot 5-stream-ok-3s
-sleep 25
-top after-stream-ok-28s; texts dialog-28s 10; shot 6-stream-ok-28s
-crashes stream-ok
+for i in 1 2 3 4; do key DPAD_RIGHT 2; focus right-$i; done
+for i in 1 2; do key DPAD_DOWN 2; focus down-$i; done
+shot 2-after-keys
+key DPAD_CENTER 10
+top after-ok; texts after-ok 12; shot 3-after-ok
+crashes ok
+# Direct click on the first poster's title
+adb shell am start -W -n $P/.MainActivity; sleep 5
+adb shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1
+B=$(adb shell cat /sdcard/ui.xml | grep -o 'text="Heart of the Beast"[^>]*bounds="[^"]*"' | grep -o 'bounds="[^"]*"' | head -1)
+echo "== poster title bounds: $B"
+XY=$(echo "$B" | sed -E 's/bounds="\[([0-9]+),([0-9]+)\]\[([0-9]+),([0-9]+)\]"/\1 \2 \3 \4/' | awk '{print int(($1+$3)/2), $2-150}')
+echo "== tapping $XY"; adb shell input tap $XY; sleep 10
+top after-tap; texts after-tap 12; shot 4-after-tap
+crashes tap
 
 # Player check with HLS + MP4 test streams (opened directly)
 adb logcat -c
