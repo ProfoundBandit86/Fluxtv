@@ -117,7 +117,6 @@ public class SearchActivity extends FluxActivity {
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
-        android.util.Log.i("FluxSearch", "onNewIntent");
         setIntent(intent);
         handle(intent);
     }
@@ -240,7 +239,6 @@ public class SearchActivity extends FluxActivity {
     }
 
     private void hideListening() {
-        android.util.Log.i("FluxSearch", "hideListening", new Throwable());
         listening = false;
         wave.setActive(false);
         listen.animate().cancel();
