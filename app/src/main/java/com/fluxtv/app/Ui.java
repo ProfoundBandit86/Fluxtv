@@ -159,6 +159,63 @@ public final class Ui {
         return b;
     }
 
+    /** The big white Play button: a bold first line and a smaller second line (e.g. which source will play). */
+    public static Button primary(Context c, int iconRes, String title, String sub, View.OnClickListener click) {
+        Button b = button(c, iconRes, "", click);
+        setPrimaryText(c, b, title, sub);
+        b.setTextColor(BG);
+        b.setCompoundDrawableTintList(ColorStateList.valueOf(BG));
+        b.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
+        b.setBackground(focusable(c, Color.parseColor("#E9E9EF"), Color.WHITE, ACCENT));
+        b.setPadding(dp(c, 24), 0, dp(c, 30), 0);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(c, 64));
+        lp.setMargins(0, dp(c, 4), dp(c, 12), dp(c, 4));
+        b.setLayoutParams(lp);
+        return b;
+    }
+
+    public static void setPrimaryText(Context c, Button b, String title, String sub) {
+        android.text.SpannableStringBuilder sb = new android.text.SpannableStringBuilder(title);
+        sb.setSpan(new android.text.style.StyleSpan(Typeface.BOLD), 0, sb.length(), 0);
+        sb.setSpan(new android.text.style.RelativeSizeSpan(1.15f), 0, sb.length(), 0);
+        if (sub != null && !sub.isEmpty()) {
+            int start = sb.length();
+            sb.append("\n").append(sub);
+            sb.setSpan(new android.text.style.RelativeSizeSpan(0.78f), start, sb.length(), 0);
+            sb.setSpan(new android.text.style.ForegroundColorSpan(Color.parseColor("#4A4A5C")), start, sb.length(), 0);
+        }
+        b.setText(sb);
+    }
+
+    /** A square button with an icon over a short label (secondary actions on the title page). */
+    public static Button tile(Context c, int iconRes, String label, View.OnClickListener click) {
+        Button b = new Button(c);
+        b.setText(label);
+        b.setAllCaps(false);
+        b.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11);
+        b.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        b.setTextColor(onFocusDark(MUTED));
+        b.setSingleLine(true);
+        b.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        b.setFocusable(true);
+        b.setBackground(focusable(c, GLASS, TEXT, 0));
+        b.setStateListAnimator(null);
+        b.setGravity(Gravity.CENTER);
+        b.setPadding(dp(c, 4), dp(c, 8), dp(c, 4), dp(c, 6));
+        Drawable d = c.getResources().getDrawable(iconRes, c.getTheme()).mutate();
+        int sz = dp(c, 22);
+        d.setBounds(0, 0, sz, sz);
+        b.setCompoundDrawables(null, d, null, null);
+        b.setCompoundDrawablePadding(dp(c, 4));
+        b.setCompoundDrawableTintList(onFocusDark(TEXT));
+        b.setOnClickListener(click);
+        b.setContentDescription(label);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(c, 76), dp(c, 64));
+        lp.setMargins(0, dp(c, 4), dp(c, 10), dp(c, 4));
+        b.setLayoutParams(lp);
+        return b;
+    }
+
     /** A full-width, left-aligned, multi-line button (used for lists). */
     public static Button listButton(Context c, CharSequence label, View.OnClickListener click) {
         Button b = button(c, label, click);

@@ -124,6 +124,20 @@ public class SettingsActivity extends FluxActivity {
         content.addView(choices(PlayerActivity.SUB_STYLES, "player_sub_style", 0));
         content.addView(label("Picture size"));
         content.addView(choices(PlayerActivity.ZOOMS, "player_zoom", 0));
+        content.addView(label("Largest stream file to show and auto-play, by resolution (your own library is never limited)"));
+        for (int q = 0; q < SizeLimits.QUALITIES.length; q++) {
+            String quality = SizeLimits.QUALITIES[q];
+            LinearLayout line = Ui.horizontal(this);
+            line.setGravity(Gravity.CENTER_VERTICAL);
+            TextView name = Ui.heading(this, quality, 14);
+            name.setMinWidth(Ui.dp(this, 70));
+            line.addView(name);
+            double cur = SizeLimits.max(quality);
+            for (double gb : SizeLimits.CHOICES[q]) {
+                line.addView(Ui.pill(this, SizeLimits.label(gb), Math.abs(cur - gb) < 0.01, v -> { SizeLimits.set(quality, gb); render(); }));
+            }
+            content.addView(line);
+        }
         String al = Store.get("player_audio_lang"), sl = Store.get("player_sub_lang");
         content.addView(label("Preferred languages · audio: " + (al.isEmpty() ? "none" : PlayerActivity.languageName(al))
                 + " · subtitles: " + (sl.isEmpty() ? "none" : PlayerActivity.languageName(sl))

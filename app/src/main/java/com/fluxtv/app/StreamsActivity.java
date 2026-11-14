@@ -147,7 +147,7 @@ public class StreamsActivity extends FluxActivity {
 
     // ------------------------------------------------------------ parsing
 
-    private Item parse(Addons.Stream s) {
+    private static Item parse(Addons.Stream s) {
         Item it = new Item();
         it.s = s;
         JSONObject j = s.json;
@@ -205,6 +205,17 @@ public class StreamsActivity extends FluxActivity {
             if (i.library || !j.optString("url").isEmpty() || (!j.optString("infoHash").isEmpty() && RealDebrid.isSignedIn())) playable = true;
         }
         if (!playable && autoRequest()) requestFromArr(true);
+        if (getIntent().getBooleanExtra("autoplay", false) && autoQueue == null) {
+            autoQueue = ranked();
+            if (!autoQueue.isEmpty()) {
+                Item best = autoQueue.remove(0);
+                status.setText("Starting the best source: " + describe(best) + "…  (Back to choose another)");
+                renderFilters();
+                renderList(false);
+                play(best, false);
+                return;
+            }
+        }
         int lib = 0;
         for (Item i : items) if (i.library) lib++;
         status.setText(items.size() + " streams" + (lib > 0 ? " · " + lib + " from your library" : "")
@@ -227,7 +238,14 @@ public class StreamsActivity extends FluxActivity {
         }
     }
 
+    private boolean showOversize;
+
+    private static boolean oversize(Item it) {
+        return !it.library && SizeLimits.tooBig(it.quality, it.sizeGb);
+    }
+
     private boolean matches(Item it) {
+        if (!showOversize && oversize(it)) return false;
         switch (filter) {
             case "4K": return it.quality.equals("4K");
             case "1080p": return it.quality.equals("1080p");
@@ -259,6 +277,19 @@ public class StreamsActivity extends FluxActivity {
             if (first == null) first = row;
         }
         if (shown.isEmpty()) list.addView(Ui.text(this, "No streams match this filter.", 13, Ui.MUTED));
+        int hidden = 0;
+        for (Item it : items) if (oversize(it)) hidden++;
+        if (hidden > 0) {
+            LinearLayout note = Ui.horizontal(this);
+            note.setGravity(Gravity.CENTER_VERTICAL);
+            note.setPadding(0, Ui.dp(this, 12), 0, 0);
+            note.addView(Ui.text(this, showOversize ? "Showing streams over your size limits  " : hidden + " larger than your size limits are hidden  ", 13, Ui.DIM));
+            note.addView(Ui.button(this, showOversize ? "Hide them" : "Show them", v -> {
+                showOversize = !showOversize;
+                renderList(false);
+            }));
+            list.addView(note);
+        }
         if (focusFirst && first != null) {
             View f = first;
             f.post(f::requestFocus);
@@ -328,6 +359,57 @@ public class StreamsActivity extends FluxActivity {
 
     // ------------------------------------------------------------ playing
 
+    /** Playable streams, best first: your library, then highest resolution within your size limits, in add-on order. */
+    private List<Item> autoQueue;
+
+    private List<Item> ranked() {
+        return ranked(items);
+    }
+
+    private static List<Item> ranked(List<Item> all) {
+        List<Item> out = new ArrayList<>();
+        for (Item i : all) {
+            JSONObject j = i.s.json;
+            boolean playable = i.library || !j.optString("url").isEmpty()
+                    || (!j.optString("infoHash").isEmpty() && RealDebrid.isSignedIn());
+            if (playable && !oversize(i)) out.add(i);
+        }
+        Collections.sort(out, (a, b) -> {
+            if (a.library != b.library) return a.library ? -1 : 1;
+            return Integer.compare(rank(b.quality), rank(a.quality));
+        });
+        return out;
+    }
+
+    private static int rank(String q) {
+        switch (q) {
+            case "4K": return 4;
+            case "1080p": return 3;
+            case "720p": return 2;
+            case "SD": return 1;
+            default: return 0;
+        }
+    }
+
+    /** For the title page: [label of the stream Play would start, number of streams], or null if none can play. */
+    static String[] bestOf(List<Addons.Stream> streams) {
+        List<Item> all = new ArrayList<>();
+        for (Addons.Stream st : streams) all.add(parse(st));
+        List<Item> r = ranked(all);
+        if (r.isEmpty()) return new String[]{null, String.valueOf(all.size())};
+        return new String[]{describeStatic(r.get(0)), String.valueOf(all.size())};
+    }
+
+    private static String describeStatic(Item it) {
+        String q = it.quality.isEmpty() ? "" : it.quality + " · ";
+        return q + (it.library ? it.s.source : RealDebrid.isSignedIn() && !it.s.json.optString("infoHash").isEmpty() ? "Real-Debrid" : it.s.source);
+    }
+
+    private String describe(Item it) {
+        String q = it.quality.isEmpty() ? "" : it.quality + " · ";
+        return q + (it.library ? it.s.source : RealDebrid.isSignedIn() && !it.s.json.optString("infoHash").isEmpty() ? "Real-Debrid" : it.s.source);
+    }
+
     private boolean autoRequest() {
         return !requested && Arr.fallbackOn() && Arr.forType(info.type).configured() && !info.metaId.startsWith("iptv:");
     }
@@ -364,7 +446,10 @@ public class StreamsActivity extends FluxActivity {
         it.status.setTextColor(Ui.WARN);
     }
 
+    private String lastSource = "";
+
     private void play(Item it, boolean external) {
+        lastSource = describe(it);
         JSONObject s = it.s.json;
         bannerBox.setVisibility(View.GONE);
         if (!s.optString("url").isEmpty()) {
@@ -408,6 +493,19 @@ public class StreamsActivity extends FluxActivity {
                     if (isFinishing()) return;
                     dialog.dismiss();
                     showBanner(App.message(e));
+                    if (autoQueue != null && !autoQueue.isEmpty() && e instanceof RealDebrid.RdException
+                            && ((RealDebrid.RdException) e).unavailable) {
+                        markUnavailable(it, e instanceof RealDebrid.NotCachedException ? "Not ready" : "Blocked");
+                        failed.add(it);
+                        Item next = autoQueue.remove(0);
+                        status.setText("That one wasn't available. Trying " + describe(next) + "…");
+                        play(next, false);
+                        return;
+                    }
+                    if (autoQueue != null) {
+                        autoQueue = new ArrayList<>();   // stop auto-trying; let the viewer pick
+                        status.setText("Couldn't start the best source automatically. Pick one below.");
+                    }
                     if (e instanceof RealDebrid.RdException && ((RealDebrid.RdException) e).unavailable) {
                         markUnavailable(it, e instanceof RealDebrid.NotCachedException ? "Not ready" : "Blocked");
                         failed.add(it);
@@ -435,7 +533,10 @@ public class StreamsActivity extends FluxActivity {
                 Toast.makeText(this, "No other video player installed", Toast.LENGTH_SHORT).show();
             }
         } else {
-            startActivity(info.into(new Intent(this, PlayerActivity.class)).putExtra("url", url));
+            startActivity(info.into(new Intent(this, PlayerActivity.class)).putExtra("url", url)
+                    .putExtra("source", lastSource));
+            // Started straight from Play: Back from the player returns to the title page.
+            if (autoQueue != null && getIntent().getBooleanExtra("autoplay", false)) finish();
         }
     }
 

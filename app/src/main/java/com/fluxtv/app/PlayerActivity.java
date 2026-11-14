@@ -111,6 +111,7 @@ public class PlayerActivity extends Activity {
             view.setControllerShowTimeoutMs(5000);
         }
         buildOptionsBar();
+        if (!live) buildControls();
         buildPanel();
         setContentView(root);
 
@@ -158,6 +159,7 @@ public class PlayerActivity extends Activity {
             @Override
             public void onTracksChanged(Tracks tracks) {
                 selectPendingSubtitle(tracks);
+                if (!live) { updateBadges(); refreshChips(); }
                 if (panelOpen() && panelPage != null && !"main".equals(panelPage)) showPage(panelPage);
             }
 
@@ -196,7 +198,413 @@ public class PlayerActivity extends Activity {
         }
         player.prepare();
         player.setPlayWhenReady(true);
-        view.requestFocus();
+        root.setFocusable(true);
+        root.requestFocus();
+        root.post(() -> showControls(playPause));
+    }
+
+    // ------------------------------------------------------------ Flux's own controls (movies & episodes)
+
+    private FrameLayout controls;
+    private View played, buffered, knob;
+    private FrameLayout track;
+    private TextView timeNow, timeLeft, clock;
+    private LinearLayout badges;
+    private android.widget.Button playPause, lastChip;
+    private final java.util.Map<String, android.widget.Button> chips = new java.util.LinkedHashMap<>();
+
+    private final Runnable autoHide = () -> {
+        if (player != null && player.isPlaying() && !panelOpen()) hideControls();
+    };
+    private final Runnable progressTick = new Runnable() {
+        @Override public void run() {
+            updateProgress();
+            if (controls != null && controls.getVisibility() == View.VISIBLE) App.MAIN.postDelayed(this, 500);
+        }
+    };
+
+    private void buildControls() {
+        view.setUseController(false);
+        view.setFocusable(false);
+        controls = new FrameLayout(this);
+        controls.setVisibility(View.GONE);
+
+        View topScrim = new View(this);
+        topScrim.setBackground(new android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM,
+                new int[]{Ui.alpha(Color.BLACK, 0.85f), Color.TRANSPARENT}));
+        controls.addView(topScrim, new FrameLayout.LayoutParams(-1, Ui.dp(this, 170), Gravity.TOP));
+        View bottomScrim = new View(this);
+        bottomScrim.setBackground(new android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.BOTTOM_TOP,
+                new int[]{Ui.alpha(Color.BLACK, 0.95f), Ui.alpha(Color.BLACK, 0.6f), Color.TRANSPARENT}));
+        controls.addView(bottomScrim, new FrameLayout.LayoutParams(-1, Ui.dp(this, 300), Gravity.BOTTOM));
+
+        // Top: title on the left, format badges and the clock on the right.
+        LinearLayout top = Ui.horizontal(this);
+        top.setGravity(Gravity.TOP);
+        LinearLayout titles = Ui.vertical(this);
+        TextView eyebrow = Ui.text(this, info.label.isEmpty() ? "" : info.name.toUpperCase(Locale.ROOT), 13, Ui.ACCENT);
+        eyebrow.setLetterSpacing(0.08f);
+        titles.addView(eyebrow);
+        titles.addView(Ui.single(Ui.heading(this, info.label.isEmpty() ? info.name : info.label, 26)));
+        top.addView(titles, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        badges = Ui.horizontal(this);
+        badges.setGravity(Gravity.CENTER_VERTICAL);
+        top.addView(badges);
+        clock = Ui.heading(this, "", 20);
+        clock.setPadding(Ui.dp(this, 14), 0, 0, 0);
+        top.addView(clock);
+        FrameLayout.LayoutParams tl = new FrameLayout.LayoutParams(-1, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP);
+        tl.setMargins(Ui.dp(this, 56), Ui.dp(this, 36), Ui.dp(this, 56), 0);
+        controls.addView(top, tl);
+
+        // Bottom: progress, times, then the buttons and options in one bar.
+        LinearLayout bottom = Ui.vertical(this);
+        track = new FrameLayout(this);
+        track.setClipChildren(false);
+        View base = new View(this);
+        base.setBackground(Ui.rounded(this, Ui.alpha(Color.WHITE, 0.18f), 0, 99));
+        track.addView(base, new FrameLayout.LayoutParams(-1, Ui.dp(this, 6), Gravity.CENTER_VERTICAL));
+        buffered = new View(this);
+        buffered.setBackground(Ui.rounded(this, Ui.alpha(Color.WHITE, 0.3f), 0, 99));
+        track.addView(buffered, new FrameLayout.LayoutParams(0, Ui.dp(this, 6), Gravity.CENTER_VERTICAL));
+        played = new View(this);
+        played.setBackground(Ui.rounded(this, Ui.ACCENT, 0, 99));
+        track.addView(played, new FrameLayout.LayoutParams(0, Ui.dp(this, 6), Gravity.CENTER_VERTICAL));
+        knob = new View(this);
+        knob.setBackground(Ui.rounded(this, Color.WHITE, 0, 99));
+        track.addView(knob, new FrameLayout.LayoutParams(Ui.dp(this, 16), Ui.dp(this, 16), Gravity.CENTER_VERTICAL));
+        bottom.addView(track, new LinearLayout.LayoutParams(-1, Ui.dp(this, 18)));
+        LinearLayout times = Ui.horizontal(this);
+        timeNow = Ui.heading(this, "0:00", 15);
+        timeLeft = Ui.heading(this, "", 15);
+        timeLeft.setGravity(Gravity.END);
+        times.addView(timeNow, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        times.addView(timeLeft, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        times.setPadding(0, Ui.dp(this, 4), 0, Ui.dp(this, 12));
+        bottom.addView(times);
+
+        LinearLayout bar = Ui.horizontal(this);
+        bar.setGravity(Gravity.CENTER_VERTICAL);
+        playPause = roundButton(R.drawable.ic_pause, true, v -> togglePlay());
+        bar.addView(playPause);
+        bar.addView(roundButton(R.drawable.ic_back10, false, v -> skip(-10_000)));
+        bar.addView(roundButton(R.drawable.ic_fwd30, false, v -> skip(30_000)));
+        bar.addView(new View(this), new LinearLayout.LayoutParams(0, 1, 1f));
+        chip("audio", "Audio");
+        chip("subs", "Subtitles");
+        chip("quality", "Quality");
+        chip("speed", "Speed");
+        chip("zoom", "Picture");
+        chip("more", "More");
+        for (android.widget.Button b : chips.values()) bar.addView(b);
+        bottom.addView(bar);
+        TextView hint = Ui.text(this, "← → skip 10 s   ·   OK pause   ·   Back hides controls", 12, Ui.DIM);
+        hint.setPadding(0, Ui.dp(this, 10), 0, 0);
+        bottom.addView(hint);
+        FrameLayout.LayoutParams bl = new FrameLayout.LayoutParams(-1, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM);
+        bl.setMargins(Ui.dp(this, 56), 0, Ui.dp(this, 56), Ui.dp(this, 22));
+        controls.addView(bottom, bl);
+        root.addView(controls, new FrameLayout.LayoutParams(-1, -1));
+    }
+
+    private android.widget.Button roundButton(int icon, boolean main, View.OnClickListener click) {
+        android.widget.Button b = new android.widget.Button(this);
+        int size = Ui.dp(this, main ? 56 : 48);
+        android.graphics.drawable.Drawable d = getResources().getDrawable(icon, getTheme()).mutate();
+        int is = Ui.dp(this, main ? 26 : 24);
+        d.setBounds(0, 0, is, is);
+        b.setCompoundDrawables(d, null, null, null);
+        b.setPadding((size - is) / 2, 0, 0, 0);
+        b.setCompoundDrawableTintList(main ? android.content.res.ColorStateList.valueOf(Ui.BG) : Ui.onFocusDark(Ui.TEXT));
+        android.graphics.drawable.StateListDrawable bg = new android.graphics.drawable.StateListDrawable();
+        android.graphics.drawable.GradientDrawable focused = new android.graphics.drawable.GradientDrawable();
+        focused.setShape(android.graphics.drawable.GradientDrawable.OVAL);
+        focused.setColor(Color.WHITE);
+        focused.setStroke(Ui.dp(this, 3), Ui.ACCENT);
+        android.graphics.drawable.GradientDrawable normal = new android.graphics.drawable.GradientDrawable();
+        normal.setShape(android.graphics.drawable.GradientDrawable.OVAL);
+        normal.setColor(main ? Color.parseColor("#E9E9EF") : Ui.alpha(Color.WHITE, 0.14f));
+        bg.addState(new int[]{android.R.attr.state_focused}, focused);
+        bg.addState(new int[]{}, normal);
+        b.setBackground(bg);
+        b.setStateListAnimator(null);
+        b.setFocusable(true);
+        b.setOnClickListener(click);
+        b.setOnFocusChangeListener((v, has) -> { if (has) bumpHide(); });
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(size, size);
+        lp.setMargins(0, 0, Ui.dp(this, 12), 0);
+        b.setLayoutParams(lp);
+        return b;
+    }
+
+    private void chip(String page, String label) {
+        android.widget.Button b = Ui.button(this, label, v -> {
+            lastChip = (android.widget.Button) v;
+            showPopover(page, v);
+        });
+        b.setAllCaps(false);
+        b.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
+        b.setBackground(Ui.focusable(this, Ui.alpha(Color.WHITE, 0.12f), Color.WHITE, 0));
+        b.setPadding(Ui.dp(this, 16), 0, Ui.dp(this, 16), 0);
+        b.setTag(label);
+        b.setOnFocusChangeListener((v, has) -> { if (has) { lastChip = (android.widget.Button) v; bumpHide(); } });
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, Ui.dp(this, 52));
+        lp.setMargins(Ui.dp(this, 8), 0, 0, 0);
+        b.setLayoutParams(lp);
+        chips.put(page, b);
+    }
+
+    /** Each option shows its current setting under its name, e.g. "SUBTITLES / English". */
+    private void refreshChips() {
+        if (controls == null || player == null) return;
+        float sp = player.getPlaybackParameters().speed;
+        String src = getIntent().getStringExtra("source");
+        String[][] vals = {
+                {"audio", currentLabel(C.TRACK_TYPE_AUDIO)},
+                {"subs", currentLabel(C.TRACK_TYPE_TEXT)},
+                {"quality", countTracks(C.TRACK_TYPE_VIDEO) > 1 ? currentLabel(C.TRACK_TYPE_VIDEO) : null},
+                {"speed", sp == 1f ? "1×" : (sp + "×").replace(".0×", "×")},
+                {"zoom", ZOOMS[Math.max(0, Math.min(2, intPref("player_zoom", 0)))]},
+                {"more", src == null || src.isEmpty() ? "Size, style…" : src},
+        };
+        for (String[] v : vals) {
+            android.widget.Button b = chips.get(v[0]);
+            if (b == null) continue;
+            b.setVisibility(v[1] == null ? View.GONE : View.VISIBLE);
+            if (v[1] == null) continue;
+            String name = String.valueOf(b.getTag()).toUpperCase(Locale.ROOT);
+            android.text.SpannableStringBuilder sb = new android.text.SpannableStringBuilder(name);
+            sb.setSpan(new android.text.style.RelativeSizeSpan(0.72f), 0, sb.length(), 0);
+            sb.append("\n").append(v[1].length() > 22 ? v[1].substring(0, 21) + "…" : v[1]);
+            b.setText(sb);
+        }
+    }
+
+    private void updateBadges() {
+        if (badges == null || player == null) return;
+        badges.removeAllViews();
+        List<String> out = new ArrayList<>();
+        for (Tracks.Group g : player.getCurrentTracks().getGroups()) {
+            for (int i = 0; i < g.length; i++) {
+                if (!g.isTrackSelected(i)) continue;
+                Format f = g.getTrackFormat(i);
+                if (g.getType() == C.TRACK_TYPE_VIDEO) {
+                    if (f.height >= 2000 || f.width >= 3800) out.add("4K");
+                    else if (f.height >= 1000) out.add("HD");
+                    String codecs = f.codecs == null ? "" : f.codecs;
+                    if (MimeTypes.VIDEO_DOLBY_VISION.equals(f.sampleMimeType) || codecs.startsWith("dv")) out.add("Dolby Vision");
+                    else if (f.colorInfo != null && (f.colorInfo.colorTransfer == C.COLOR_TRANSFER_ST2084
+                            || f.colorInfo.colorTransfer == C.COLOR_TRANSFER_HLG)) out.add("HDR");
+                } else if (g.getType() == C.TRACK_TYPE_AUDIO) {
+                    if (MimeTypes.AUDIO_E_AC3_JOC.equals(f.sampleMimeType) || MimeTypes.AUDIO_TRUEHD.equals(f.sampleMimeType) && f.channelCount > 8) out.add("Atmos");
+                    else if (f.channelCount >= 6) out.add(f.channelCount >= 8 ? "7.1" : "5.1");
+                }
+            }
+        }
+        for (String b : out) {
+            TextView t = Ui.heading(this, b, 12);
+            t.setBackground(Ui.rounded(this, Ui.alpha(Color.WHITE, 0.14f), 0, 6));
+            t.setPadding(Ui.dp(this, 9), Ui.dp(this, 4), Ui.dp(this, 9), Ui.dp(this, 4));
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            lp.setMargins(Ui.dp(this, 6), 0, 0, 0);
+            badges.addView(t, lp);
+        }
+    }
+
+    private void updateProgress() {
+        if (player == null || track == null) return;
+        long dur = player.getDuration(), pos = player.getCurrentPosition(), buf = player.getBufferedPosition();
+        int w = track.getWidth();
+        double f = dur > 0 ? Math.min(1, (double) pos / dur) : 0, fb = dur > 0 ? Math.min(1, (double) buf / dur) : 0;
+        setWidth(played, (int) (w * f));
+        setWidth(buffered, (int) (w * fb));
+        knob.setTranslationX((float) (w * f) - Ui.dp(this, 8));
+        timeNow.setText(Ui.time(pos));
+        timeLeft.setText(dur > 0 ? "−" + Ui.time(Math.max(0, dur - pos)) : "");
+        clock.setText(android.text.format.DateFormat.getTimeFormat(this).format(new java.util.Date()));
+        playPause.setCompoundDrawables(icon(player.getPlayWhenReady() ? R.drawable.ic_pause : R.drawable.ic_play, 26), null, null, null);
+    }
+
+    private android.graphics.drawable.Drawable icon(int res, int dp) {
+        android.graphics.drawable.Drawable d = getResources().getDrawable(res, getTheme()).mutate();
+        d.setBounds(0, 0, Ui.dp(this, dp), Ui.dp(this, dp));
+        return d;
+    }
+
+    private static void setWidth(View v, int w) {
+        ViewGroup.LayoutParams lp = v.getLayoutParams();
+        if (lp.width != w) {
+            lp.width = Math.max(0, w);
+            v.setLayoutParams(lp);
+        }
+    }
+
+    private boolean controlsShown() {
+        return controls != null && controls.getVisibility() == View.VISIBLE;
+    }
+
+    private void showControls(View focus) {
+        if (controls == null) return;
+        boolean was = controlsShown();
+        controls.setVisibility(View.VISIBLE);
+        if (!was) {
+            controls.setAlpha(0f);
+            controls.animate().alpha(1f).setDuration(160).start();
+            refreshChips();
+            updateBadges();
+            App.MAIN.removeCallbacks(progressTick);
+            progressTick.run();
+        }
+        if (focus != null) focus.requestFocus();
+        bumpHide();
+    }
+
+    private void hideControls() {
+        if (controls == null) return;
+        controls.animate().alpha(0f).setDuration(200).withEndAction(() -> controls.setVisibility(View.GONE)).start();
+        App.MAIN.removeCallbacks(autoHide);
+        root.requestFocus();
+    }
+
+    private void bumpHide() {
+        App.MAIN.removeCallbacks(autoHide);
+        App.MAIN.postDelayed(autoHide, 6000);
+    }
+
+    private void togglePlay() {
+        if (player == null) return;
+        player.setPlayWhenReady(!player.getPlayWhenReady());
+        updateProgress();
+        bumpHide();
+    }
+
+    /** Option lists open as a card just above the option you picked. */
+    private void showPopover(String page, View anchor) {
+        if (anchor == null) anchor = chips.get(page.equals("main") ? "more" : page);
+        if (anchor != null && anchor.getVisibility() != View.VISIBLE) anchor = chips.get("more");
+        showControls(null);
+        App.MAIN.removeCallbacks(autoHide);
+        panel.setBackground(Ui.rounded(this, Ui.alpha(Ui.PANEL, 0.97f), 0, 18));
+        panelList.setPadding(Ui.dp(this, 14), Ui.dp(this, 16), Ui.dp(this, 14), Ui.dp(this, 16));
+        panel.setVisibility(View.VISIBLE);
+        showPage(page.equals("more") ? "main" : page);
+        int width = Ui.dp(this, 400);
+        int[] loc = new int[2];
+        int screenW = root.getWidth();
+        int left = Ui.dp(this, 56);
+        if (anchor != null) {
+            anchor.getLocationInWindow(loc);
+            left = Math.max(Ui.dp(this, 24), Math.min(loc[0] + anchor.getWidth() - width, screenW - width - Ui.dp(this, 24)));
+        }
+        int maxH = Math.max(Ui.dp(this, 200), root.getHeight() - Ui.dp(this, 220));
+        panelList.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY), View.MeasureSpec.UNSPECIFIED);
+        int h = Math.min(maxH, panelList.getMeasuredHeight());
+        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(width, h, Gravity.BOTTOM | Gravity.START);
+        lp.leftMargin = left;
+        lp.bottomMargin = Ui.dp(this, 150);
+        panel.setLayoutParams(lp);
+        panel.bringToFront();
+    }
+
+    /** Remote keys for movies and episodes. Returns null to let the normal handling run. */
+    private Boolean vodKey(KeyEvent e) {
+        int k = e.getKeyCode();
+        boolean down = e.getAction() == KeyEvent.ACTION_DOWN;
+        switch (k) {
+            case KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE:
+            case KeyEvent.KEYCODE_HEADSETHOOK:
+                if (down) { togglePlay(); showControls(controlsShown() ? null : playPause); }
+                return true;
+            case KeyEvent.KEYCODE_MEDIA_PLAY:
+                if (down && player != null) { player.setPlayWhenReady(true); showControls(null); }
+                return true;
+            case KeyEvent.KEYCODE_MEDIA_PAUSE:
+                if (down && player != null) { player.setPlayWhenReady(false); showControls(playPause); }
+                return true;
+            case KeyEvent.KEYCODE_MEDIA_FAST_FORWARD:
+                if (down) skip(30_000);
+                return true;
+            case KeyEvent.KEYCODE_MEDIA_REWIND:
+                if (down) skip(-10_000);
+                return true;
+            default:
+                break;
+        }
+        if (!controlsShown()) {
+            switch (k) {
+                case KeyEvent.KEYCODE_DPAD_LEFT:
+                case KeyEvent.KEYCODE_DPAD_RIGHT:
+                    if (down) skip(k == KeyEvent.KEYCODE_DPAD_RIGHT ? 10_000 : -10_000);
+                    return true;
+                case KeyEvent.KEYCODE_DPAD_CENTER:
+                case KeyEvent.KEYCODE_ENTER:
+                    if (down) { togglePlay(); showControls(playPause); }
+                    return true;
+                case KeyEvent.KEYCODE_DPAD_UP:
+                case KeyEvent.KEYCODE_DPAD_DOWN:
+                    if (down) showControls(playPause);
+                    return true;
+                case KeyEvent.KEYCODE_MENU:
+                case KeyEvent.KEYCODE_SETTINGS:
+                    if (down) showPopover("more", null);
+                    return true;
+                case KeyEvent.KEYCODE_CAPTIONS:
+                    if (down) showPopover("subs", null);
+                    return true;
+                case KeyEvent.KEYCODE_MEDIA_AUDIO_TRACK:
+                    if (down) showPopover("audio", null);
+                    return true;
+                default:
+                    return null;
+            }
+        }
+        // Controls showing.
+        if (down) bumpHide();
+        if (k == KeyEvent.KEYCODE_BACK || k == KeyEvent.KEYCODE_ESCAPE) {
+            if (down) hideControls();
+            return true;
+        }
+        if (k == KeyEvent.KEYCODE_MENU && down) {
+            showPopover("more", null);
+            return true;
+        }
+        if (down && (k == KeyEvent.KEYCODE_DPAD_UP || k == KeyEvent.KEYCODE_DPAD_DOWN)) return true;   // one row
+        return null;
+    }
+
+    // ------------------------------------------------------------ skipping
+
+    private TextView skipHint;
+    private long skipTotal;
+    private final Runnable hideSkip = () -> {
+        if (skipHint != null) skipHint.animate().alpha(0f).setDuration(250).start();
+        skipTotal = 0;
+    };
+
+    /** Skips by deltaMs; repeated presses add up ("+30 s") in a small label at the top. */
+    private void skip(long deltaMs) {
+        if (player == null) return;
+        long dur = player.getDuration();
+        long target = Math.max(0, player.getCurrentPosition() + deltaMs);
+        if (dur > 0) target = Math.min(target, dur - 1000);
+        player.seekTo(target);
+        if ((skipTotal > 0) != (deltaMs > 0)) skipTotal = 0;
+        skipTotal += deltaMs;
+        if (skipHint == null) {
+            skipHint = Ui.heading(this, "", 22);
+            skipHint.setBackground(Ui.rounded(this, Ui.alpha(Color.BLACK, 0.7f), 0, 999));
+            skipHint.setPadding(Ui.dp(this, 22), Ui.dp(this, 10), Ui.dp(this, 22), Ui.dp(this, 10));
+            FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.CENTER_HORIZONTAL);
+            lp.topMargin = Ui.dp(this, 40);
+            root.addView(skipHint, lp);
+        }
+        skipHint.setText((skipTotal > 0 ? "» +" : "« −") + Math.abs(skipTotal / 1000) + " s    " + Ui.time(target)
+                + (dur > 0 ? " / " + Ui.time(dur) : ""));
+        skipHint.animate().cancel();
+        skipHint.setAlpha(1f);
+        App.MAIN.removeCallbacks(hideSkip);
+        App.MAIN.postDelayed(hideSkip, 1500);
     }
 
     // ------------------------------------------------------------ preferences
@@ -290,6 +698,10 @@ public class PlayerActivity extends Activity {
     }
 
     private void showPanel(String page) {
+        if (!live) {
+            showPopover(page, null);
+            return;
+        }
         view.hideController();
         optionsBar.setVisibility(View.GONE);
         panel.setVisibility(View.VISIBLE);
@@ -299,12 +711,22 @@ public class PlayerActivity extends Activity {
     private void closePanel() {
         panel.setVisibility(View.GONE);
         panelPage = null;
+        if (!live) {
+            refreshChips();
+            showControls(lastChip != null ? lastChip : playPause);
+            return;
+        }
         view.requestFocus();
     }
 
+    private void afterPick() {
+        if (live) showPage("main");
+        else closePanel();
+    }
+
     private void backInPanel() {
-        if (panelPage == null || "main".equals(panelPage)) closePanel();
-        else showPage("main");
+        if (live && panelPage != null && !"main".equals(panelPage)) showPage("main");
+        else closePanel();
     }
 
     private void showPage(String page) {
@@ -417,7 +839,7 @@ public class PlayerActivity extends Activity {
             int idx = i;
             View b = item(names[i], null, i == selected, v -> {
                 pick.run(idx);
-                showPage("main");
+                afterPick();
             });
             if (i == selected) focus = b;
         }
@@ -456,7 +878,7 @@ public class PlayerActivity extends Activity {
             focus = item("Auto", "Adjusts to your connection", auto, v -> {
                 player.setTrackSelectionParameters(player.getTrackSelectionParameters().buildUpon()
                         .clearOverridesOfType(C.TRACK_TYPE_VIDEO).build());
-                showPage("main");
+                afterPick();
             });
         }
         int count = 0;
@@ -474,7 +896,7 @@ public class PlayerActivity extends Activity {
                         return;
                     }
                     selectTrack(group, idx, type);
-                    showPage("main");
+                    afterPick();
                 });
                 if (sel) focus = b;
                 count++;
@@ -510,7 +932,7 @@ public class PlayerActivity extends Activity {
                     .clearOverridesOfType(C.TRACK_TYPE_TEXT)
                     .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true).build());
             Store.put("player_subs", "off");
-            showPage("main");
+            afterPick();
         });
         View sel = trackOptions(C.TRACK_TYPE_TEXT);
         if (!off && sel != null) focus = sel;
@@ -756,6 +1178,10 @@ public class PlayerActivity extends Activity {
     @Override
     public boolean dispatchKeyEvent(KeyEvent e) {
         int k = e.getKeyCode();
+        if (!live && controls != null && !panelOpen()) {
+            Boolean r = vodKey(e);
+            if (r != null) return r;
+        }
         if (e.getAction() == KeyEvent.ACTION_DOWN) {
             if (panelOpen()) {
                 if (k == KeyEvent.KEYCODE_BACK || k == KeyEvent.KEYCODE_ESCAPE) {
@@ -802,6 +1228,11 @@ public class PlayerActivity extends Activity {
                 if (!controls && (k == KeyEvent.KEYCODE_DPAD_CENTER || k == KeyEvent.KEYCODE_ENTER)) {
                     showBanner();
                 }
+            }
+            // ←/→ with the controls hidden: skip back / forward 10 seconds.
+            if (!live && !controls && (k == KeyEvent.KEYCODE_DPAD_LEFT || k == KeyEvent.KEYCODE_DPAD_RIGHT)) {
+                skip(k == KeyEvent.KEYCODE_DPAD_RIGHT ? 10_000 : -10_000);
+                return true;
             }
             // ↑ jumps to Audio / Subtitles / Speed / Options at the top.
             if (k == KeyEvent.KEYCODE_DPAD_UP && (!live || controls)) {

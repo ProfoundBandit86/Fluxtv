@@ -260,6 +260,12 @@ public final class ConfigServer {
                 dock(f(form, "pkg"), f(form, "action"));
                 return "Your apps saved";
             // ---- player
+            case "/size-limits":
+                for (String q : SizeLimits.QUALITIES) {
+                    String v = f(form, "q_" + q);
+                    try { SizeLimits.set(q, v.isEmpty() ? 0 : Double.parseDouble(v)); } catch (NumberFormatException ignored) { }
+                }
+                return "Size limits saved";
             case "/player":
                 for (String k : new String[]{"player_audio_lang", "player_sub_lang", "player_subs", "player_sub_size",
                         "player_sub_style", "player_zoom"}) {
@@ -436,8 +442,10 @@ public final class ConfigServer {
           .append("Subtitle size").append(select("player_sub_size", PlayerActivity.SUB_SIZES, PlayerActivity.intPref("player_sub_size", 1)))
           .append("Subtitle style").append(select("player_sub_style", PlayerActivity.SUB_STYLES, PlayerActivity.intPref("player_sub_style", 0)))
           .append("Picture size").append(select("player_zoom", PlayerActivity.ZOOMS, PlayerActivity.intPref("player_zoom", 0)))
-          .append("<button>Save player settings</button></form><p class='u'>While watching: press ↑ (or Menu) for Audio, Subtitles, "
-                  + "Speed and more. Subtitles from add-ons need a subtitles add-on such as OpenSubtitles v3.</p></details>");
+          .append("<button>Save player settings</button></form>")
+          .append(sizeLimitsForm())
+          .append("<p class='u'>While watching: press OK or ↑ to show the controls; Audio, Subtitles, Quality, Speed and Picture are in the bar. "
+                  + "Subtitles from add-ons need a subtitles add-on such as OpenSubtitles v3.</p></details>");
 
         // ---------------- downloads
         sb.append("<details><summary>Radarr, Sonarr &amp; SABnzbd</summary><p class='u'>API keys: in each app under Settings → General. "
@@ -543,6 +551,24 @@ public final class ConfigServer {
         } catch (Exception e) {
             sb.append("<p class='u'>Couldn't read profiles: ").append(esc(App.message(e))).append("</p>");
         }
+    }
+
+    private static String sizeLimitsForm() {
+        StringBuilder sb = new StringBuilder("<h3>Stream size limits</h3><p class='u'>Streams bigger than this are hidden "
+                + "and never auto-played (your own library is never limited).</p><form method='post' action='/size-limits'>");
+        for (int q = 0; q < SizeLimits.QUALITIES.length; q++) {
+            String quality = SizeLimits.QUALITIES[q];
+            double[] ch = SizeLimits.CHOICES[q];
+            String[] v = new String[ch.length], l = new String[ch.length];
+            String cur = "";
+            for (int i = 0; i < ch.length; i++) {
+                v[i] = ch[i] <= 0 ? "" : String.valueOf(ch[i]);
+                l[i] = SizeLimits.label(ch[i]);
+                if (Math.abs(SizeLimits.max(quality) - ch[i]) < 0.01) cur = v[i];
+            }
+            sb.append(quality).append(select("q_" + quality, v, l, cur));
+        }
+        return sb.append("<button>Save size limits</button></form>").toString();
     }
 
     private static String hidden(String name, String value) {

@@ -280,11 +280,12 @@ public class DetailActivity extends FluxActivity {
     private boolean arrLoading, arrMissing;
 
     private String arrLabel(Arr arr) {
-        if (arrLoading && arrStatus == null) return arr.name + "…";
-        if (arrMissing) return arr.name + ": not found";
-        if (arrStatus == null) return "Add to " + arr.name;
-        if (!arrStatus.added) return "Add to " + arr.name;
-        return arr.name + " · " + arrStatus.text;
+        if (arrLoading && arrStatus == null) return arr.name;
+        if (arrMissing) return "Not found";
+        if (arrStatus == null || !arrStatus.added) return "+ " + arr.name;
+        if (arrStatus.downloaded) return "Downloaded";
+        if (arrStatus.total > 0) return arrStatus.have + "/" + arrStatus.total;
+        return arrStatus.text;
     }
 
     private void loadArrStatus(Arr arr) {
@@ -302,7 +303,7 @@ public class DetailActivity extends FluxActivity {
         }, e -> {
             arrLoading = false;
             View b = buttons.findViewWithTag("arr");
-            if (b instanceof android.widget.Button) ((android.widget.Button) b).setText(arr.name + ": can't connect");
+            if (b instanceof android.widget.Button) ((android.widget.Button) b).setText("Offline");
         });
     }
 
@@ -383,41 +384,61 @@ public class DetailActivity extends FluxActivity {
         int focusedIndex = focused != null && focused.getParent() == buttons ? buttons.indexOfChild(focused) : -1;
         buttons.removeAllViews();
 
+        // Play starts the best source straight away; Sources shows the full list.
+        String playVideo = null, playLabel = "", playTitle = null;
         if (!isSeries()) {
             JSONObject hints = meta.optJSONObject("behaviorHints");
-            String videoId = hints != null && !hints.optString("defaultVideoId").isEmpty()
+            playVideo = hints != null && !hints.optString("defaultVideoId").isEmpty()
                     ? hints.optString("defaultVideoId") : meta.optString("id", id);
-            JSONObject p = Store.progress(videoId);
-            String label = p != null && !Store.isFinished(p) && p.optLong("pos") > 30000
+            JSONObject p = Store.progress(playVideo);
+            playTitle = p != null && !Store.isFinished(p) && p.optLong("pos") > 30000
                     ? "Resume · " + Ui.left(p.optLong("pos"), p.optLong("dur")) : "Play";
-            buttons.addView(Ui.button(this, R.drawable.ic_play, label, v -> openStreams(videoId, "")));
         } else {
             JSONObject next = nextEpisode();
             if (next != null) {
                 JSONObject p = Store.progress(next.optString("id"));
                 String verb = p != null && !Store.isFinished(p) && p.optLong("pos") > 30000 ? "Resume " : "Play ";
-                buttons.addView(Ui.button(this, R.drawable.ic_play, verb + shortLabel(next),
-                        v -> openStreams(next.optString("id"), episodeLabel(next))));
+                playVideo = next.optString("id");
+                playLabel = episodeLabel(next);
+                playTitle = verb + shortLabel(next);
             }
+        }
+        if (playVideo != null) {
+            String vid = playVideo, lbl = playLabel, ttl = playTitle;
+            String[] best = bestCache.get(vid);
+            android.widget.Button play = Ui.primary(this, R.drawable.ic_play, ttl,
+                    best == null ? "Finding the best source…" : best[0] == null ? "Choose a source" : "Best source: " + best[0],
+                    v -> openStreams(vid, lbl, true));
+            play.setTag("play");
+            buttons.addView(play);
+            android.widget.Button sources = Ui.button(this, R.drawable.ic_list,
+                    best == null ? "Sources" : "Sources · " + best[1], v -> openStreams(vid, lbl, false));
+            sources.setTag("sources");
+            LinearLayout.LayoutParams sl = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, Ui.dp(this, 64));
+            sl.setMargins(0, Ui.dp(this, 4), Ui.dp(this, 12), Ui.dp(this, 4));
+            sources.setLayoutParams(sl);
+            buttons.addView(sources);
+            if (best == null) prefetchBest(vid, ttl);
         }
 
         boolean fav = Store.inLibrary(meta.optString("id", id));
-        buttons.addView(Ui.button(this, fav ? R.drawable.ic_heart_filled : R.drawable.ic_heart, fav ? "Favorited" : "Favorite", v -> {
+        buttons.addView(Ui.tile(this, fav ? R.drawable.ic_heart_filled : R.drawable.ic_heart, fav ? "Saved" : "Save", v -> {
             JSONObject m = meta;
             try {
                 if (badge != null && !badge.isEmpty()) m.put("badge", badge);
                 if (serverId != null && !serverId.isEmpty()) m.put("serverId", serverId);
             } catch (Exception ignored) { }
             Trakt.favoriteChanged(m, Store.toggleLibrary(m));
+            int at = buttons.indexOfChild(v);
             renderButtons();
-            View b = buttons.getChildAt(isSeries() && nextEpisode() == null ? 0 : 1);
+            View b = buttons.getChildAt(at);
             if (b != null) b.requestFocus();
         }));
 
         String metaId = meta.optString("id", id);
         if (Tmdb.canCredit(metaId)) {
             String t = isSeries() ? "series" : "movie";
-            buttons.addView(Ui.button(this, R.drawable.ic_people, "Cast & Crew",
+            buttons.addView(Ui.tile(this, R.drawable.ic_people, "Cast",
                     v -> CreditsActivity.open(this, metaId, t, meta.optString("name"))));
         }
         String serviceKey = getIntent().getStringExtra("service");
@@ -426,7 +447,7 @@ public class DetailActivity extends FluxActivity {
                 if (s == null || buttons.findViewWithTag("svc") != null) return;
                 for (String pkg : s.packages) {
                     if (Apps.isInstalled(this, pkg)) {
-                        View b = Ui.button(this, R.drawable.ic_apps, "Open " + s.name, v -> Apps.launch(this, pkg));
+                        View b = Ui.tile(this, R.drawable.ic_apps, s.name, v -> Apps.launch(this, pkg));
                         b.setTag("svc");
                         buttons.addView(b);
                         break;
@@ -437,7 +458,7 @@ public class DetailActivity extends FluxActivity {
 
         Arr arr = Arr.forType(isSeries() ? "series" : "movie");
         if (arr.configured()) {
-            android.widget.Button ab = Ui.button(this, R.drawable.ic_download, arrLabel(arr), v -> arrClicked(arr));
+            android.widget.Button ab = Ui.tile(this, R.drawable.ic_download, arrLabel(arr), v -> arrClicked(arr));
             ab.setTag("arr");
             buttons.addView(ab);
             if (arrStatus == null && !arrLoading) loadArrStatus(arr);
@@ -445,7 +466,7 @@ public class DetailActivity extends FluxActivity {
 
         String trailer = trailerId();
         if (trailer != null) {
-            buttons.addView(Ui.button(this, R.drawable.ic_trailer, "Trailer", v -> {
+            buttons.addView(Ui.tile(this, R.drawable.ic_trailer, "Trailer", v -> {
                 try {
                     startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com/watch?v=" + trailer)));
                 } catch (ActivityNotFoundException e) {
@@ -625,9 +646,36 @@ public class DetailActivity extends FluxActivity {
     // ------------------------------------------------------------ helpers
 
     private void openStreams(String videoId, String label) {
+        openStreams(videoId, label, true);
+    }
+
+    /** autoplay: start the best source right away (Play); otherwise show the list (Sources). */
+    private void openStreams(String videoId, String label, boolean autoplay) {
         PlayInfo pi = PlayInfo.of(type, meta.optString("id", id), videoId, meta.optString("name"), meta.optString("poster"), label);
         pi.background = meta.optString("background");
-        startActivity(pi.into(new Intent(this, StreamsActivity.class)));
+        startActivity(pi.into(new Intent(this, StreamsActivity.class)).putExtra("autoplay", autoplay));
+    }
+
+    private final java.util.Map<String, String[]> bestCache = new java.util.HashMap<>();
+
+    /** Looks up streams in the background so Play can say which source it will use. */
+    private void prefetchBest(String videoId, String title) {
+        if (bestCache.containsKey(videoId + "#loading")) return;
+        bestCache.put(videoId + "#loading", new String[0]);
+        String t = isSeries() ? "series" : "movie";
+        App.async(() -> StreamsActivity.bestOf(Addons.streams(t, videoId)), best -> {
+            bestCache.put(videoId, best);
+            View p = buttons.findViewWithTag("play");
+            if (p instanceof android.widget.Button) {
+                Ui.setPrimaryText(this, (android.widget.Button) p, title,
+                        best[0] == null ? (best[1].equals("0") ? "No sources found" : "Choose a source") : "Best source: " + best[0]);
+            }
+            View s = buttons.findViewWithTag("sources");
+            if (s instanceof android.widget.Button) ((android.widget.Button) s).setText("Sources · " + best[1]);
+        }, e -> {
+            View p = buttons.findViewWithTag("play");
+            if (p instanceof android.widget.Button) Ui.setPrimaryText(this, (android.widget.Button) p, title, "");
+        });
     }
 
     private String trailerId() {

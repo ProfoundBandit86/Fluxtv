@@ -85,10 +85,12 @@ adb shell am start -W -n $P/.PlayerActivity --es url "https://devstreaming-cdn.a
 sleep 20; shot 15-player
 key MENU 2; texts player-menu 30; shot 16-player-menu
 tap "Audio"; sleep 2; texts player-audio 30; shot 17-player-audio
-key BACK 1; tap "Subtitles"; sleep 2; texts player-subs 40; shot 18-player-subs
+key BACK 1; key MENU 2; tap "Subtitles"; sleep 2; texts player-subs 40; shot 18-player-subs
 tap "Find subtitles"; sleep 6; texts player-subs-found 40; shot 19-player-subs-found
 tap "English&#10;Flux"; sleep 12; texts player-addon-sub 20; shot 20-player-addon-subtitle
 key DPAD_UP 0; shot 21-player-bar
+key DPAD_RIGHT 1; key DPAD_RIGHT 1; key DPAD_RIGHT 1; key DPAD_RIGHT 1; key DPAD_CENTER 1; shot 21b-player-popover; key BACK 1
+key BACK 2; key DPAD_RIGHT 0; key DPAD_RIGHT 0; key DPAD_RIGHT 0; shot 21c-player-skip
 key DPAD_RIGHT 1; key DPAD_RIGHT 1; key DPAD_CENTER 2; texts player-speed 20; shot 22-player-speed
 key BACK 1; key BACK 1; key BACK 3
 crashes player
@@ -97,7 +99,7 @@ echo "== TRAKT LOG"; curl -s http://127.0.0.1:8000/trakt/_log | python3 -c "impo
 # Radarr: add from the title page
 adb shell am start -W -n $P/.DetailActivity --es type movie --es id tt0111161 --es name Test
 sleep 12; nudge; texts detail-arr 30; shot 23-detail-radarr
-tap "Add to Radarr"; sleep 4; texts arr-quality 20; shot 24-arr-quality
+tap "+ Radarr"; sleep 4; texts arr-quality 20; shot 24-arr-quality
 tap "HD-1080p"; sleep 6; texts arr-added 30; shot 25-arr-added
 adb shell am start -W -n $P/.DetailActivity --es type series --es id tt0903747 --es name "Breaking Bad"
 sleep 12; nudge; texts detail-sonarr 30; shot 26-detail-sonarr
