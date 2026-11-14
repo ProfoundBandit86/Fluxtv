@@ -1,0 +1,53 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.fluxtv.app'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'com.fluxtv.app'
+        minSdk 24
+        targetSdk 35
+        // GitHub Actions run number = version, so every push to main is a newer release.
+        def build = (System.getenv('GITHUB_RUN_NUMBER') ?: '1').toInteger()
+        versionCode build
+        versionName "1.0.$build"
+    }
+
+    // Every release must be signed with the same key, or Android refuses the update.
+    // Uses a private key from GitHub secrets when configured (see README), else signing/flux-release.jks.
+    signingConfigs {
+        release {
+            storeFile file(System.getenv('FLUX_KEYSTORE') ?: "${rootDir}/signing/flux-release.jks")
+            storePassword System.getenv('FLUX_KEYSTORE_PASSWORD') ?: 'fluxtv-release'
+            keyAlias System.getenv('FLUX_KEY_ALIAS') ?: 'flux'
+            keyPassword System.getenv('FLUX_KEY_PASSWORD') ?: 'fluxtv-release'
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.release
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    lint {
+        abortOnError false
+        checkReleaseBuilds false
+    }
+}
+
+dependencies {
+    def media3 = '1.4.1'
+    implementation "androidx.media3:media3-exoplayer:$media3"
+    implementation "androidx.media3:media3-exoplayer-hls:$media3"
+    implementation "androidx.media3:media3-ui:$media3"
+}
