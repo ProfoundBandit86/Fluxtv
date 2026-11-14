@@ -30,7 +30,7 @@ curl -s -m 30 -X POST --data-urlencode "tmdb=fakeTmdbKey" --data-urlencode "gemi
 # Trakt (fake) + a subtitles add-on
 curl -s -m 30 -X POST --data-urlencode "tmdb=http://10.0.2.2:8000/3" --data-urlencode "gemini=http://10.0.2.2:8000/gemini/" --data-urlencode "trakt=http://10.0.2.2:8000/trakt" http://127.0.0.1:8090/test-config | grep -o "<p class='m'>[^<]*"
 curl -s -m 60 -X POST --data-urlencode "url=http://10.0.2.2:8000/subs/manifest.json" http://127.0.0.1:8090/install | grep -o "<p class='m'>[^<]*"
-curl -s -m 30 -X POST --data-urlencode "id=fakeClientId" --data-urlencode "secret=fakeSecret" http://127.0.0.1:8090/trakt-app | grep -o "<p class='m'>[^<]*"
+curl -s -m 30 -X POST --data-urlencode "id=fakeClientId" http://127.0.0.1:8090/trakt-app | grep -o "<p class='m'>[^<]*"
 curl -s -m 30 -X POST --data-urlencode "name=Default" http://127.0.0.1:8090/trakt-link | grep -o "<p class='m'>[^<]*"
 sleep 8
 curl -s -m 30 http://127.0.0.1:8090/ > out/settings-page.html

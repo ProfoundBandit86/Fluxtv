@@ -59,10 +59,11 @@ public class ProfilesActivity extends FluxActivity {
         if (!Trakt.configured()) {
             content.addView(section("Connect Trakt"));
             content.addView(para("Trakt needs a free API app of your own. On your phone or computer, open "
-                    + "trakt.tv/oauth/applications/new, give it any name, set the Redirect URI to "
-                    + "urn:ietf:wg:oauth:2.0:oob and save. Then paste its Client ID and Client Secret"
-                    + (addr != null ? " at " + addr + " (easier) or here." : " here.")));
-            EditText id = field("Client ID"), secret = field("Client Secret");
+                    + "developer.trakt.tv, sign in, go to My Apps and create an app with any name (if it asks for a "
+                    + "Redirect URI, use http://localhost). Then paste its Client ID"
+                    + (addr != null ? " at " + addr + " (easier) or here." : " here.")
+                    + " New Trakt apps have no Client Secret; only fill that in for an older app that has one."));
+            EditText id = field("Client ID"), secret = field("Client Secret (older apps only)");
             content.addView(id, new LinearLayout.LayoutParams(Ui.dp(this, 520), ViewGroup.LayoutParams.WRAP_CONTENT));
             content.addView(secret, new LinearLayout.LayoutParams(Ui.dp(this, 560), ViewGroup.LayoutParams.WRAP_CONTENT));
             LinearLayout b = Ui.horizontal(this);
@@ -131,6 +132,7 @@ public class ProfilesActivity extends FluxActivity {
             LinearLayout b = Ui.horizontal(this);
             b.addView(Ui.button(this, "Change Trakt API app", v -> {
                 Store.put("trakt_client_secret", "");
+                Store.put("trakt_client_id", "");
                 render();
             }));
             content.addView(b);

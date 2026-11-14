@@ -228,7 +228,7 @@ public final class ConfigServer {
                 return "Removed profile " + f(form, "name");
             case "/trakt-app":
                 Trakt.setApp(f(form, "id"), f(form, "secret"));
-                return Trakt.configured() ? "Trakt app saved. Now link a profile." : "Add both the Client ID and Secret";
+                return Trakt.configured() ? "Trakt app saved. Now link a profile." : "Add the Client ID";
             case "/trakt-link": {
                 Trakt.Login l = Trakt.startLogin(f(form, "name"));
                 return "Go to " + l.url + " and enter " + l.userCode;
@@ -369,9 +369,9 @@ public final class ConfigServer {
         sb.append("<form method='post' action='/profile-add' class='row'><input name='name' placeholder='New profile name' autocomplete='off'>")
           .append("<button>Add</button></form>");
         sb.append("<h3>Trakt API app</h3><p class='u'>")
-          .append(Trakt.configured() ? "Saved. Paste new values to replace it." : "Create one (free) at <a style='color:var(--a)' href='https://trakt.tv/oauth/applications/new' target='_blank'>trakt.tv/oauth/applications/new</a>. Any name; Redirect URI: <b>urn:ietf:wg:oauth:2.0:oob</b>. Then paste its Client ID and Client Secret:")
+          .append(Trakt.configured() ? "Saved. Paste a new Client ID to switch apps." : "Create one (free) at <a style='color:var(--a)' href='https://developer.trakt.tv' target='_blank'>developer.trakt.tv</a> → My Apps. Any name; if it asks for a Redirect URI use <b>http://localhost</b>. Then paste its Client ID:")
           .append("</p><form method='post' action='/trakt-app'><input name='id' placeholder='Client ID' autocomplete='off'>")
-          .append("<input name='secret' placeholder='Client Secret' autocomplete='off'><button>Save Trakt app</button></form>")
+          .append("<input name='secret' placeholder='Client Secret (only older apps have one; leave empty)' autocomplete='off'><button>Save Trakt app</button></form>")
           .append("<p class='u'>Synced per profile: Favorites ⇄ Trakt watchlist, resume points, and watch history (scrobbling).</p>");
         sb.append("</details>");
 

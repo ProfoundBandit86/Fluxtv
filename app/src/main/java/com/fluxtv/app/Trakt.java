@@ -17,7 +17,7 @@ import java.util.TimeZone;
  * Favorites ⇄ Trakt watchlist (two-way, deletions included), resume points from Trakt's
  * playback progress, and scrobbling so what you watch lands in your Trakt history.
  *
- * Trakt needs an API app of your own (free): its Client ID and Secret go in Settings.
+ * Trakt needs an API app of your own (free): its Client ID goes in Settings (new apps have no secret).
  */
 public final class Trakt {
 
@@ -36,12 +36,54 @@ public final class Trakt {
         return Store.get("trakt_client_id");
     }
 
+    /** Only the Client ID is needed: Trakt stopped issuing secrets to new apps (Oct 2026). Older apps' secrets still work. */
     public static boolean configured() {
-        return !clientId().isEmpty() && !Store.get("trakt_client_secret").isEmpty();
+        return !clientId().isEmpty();
+    }
+
+    private static String secret() {
+        return Store.get("trakt_client_secret");
+    }
+
+    /** Adds client_secret only for older apps that have one. */
+    private static JSONObject withSecret(JSONObject body) throws Exception {
+        if (!secret().isEmpty()) body.put("client_secret", secret());
+        return body;
+    }
+
+    /**
+     * Sign-in calls go to Trakt's auth host (current docs), falling back to the API host
+     * (where they used to live) if that host isn't reachable or doesn't know the path.
+     */
+    private static String oauth(String path, JSONObject body) throws Exception {
+        if (BuildConfig.TEST_BUILD && !Store.get("test_trakt").isEmpty()) return post(path, body, null);
+        try {
+            return Http.call("POST", "https://auth.trakt.tv" + path, headers(null), body.toString(), "application/json");
+        } catch (Http.HttpException e) {
+            if (e.code != 404 && e.code != 405) throw e;
+        } catch (java.io.IOException ignored) {
+            // auth host unreachable: try the API host
+        }
+        return post(path, body, null);
+    }
+
+    // PKCE: a random verifier for each sign-in; Trakt gets its SHA-256 hash first, then the verifier itself.
+    private static String newVerifier() {
+        byte[] b = new byte[48];
+        new java.security.SecureRandom().nextBytes(b);
+        return android.util.Base64.encodeToString(b, android.util.Base64.URL_SAFE | android.util.Base64.NO_PADDING | android.util.Base64.NO_WRAP);
+    }
+
+    private static String challenge(String verifier) throws Exception {
+        byte[] h = java.security.MessageDigest.getInstance("SHA-256").digest(verifier.getBytes("US-ASCII"));
+        return android.util.Base64.encodeToString(h, android.util.Base64.URL_SAFE | android.util.Base64.NO_PADDING | android.util.Base64.NO_WRAP);
     }
 
     public static void setApp(String id, String secret) {
-        if (id != null && !id.trim().isEmpty()) Store.put("trakt_client_id", id.trim());
+        if (id != null && !id.trim().isEmpty()) {
+            if (!id.trim().equals(clientId())) Store.put("trakt_client_secret", "");   // a new app: forget the old one's secret
+            Store.put("trakt_client_id", id.trim());
+        }
         if (secret != null && !secret.trim().isEmpty()) Store.put("trakt_client_secret", secret.trim());
     }
 
@@ -93,14 +135,21 @@ public final class Trakt {
         JSONObject t = tokens(profile);
         if (t == null) throw new Exception("Trakt isn't linked for " + profile);
         if (t.optLong("expires") > System.currentTimeMillis() + 120_000) return t.optString("access");
-        JSONObject body = new JSONObject()
+        JSONObject body = withSecret(new JSONObject()
                 .put("refresh_token", t.optString("refresh"))
                 .put("client_id", clientId())
-                .put("client_secret", Store.get("trakt_client_secret"))
                 .put("redirect_uri", "urn:ietf:wg:oauth:2.0:oob")
-                .put("grant_type", "refresh_token");
+                .put("grant_type", "refresh_token"));
         try {
-            JSONObject r = new JSONObject(post("/oauth/token", body, null));
+            String raw;
+            try {
+                raw = oauth("/oauth/token", body);
+            } catch (Http.HttpException e) {
+                if (e.code != 400 && e.code != 401) throw e;
+                body.put("redirect_uri", "http://localhost");   // newer apps check this redirect URI
+                raw = oauth("/oauth/token", body);
+            }
+            JSONObject r = new JSONObject(raw);
             saveTokens(profile, r, t.optString("user"));
             return r.optString("access_token");
         } catch (Http.HttpException e) {
@@ -131,6 +180,7 @@ public final class Trakt {
     /** An in-progress sign-in. state: waiting, done, expired, error. Shared by the TV screen and the phone page. */
     public static class Login {
         public String profile = "", userCode = "", url = "", deviceCode = "", error = "";
+        String verifier = "";
         public volatile String state = "waiting";
         int interval = 5;
         long deadline;
@@ -144,9 +194,12 @@ public final class Trakt {
 
     /** Starts a sign-in for the profile; a background thread waits for approval. */
     public static Login startLogin(String profile) throws Exception {
-        if (!configured()) throw new Exception("Add your Trakt Client ID and Secret first");
-        JSONObject r = new JSONObject(post("/oauth/device/code", new JSONObject().put("client_id", clientId()), null));
+        if (!configured()) throw new Exception("Add your Trakt Client ID first");
+        String verifier = newVerifier();
+        JSONObject r = new JSONObject(oauth("/oauth/device/code", new JSONObject().put("client_id", clientId())
+                .put("code_challenge", challenge(verifier)).put("code_challenge_method", "S256")));
         Login l = new Login();
+        l.verifier = verifier;
         l.profile = profile;
         l.userCode = r.optString("user_code");
         l.url = r.optString("verification_url", "https://trakt.tv/activate");
@@ -179,9 +232,9 @@ public final class Trakt {
                 return;
             }
             try {
-                JSONObject body = new JSONObject().put("code", l.deviceCode).put("client_id", clientId())
-                        .put("client_secret", Store.get("trakt_client_secret"));
-                JSONObject r = new JSONObject(post("/oauth/device/token", body, null));
+                JSONObject body = withSecret(new JSONObject().put("code", l.deviceCode).put("client_id", clientId())
+                        .put("code_verifier", l.verifier));
+                JSONObject r = new JSONObject(oauth("/oauth/device/token", body));
                 String user = "";
                 try {
                     JSONObject settings = new JSONObject(Http.call("GET", api() + "/users/settings",
