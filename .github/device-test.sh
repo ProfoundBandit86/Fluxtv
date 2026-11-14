@@ -165,11 +165,19 @@ adb shell settings put secure enabled_accessibility_services $P/$P.HomeButtonSer
 adb shell settings put secure accessibility_enabled 1
 sleep 3
 adb shell am start -W -n $P/.SettingsActivity --es category home; sleep 4; texts settings-home 30; shot 35-settings-home
+adb shell cmd package set-home-activity com.google.android.apps.nexuslauncher/.NexusLauncherActivity
 adb logcat -c
 adb shell am start -W -n $P/.SettingsActivity; sleep 3
-adb shell input keyevent HOME; sleep 2; top after-home-2s; adb logcat -d | grep FluxHome | tail -5
+# A hardware Home press (through the emulator's virtual keyboard, like a real remote)
+adb emu event send EV_KEY:KEY_HOMEPAGE:1 EV_SYN:0:0; sleep 0.1; adb emu event send EV_KEY:KEY_HOMEPAGE:0 EV_SYN:0:0
+sleep 2; top after-hw-home-2s; adb logcat -d | grep FluxHome | tail -6
+# Software Home (adb input) for comparison
 adb shell am start -W -n $P/.SettingsActivity; sleep 3
-adb shell input keyevent --longpress HOME; sleep 3; top after-long-home; shot 37-long-home
+adb shell input keyevent HOME; sleep 7; top after-sw-home-7s; adb logcat -d | grep FluxHome | tail -6
+# Hold Home
+adb shell am start -W -n $P/.SettingsActivity; sleep 3
+adb emu event send EV_KEY:KEY_HOMEPAGE:1 EV_SYN:0:0; sleep 1.2; adb emu event send EV_KEY:KEY_HOMEPAGE:0 EV_SYN:0:0
+sleep 3; top after-long-home; shot 37-long-home
 shot 36-after-home-button
 curl -s -m 20 http://127.0.0.1:8090/ > /dev/null
 adb shell am start -W -n $P/.SettingsActivity; sleep 3
