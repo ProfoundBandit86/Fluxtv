@@ -55,20 +55,20 @@
             </intent-filter>
         </activity>
 
-        <activity android:name=".SearchActivity" android:exported="false" android:screenOrientation="landscape"
+        <activity android:name=".SearchActivity" android:exported="${testExported}" android:screenOrientation="landscape"
             android:windowSoftInputMode="stateVisible|adjustResize" />
-        <activity android:name=".DetailActivity" android:exported="false" android:screenOrientation="landscape" />
-        <activity android:name=".StreamsActivity" android:exported="false" android:screenOrientation="landscape" />
-        <activity android:name=".AddonsActivity" android:exported="false" android:screenOrientation="landscape"
+        <activity android:name=".DetailActivity" android:exported="${testExported}" android:screenOrientation="landscape" />
+        <activity android:name=".StreamsActivity" android:exported="${testExported}" android:screenOrientation="landscape" />
+        <activity android:name=".AddonsActivity" android:exported="${testExported}" android:screenOrientation="landscape"
             android:windowSoftInputMode="adjustResize" />
-        <activity android:name=".AccountActivity" android:exported="false" android:screenOrientation="landscape"
+        <activity android:name=".AccountActivity" android:exported="${testExported}" android:screenOrientation="landscape"
             android:windowSoftInputMode="adjustResize" />
-        <activity android:name=".ServersActivity" android:exported="false" android:screenOrientation="landscape"
+        <activity android:name=".ServersActivity" android:exported="${testExported}" android:screenOrientation="landscape"
             android:windowSoftInputMode="adjustResize" />
-        <activity android:name=".AppsActivity" android:exported="false" android:screenOrientation="landscape" />
+        <activity android:name=".AppsActivity" android:exported="${testExported}" android:screenOrientation="landscape" />
         <activity
             android:name=".PlayerActivity"
-            android:exported="false"
+            android:exported="${testExported}"
             android:screenOrientation="landscape"
             android:launchMode="singleTop"
             android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenSize|screenLayout|smallestScreenSize|uiMode" />

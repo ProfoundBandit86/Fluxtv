@@ -46,6 +46,11 @@ public final class Store {
         p.edit().putString(key, value).apply();
     }
 
+    /** Synchronous write, for use while the app is crashing. */
+    public static void putNow(String key, String value) {
+        p.edit().putString(key, value).commit();
+    }
+
     // ------------------------------------------------------------ add-ons
 
     public static synchronized List<String> addonUrls() {

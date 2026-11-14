@@ -20,6 +20,16 @@ public class App extends Application {
     public void onCreate() {
         super.onCreate();
         Store.init(this);
+        // Save any crash so the home screen can show it next time (TVs hide crash dialogs).
+        Thread.UncaughtExceptionHandler previous = Thread.getDefaultUncaughtExceptionHandler();
+        Thread.setDefaultUncaughtExceptionHandler((thread, error) -> {
+            try {
+                java.io.StringWriter sw = new java.io.StringWriter();
+                error.printStackTrace(new java.io.PrintWriter(sw));
+                Store.putNow("last_crash", Updater.currentName(this) + "\n" + sw);
+            } catch (Throwable ignored) { }
+            if (previous != null) previous.uncaughtException(thread, error);
+        });
     }
 
     /** Runs work on a background thread and delivers the result on the main thread. */

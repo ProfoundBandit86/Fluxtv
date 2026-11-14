@@ -14,6 +14,8 @@ android {
         def build = (System.getenv('GITHUB_RUN_NUMBER') ?: '1').toInteger()
         versionCode build
         versionName "1.0.$build"
+        // Emulator test builds (FLUX_TEST=1) let adb open inner screens directly.
+        manifestPlaceholders = [testExported: System.getenv('FLUX_TEST') == '1' ? 'true' : 'false']
     }
 
     // Every release must be signed with the same key, or Android refuses the update.

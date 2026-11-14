@@ -101,6 +101,7 @@ public class MainActivity extends Activity {
         profileButton.setText("Profile: " + Store.profile());
         updateButton.setText("Updates · " + Updater.currentName(this));
         Updater.check(this, false);   // automatic update check on every reload of the home screen
+        showLastCrash();
         renderLocalRows();
         if (Store.addonsVersion() != loadedVersion) loadCatalogs();
         App.MAIN.removeCallbacks(clockTick);
@@ -164,6 +165,22 @@ public class MainActivity extends Activity {
             catalogRows.removeAllViews();
             catalogRows.addView(Ui.text(this, "Couldn't load catalogs: " + App.message(e), 18, Ui.MUTED));
         });
+    }
+
+    /** If Flux crashed last time, show the error so it can be reported. */
+    private void showLastCrash() {
+        String crash = Store.get("last_crash");
+        if (crash.isEmpty()) return;
+        Store.put("last_crash", "");
+        TextView t = Ui.text(this, crash, 12, Ui.TEXT);
+        t.setPadding(Ui.dp(this, 16), Ui.dp(this, 8), Ui.dp(this, 16), Ui.dp(this, 8));
+        ScrollView sv = new ScrollView(this);
+        sv.addView(t);
+        new AlertDialog.Builder(this)
+                .setTitle("Flux TV hit an error last time")
+                .setView(sv)
+                .setPositiveButton("OK", null)
+                .show();
     }
 
     private void chooseProfile() {
