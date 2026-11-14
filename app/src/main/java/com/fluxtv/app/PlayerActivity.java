@@ -285,6 +285,7 @@ public class PlayerActivity extends Activity {
 
         LinearLayout bar = Ui.horizontal(this);
         bar.setGravity(Gravity.CENTER_VERTICAL);
+        bar.setBaselineAligned(false);
         playPause = roundButton(R.drawable.ic_pause, true, v -> togglePlay());
         bar.addView(playPause);
         bar.addView(roundButton(R.drawable.ic_back10, false, v -> skip(-10_000)));
@@ -345,11 +346,13 @@ public class PlayerActivity extends Activity {
         b.setAllCaps(false);
         b.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
         b.setBackground(Ui.focusable(this, Ui.alpha(Color.WHITE, 0.12f), Color.WHITE, 0));
-        b.setPadding(Ui.dp(this, 16), 0, Ui.dp(this, 16), 0);
+        b.setPadding(Ui.dp(this, 12), 0, Ui.dp(this, 12), 0);
+        b.setTextSize(13);
+        b.setMaxWidth(Ui.dp(this, 150));
         b.setTag(label);
         b.setOnFocusChangeListener((v, has) -> { if (has) { lastChip = (android.widget.Button) v; bumpHide(); } });
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, Ui.dp(this, 52));
-        lp.setMargins(Ui.dp(this, 8), 0, 0, 0);
+        lp.setMargins(Ui.dp(this, 6), 0, 0, 0);
         b.setLayoutParams(lp);
         chips.put(page, b);
     }
@@ -365,7 +368,7 @@ public class PlayerActivity extends Activity {
                 {"quality", countTracks(C.TRACK_TYPE_VIDEO) > 1 ? currentLabel(C.TRACK_TYPE_VIDEO) : null},
                 {"speed", sp == 1f ? "1×" : (sp + "×").replace(".0×", "×")},
                 {"zoom", ZOOMS[Math.max(0, Math.min(2, intPref("player_zoom", 0)))]},
-                {"more", src == null || src.isEmpty() ? "Size, style…" : src},
+                {"more", src == null || src.isEmpty() ? "All options" : src},
         };
         for (String[] v : vals) {
             android.widget.Button b = chips.get(v[0]);
@@ -375,7 +378,7 @@ public class PlayerActivity extends Activity {
             String name = String.valueOf(b.getTag()).toUpperCase(Locale.ROOT);
             android.text.SpannableStringBuilder sb = new android.text.SpannableStringBuilder(name);
             sb.setSpan(new android.text.style.RelativeSizeSpan(0.72f), 0, sb.length(), 0);
-            sb.append("\n").append(v[1].length() > 22 ? v[1].substring(0, 21) + "…" : v[1]);
+            sb.append("\n").append(v[1].length() > 16 ? v[1].substring(0, 15) + "…" : v[1]);
             b.setText(sb);
         }
     }
@@ -383,7 +386,7 @@ public class PlayerActivity extends Activity {
     private void updateBadges() {
         if (badges == null || player == null) return;
         badges.removeAllViews();
-        List<String> out = new ArrayList<>();
+        java.util.Set<String> out = new java.util.LinkedHashSet<>();
         for (Tracks.Group g : player.getCurrentTracks().getGroups()) {
             for (int i = 0; i < g.length; i++) {
                 if (!g.isTrackSelected(i)) continue;

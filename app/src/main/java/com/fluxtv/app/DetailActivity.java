@@ -138,7 +138,9 @@ public class DetailActivity extends FluxActivity {
         hero.addView(credits);
 
         buttons = Ui.horizontal(this);
-        buttons.setPadding(0, Ui.dp(this, 22), Ui.dp(this, 40), Ui.dp(this, 6));
+        buttons.setBaselineAligned(false);   // two-line Play button would otherwise be pushed down and clipped
+        buttons.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        buttons.setPadding(0, Ui.dp(this, 22), Ui.dp(this, 40), Ui.dp(this, 10));
         android.widget.HorizontalScrollView buttonScroll = new FocusScroll.Horizontal(this);
         buttonScroll.addView(buttons);
         hero.addView(buttonScroll);
