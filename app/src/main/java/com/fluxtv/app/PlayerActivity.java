@@ -200,7 +200,7 @@ public class PlayerActivity extends Activity {
         player.setPlayWhenReady(true);
         root.setFocusable(true);
         root.requestFocus();
-        root.post(() -> showControls(playPause));
+        // No controls or badges when a video starts; press OK or ↑ to bring them up.
     }
 
     // ------------------------------------------------------------ Flux's own controls (movies & episodes)
