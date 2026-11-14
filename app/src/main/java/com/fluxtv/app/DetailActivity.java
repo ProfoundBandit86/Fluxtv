@@ -64,6 +64,7 @@ public class DetailActivity extends Activity {
         content.setPadding(pad, Ui.dp(this, 36), pad, pad);
         scroll.addView(content);
         root.addView(scroll, new FrameLayout.LayoutParams(-1, -1));
+        setContentView(root);
 
         LinearLayout top = Ui.horizontal(this);
         poster = new ImageView(this);
