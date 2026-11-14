@@ -70,6 +70,7 @@ public class SettingsActivity extends Activity {
         src.addView(Ui.button(this, R.drawable.ic_addons, "Add-ons", v -> startActivity(new Intent(this, AddonsActivity.class))));
         src.addView(Ui.button(this, R.drawable.ic_servers, "Media servers", v -> startActivity(new Intent(this, ServersActivity.class))));
         src.addView(Ui.button(this, R.drawable.ic_cloud, "Real-Debrid", v -> startActivity(new Intent(this, AccountActivity.class))));
+        src.addView(Ui.button(this, R.drawable.ic_live, "Live TV & IPTV", v -> startActivity(new Intent(this, IptvActivity.class))));
         content.addView(src);
 
         content.addView(section("System"));

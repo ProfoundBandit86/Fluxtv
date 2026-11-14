@@ -144,20 +144,13 @@ public class MainActivity extends Activity {
         rail = Ui.vertical(this);
         rail.setGravity(Gravity.CENTER_HORIZONTAL);
         rail.setBackgroundColor(Ui.PANEL);
-        rail.setPadding(0, Ui.dp(this, 22), 0, Ui.dp(this, 18));
-
-        TextView logo = Ui.heading(this, "▶", 16);
-        logo.setGravity(Gravity.CENTER);
-        logo.setTextColor(Ui.BG);
-        logo.setBackground(Ui.rounded(this, Ui.ACCENT, 0, 10));
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(Ui.dp(this, 36), Ui.dp(this, 36));
-        lp.setMargins(0, 0, 0, Ui.dp(this, 22));
-        rail.addView(logo, lp);
+        rail.setPadding(0, Ui.dp(this, 16), 0, Ui.dp(this, 14));
 
         homeItem = railItem(R.drawable.ic_home, "Home", "home", v -> showSection("home"));
         railItem(R.drawable.ic_search, "Search", null, v -> startActivity(new Intent(this, SearchActivity.class)));
         railItem(R.drawable.ic_movie, "Movies", "movie", v -> showSection("movie"));
         railItem(R.drawable.ic_tv, "TV Shows", "series", v -> showSection("series"));
+        railItem(R.drawable.ic_live, "Live TV", null, v -> startActivity(new Intent(this, LiveActivity.class)));
         railItem(R.drawable.ic_heart, "Favorites", "favorites", v -> showSection("favorites"));
         railItem(R.drawable.ic_apps, "Apps", null, v -> startActivity(new Intent(this, AppsActivity.class)));
         View spacer = new View(this);
@@ -209,8 +202,8 @@ public class MainActivity extends Activity {
         t.setPadding(0, Ui.dp(this, 4), 0, 0);
         t.setDuplicateParentStateEnabled(true);
         item.addView(t, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(Ui.dp(this, 60), Ui.dp(this, 54));
-        lp.setMargins(0, Ui.dp(this, 3), 0, Ui.dp(this, 3));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(Ui.dp(this, 62), Ui.dp(this, 48));
+        lp.setMargins(0, Ui.dp(this, 2), 0, Ui.dp(this, 2));
         rail.addView(item, lp);
         return item;
     }
@@ -227,7 +220,10 @@ public class MainActivity extends Activity {
         String name = Store.profile();
         avatar.setText(name.isEmpty() ? "?" : name.substring(0, 1).toUpperCase());
         updateStatus();
-        if (Store.addonsVersion() != loadedVersion || !name.equals(loadedProfile)) load();
+        if (Store.addonsVersion() != loadedVersion || !name.equals(loadedProfile)) {
+            genreRows.clear();
+            load();
+        }
         else if (Store.changes() != renderedChanges) renderSection();   // favorites / progress changed
         App.MAIN.removeCallbacks(clockTick);
         clockTick.run();
@@ -369,9 +365,18 @@ public class MainActivity extends Activity {
         continueRow(type);
         posterRow("Favorites", null, favorites(type));
         for (Addons.Row r : home.rows) {
-            if (!type.equals(r.type)) continue;
+            if (!type.equals(r.type) || "IPTV".equals(r.note)) continue;
             String t = r.title.replace(" · Movies", "").replace(" · Shows", "");
             posterRow(t, r.note, r.items);
+        }
+        List<Addons.Row> iptv = genreRows.get("iptv:" + type);
+        if (iptv != null) {
+            for (Addons.Row r : iptv) posterRow(r.title, "IPTV", r.items);
+        } else if (Iptv.vodEnabled() && !Iptv.sources().isEmpty()) {
+            App.async(() -> Iptv.vodRows(type, 8), list -> {
+                genreRows.put("iptv:" + type, list);
+                if (section.equals(type)) for (Addons.Row r : list) posterRow(r.title, "IPTV", r.items);
+            }, null);
         }
         List<Addons.Row> genres = genreRows.get(type);
         if (genres != null) {

@@ -66,6 +66,9 @@
         <activity android:name=".ServersActivity" android:exported="${testExported}" android:screenOrientation="landscape"
             android:windowSoftInputMode="adjustResize" />
         <activity android:name=".SettingsActivity" android:exported="${testExported}" android:screenOrientation="landscape" />
+        <activity android:name=".LiveActivity" android:exported="${testExported}" android:screenOrientation="landscape" />
+        <activity android:name=".IptvActivity" android:exported="${testExported}" android:screenOrientation="landscape"
+            android:windowSoftInputMode="adjustResize" />
         <activity android:name=".AppsActivity" android:exported="${testExported}" android:screenOrientation="landscape" />
         <activity
             android:name=".PlayerActivity"

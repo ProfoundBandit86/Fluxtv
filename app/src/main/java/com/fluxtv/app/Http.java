@@ -66,6 +66,26 @@ public final class Http {
         }
     }
 
+    /** Opens a (possibly huge) response as a stream; closing it releases the connection. */
+    public static InputStream open(String url) throws IOException {
+        HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
+        c.setConnectTimeout(15000);
+        c.setReadTimeout(60000);
+        c.setInstanceFollowRedirects(true);
+        c.setRequestProperty("User-Agent", "FluxTV/1.0 (Android TV)");
+        int code = c.getResponseCode();
+        if (code >= 400) {
+            c.disconnect();
+            throw new HttpException(code, "");
+        }
+        InputStream in = c.getInputStream();
+        return new java.io.FilterInputStream(in) {
+            @Override public void close() throws IOException {
+                try { super.close(); } finally { c.disconnect(); }
+            }
+        };
+    }
+
     /** Any method with custom headers. contentType may be null when there is no body. */
     public static String call(String method, String url, Map<String, String> headers, String body, String contentType)
             throws IOException {

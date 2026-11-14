@@ -18,38 +18,34 @@ curl -s -m 30 -X POST --data-urlencode "key=DUMMYTOKEN123" http://127.0.0.1:8090
 adb shell am force-stop $P
 adb logcat -c
 
-# Home, then the Movies / TV Shows / Favorites sections from the sidebar
+# ---------------- IPTV with a fake Xtream server + M3U/EPG
+python3 .github/fake_xtream.py &
+sleep 2
+curl -s "http://127.0.0.1:8000/player_api.php?username=test&password=test" | head -c 200; echo
+adb shell am start -W -n $P/.IptvActivity; sleep 4
+adb forward tcp:8090 tcp:8090
+curl -s -m 60 -X POST --data-urlencode "url=http://10.0.2.2:8000" --data-urlencode "user=test" --data-urlencode "pass=wrong" http://127.0.0.1:8090/iptv-xtream | grep -o "<p class='m'>[^<]*"
+curl -s -m 60 -X POST --data-urlencode "url=http://10.0.2.2:8000/player_api.php?username=x" --data-urlencode "user=test" --data-urlencode "pass=test" http://127.0.0.1:8090/iptv-xtream | grep -o "<p class='m'>[^<]*"
+curl -s -m 60 -X POST --data-urlencode "m3u=http://10.0.2.2:8000/list.m3u" --data-urlencode "epg=http://10.0.2.2:8000/epg.xml" http://127.0.0.1:8090/iptv-m3u | grep -o "<p class='m'>[^<]*"
+sleep 2; texts iptv-settings 30; shot 10-iptv-settings
+adb shell am force-stop $P
+
+adb shell am start -W -n $P/.LiveActivity
+sleep 12; nudge; top live; texts live 40; shot 11-live
+crashes live
+key DPAD_RIGHT 2; key DPAD_CENTER 20
+top live-player; texts live-player 10; shot 12-live-player
+key DPAD_DOWN 4; texts channel-down 10; shot 13-channel-down
+crashes live-player
+adb logcat -d | grep -E "ExoPlayerImplInternal|fluxtv" | tail -15
+key BACK 2; key BACK 2
+
+# Movies section shows the provider's categories
 adb shell am start -W -n $P/.MainActivity
 sleep 35
-top home; texts home 20; shot 01-home
-nudge; key DPAD_DOWN 1; key DPAD_DOWN 1; key DPAD_CENTER 25
-texts movies 30; shot 02-movies
-key DPAD_RIGHT 2; key DPAD_DOWN 2; shot 02b-movies-row2; key DPAD_DOWN 2; shot 02c-movies-row3; key DPAD_LEFT 1; key DPAD_LEFT 1; key DPAD_LEFT 1
-for i in 1 2 3 4 5 6; do key DPAD_UP 1; done; key DPAD_DOWN 1; key DPAD_DOWN 1; key DPAD_DOWN 1
-key DPAD_DOWN 1; key DPAD_CENTER 25
-texts shows 30; shot 03-shows
-crashes sections
-
-# Title page (movie): favorite it
-adb shell am start -W -n $P/.DetailActivity --es type movie --es id tt0111161 --es name "Movie test"
-sleep 15; nudge; texts movie-detail 30; shot 04-movie-detail
-key DPAD_RIGHT 1; key DPAD_CENTER 2; texts after-favorite 12
-for i in 1 2 3 4; do key DPAD_DOWN 1; done; sleep 3; shot 05-movie-detail-scrolled
-crashes movie-detail
-
-# Series title page
-adb shell am start -W -n $P/.DetailActivity --es type series --es id tt0903747 --es name "Series test"
-sleep 15; nudge; shot 06-series
-for i in 1 2; do key DPAD_DOWN 1; done; sleep 3; shot 07-series-episodes; key DPAD_DOWN 2; shot 07b-series-more
-crashes series
-
-# Favorites section
-adb shell am start -W -n $P/.MainActivity
-sleep 5; key BACK 1; nudge
-for i in 1 2 3 4 5; do key DPAD_UP 1; done
-key DPAD_DOWN 1; key DPAD_DOWN 1; key DPAD_DOWN 1; key DPAD_DOWN 1; key DPAD_CENTER 5
-texts favorites 20; shot 08-favorites
-crashes favorites
+nudge; key DPAD_DOWN 1; key DPAD_DOWN 1; key DPAD_CENTER 30
+texts movies-with-iptv 60; shot 14-movies-iptv
+crashes movies-iptv
 
 adb logcat -d > out/logcat.txt
 exit 0

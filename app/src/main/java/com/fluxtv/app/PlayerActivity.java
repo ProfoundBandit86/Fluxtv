@@ -42,10 +42,32 @@ public class PlayerActivity extends Activity {
         info = PlayInfo.from(getIntent());
         url = getIntent().getStringExtra("url");
 
+        live = getIntent().getBooleanExtra("live", false);
+        android.widget.FrameLayout root = new android.widget.FrameLayout(this);
         view = new PlayerView(this);
         view.setBackgroundColor(Color.BLACK);
         view.setKeepScreenOn(true);
-        setContentView(view);
+        root.addView(view);
+        if (live) {
+            banner = Ui.vertical(this);
+            banner.setBackground(Ui.rounded(this, Ui.alpha(Color.BLACK, 0.72f), 0, 14));
+            banner.setPadding(Ui.dp(this, 20), Ui.dp(this, 14), Ui.dp(this, 22), Ui.dp(this, 14));
+            bannerTitle = Ui.heading(this, "", 20);
+            bannerNow = Ui.text(this, "", 14, Ui.MUTED);
+            bannerNow.setPadding(0, Ui.dp(this, 6), 0, 0);
+            banner.addView(bannerTitle);
+            banner.addView(bannerNow);
+            android.widget.FrameLayout.LayoutParams bl = new android.widget.FrameLayout.LayoutParams(
+                    android.view.ViewGroup.LayoutParams.WRAP_CONTENT, android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
+                    android.view.Gravity.TOP | android.view.Gravity.START);
+            bl.setMargins(Ui.dp(this, 40), Ui.dp(this, 32), 0, 0);
+            root.addView(banner, bl);
+            liveSource = Iptv.source(getIntent().getStringExtra("live_source"));
+            liveCategory = getIntent().getStringExtra("live_category");
+            liveIndex = getIntent().getIntExtra("live_index", 0);
+            view.setControllerShowTimeoutMs(2500);
+        }
+        setContentView(root);
 
         player = new ExoPlayer.Builder(this).build();
         view.setPlayer(player);
@@ -62,10 +84,26 @@ public class PlayerActivity extends Activity {
 
             @Override
             public void onPlayerError(PlaybackException error) {
+                // Live IPTV: if MPEG-TS doesn't play, try the HLS version once.
+                if (live && !triedHls && url != null && url.endsWith(".ts")) {
+                    triedHls = true;
+                    url = url.substring(0, url.length() - 3) + ".m3u8";
+                    playUrl(url);
+                    return;
+                }
                 showError(error);
             }
         });
 
+        if (live) {
+            playUrl(url);
+            App.async(() -> Iptv.channelsIn(liveSource, liveCategory), list -> {
+                liveChannels = list;
+                showBanner();
+            }, null);
+            view.requestFocus();
+            return;
+        }
         MediaItem item = new MediaItem.Builder()
                 .setUri(Uri.parse(url))
                 .setMediaMetadata(new MediaMetadata.Builder().setTitle(info.title()).build())
@@ -80,6 +118,71 @@ public class PlayerActivity extends Activity {
         player.prepare();
         player.setPlayWhenReady(true);
         view.requestFocus();
+    }
+
+    // ------------------------------------------------------------ live TV
+
+    private boolean live, triedHls;
+    private Iptv.Source liveSource;
+    private String liveCategory;
+    private int liveIndex;
+    private java.util.List<Iptv.Channel> liveChannels;
+    private android.widget.LinearLayout banner;
+    private android.widget.TextView bannerTitle, bannerNow;
+    private final Runnable hideBanner = () -> { if (banner != null) banner.animate().alpha(0f).setDuration(300).start(); };
+
+    private void playUrl(String u) {
+        player.setMediaItem(MediaItem.fromUri(Uri.parse(u)));
+        player.prepare();
+        player.setPlayWhenReady(true);
+    }
+
+    private void switchChannel(int delta) {
+        if (liveChannels == null || liveChannels.isEmpty() || liveSource == null) return;
+        liveIndex = (liveIndex + delta + liveChannels.size()) % liveChannels.size();
+        triedHls = false;
+        url = Iptv.liveUrl(liveSource, liveChannels.get(liveIndex), false);
+        playUrl(url);
+        showBanner();
+    }
+
+    private void showBanner() {
+        if (banner == null || liveChannels == null || liveIndex >= liveChannels.size()) return;
+        Iptv.Channel c = liveChannels.get(liveIndex);
+        bannerTitle.setText((c.num.isEmpty() ? "" : c.num + "   ") + c.name);
+        bannerNow.setText("");
+        banner.animate().cancel();
+        banner.setAlpha(1f);
+        App.MAIN.removeCallbacks(hideBanner);
+        App.MAIN.postDelayed(hideBanner, 4500);
+        Iptv.Source src = liveSource;
+        int idx = liveIndex;
+        App.async(() -> Iptv.nowNext(src, c), progs -> {
+            if (idx != liveIndex || progs.isEmpty()) return;
+            String t = "Now  " + progs.get(0).title;
+            if (progs.size() > 1) t += "\nNext  " + progs.get(1).title;
+            bannerNow.setText(t);
+        }, null);
+    }
+
+    @Override
+    public boolean dispatchKeyEvent(android.view.KeyEvent e) {
+        if (live && e.getAction() == android.view.KeyEvent.ACTION_DOWN) {
+            int k = e.getKeyCode();
+            boolean controls = view.isControllerFullyVisible();
+            if (k == android.view.KeyEvent.KEYCODE_CHANNEL_UP || (!controls && k == android.view.KeyEvent.KEYCODE_DPAD_UP)) {
+                switchChannel(-1);
+                return true;
+            }
+            if (k == android.view.KeyEvent.KEYCODE_CHANNEL_DOWN || (!controls && k == android.view.KeyEvent.KEYCODE_DPAD_DOWN)) {
+                switchChannel(1);
+                return true;
+            }
+            if (!controls && (k == android.view.KeyEvent.KEYCODE_DPAD_CENTER || k == android.view.KeyEvent.KEYCODE_ENTER)) {
+                showBanner();
+            }
+        }
+        return super.dispatchKeyEvent(e);
     }
 
     @Override
@@ -107,7 +210,7 @@ public class PlayerActivity extends Activity {
     }
 
     private void saveProgress() {
-        if (player == null || info.videoId.isEmpty()) return;
+        if (player == null || live || info.videoId.isEmpty()) return;
         long dur = player.getDuration();
         long pos = player.getPlaybackState() == Player.STATE_ENDED ? dur : player.getCurrentPosition();
         if (dur <= 0 || pos < 0) return;

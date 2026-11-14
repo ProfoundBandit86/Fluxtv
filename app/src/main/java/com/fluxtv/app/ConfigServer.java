@@ -135,6 +135,20 @@ public final class ConfigServer {
                             Store.saveServer(px);
                             message = "Added " + px.name;
                             break;
+                        case "/iptv-xtream":
+                            Iptv.Source xs = Iptv.loginXtream(form.get("url"), form.get("user"), form.get("pass"));
+                            Iptv.save(xs);
+                            message = "Added " + xs.name;
+                            break;
+                        case "/iptv-m3u":
+                            Iptv.Source ms3 = Iptv.addM3u(form.get("m3u"), form.get("epg"));
+                            Iptv.save(ms3);
+                            message = "Added " + ms3.name;
+                            break;
+                        case "/iptv-remove":
+                            Iptv.remove(form.get("id") == null ? "" : form.get("id"));
+                            message = "IPTV provider removed";
+                            break;
                         case "/server-remove":
                             String[] k = (form.get("key") == null ? "" : form.get("key")).split(":", 2);
                             if (k.length == 2) Store.removeServer(k[0], k[1]);
@@ -192,6 +206,21 @@ public final class ConfigServer {
           .append("<form method='post' action='/plex-manual'><input name='url' placeholder='http://192.168.1.10:32400' autocomplete='off'>")
           .append("<input name='token' placeholder='X-Plex-Token' autocomplete='off' style='margin-top:8px'>")
           .append("<button>Add Plex server</button></form>");
+        sb.append("<h2>Live TV &amp; IPTV</h2>");
+        for (Iptv.Source is : Iptv.sources()) {
+            sb.append("<div class='a'><b>").append(esc(is.name)).append("</b><div class='u'>")
+              .append(esc(is.xtream() ? "Xtream Codes · " + is.url : "M3U playlist")).append("</div><form method='post' action='/iptv-remove'>")
+              .append("<input type='hidden' name='id' value='").append(esc(is.id)).append("'><button class='rm'>Remove</button></form></div>");
+        }
+        sb.append("<h3>Xtream Codes login</h3><p class='u'>Dispatcharr: http://&lt;its IP&gt;:9191, a Dispatcharr username and that user's XC password.</p>")
+          .append("<form method='post' action='/iptv-xtream'><input name='url' placeholder='http://example.com:8080' autocomplete='off'>")
+          .append("<input name='user' placeholder='Username' autocomplete='off' style='margin-top:8px'>")
+          .append("<input name='pass' type='password' placeholder='Password' style='margin-top:8px'>")
+          .append("<button>Sign in</button></form>")
+          .append("<h3>M3U playlist</h3><form method='post' action='/iptv-m3u'>")
+          .append("<input name='m3u' placeholder='Playlist link (.m3u / get.php)' autocomplete='off'>")
+          .append("<input name='epg' placeholder='Guide link (XMLTV), optional' autocomplete='off' style='margin-top:8px'>")
+          .append("<button>Add playlist</button></form>");
         sb.append("<h2>Real-Debrid</h2><p>")
           .append(RealDebrid.isSignedIn() ? "Signed in." : "Not signed in.")
           .append(" Get your token at <a style='color:#7b5cff' href='https://real-debrid.com/apitoken'>real-debrid.com/apitoken</a>.</p>")

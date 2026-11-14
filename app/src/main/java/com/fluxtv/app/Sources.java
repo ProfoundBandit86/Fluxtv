@@ -20,7 +20,7 @@ public final class Sources {
     private Sources() { }
 
     public static boolean isServerId(String id) {
-        return id != null && (id.startsWith(MediaServer.PLEX + ":") || id.startsWith(MediaServer.JELLYFIN + ":")
+        return id != null && (id.startsWith("iptv:") || id.startsWith(MediaServer.PLEX + ":") || id.startsWith(MediaServer.JELLYFIN + ":")
                 || id.startsWith(MediaServer.EMBY + ":"));
     }
 
@@ -67,11 +67,13 @@ public final class Sources {
     }
 
     public static JSONObject meta(String id) throws Exception {
+        if (id.startsWith("iptv:")) return Iptv.meta(id);
         MediaServer s = serverFor(id);
         return plex(s) ? Plex.meta(s, itemOf(id)) : Jellyfin.meta(s, itemOf(id));
     }
 
     public static List<Addons.Stream> streams(String videoId) throws Exception {
+        if (videoId.startsWith("iptv:")) return Iptv.streams(videoId);
         MediaServer s = serverFor(videoId);
         return mark(plex(s) ? Plex.streams(s, itemOf(videoId)) : Jellyfin.streams(s, itemOf(videoId)));
     }
@@ -121,7 +123,7 @@ public final class Sources {
 
     /** Tells the server how far you got, so other Plex/Jellyfin/Emby apps stay in sync. */
     public static void report(String videoId, long posMs, long durMs) {
-        if (!isServerId(videoId)) return;
+        if (!isServerId(videoId) || videoId.startsWith("iptv:")) return;
         App.IO.execute(() -> {
             try {
                 MediaServer s = serverFor(videoId);

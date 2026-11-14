@@ -92,6 +92,11 @@ public final class Store {
         addonsVersion++;
     }
 
+    /** Something that feeds the home screen changed (servers, IPTV, settings). */
+    public static void bumpSources() {
+        addonsVersion++;
+    }
+
     public static int addonsVersion() {
         return addonsVersion;
     }

@@ -96,6 +96,8 @@ public final class Blend {
             recentJobs.add(Addons.POOL.submit(() -> Sources.recent(s)));
         }
         List<Future<Addons.Row>> catalogJobs = Addons.catalogJobs();
+        Future<List<Addons.Row>> iptvMovies = Addons.POOL.submit(() -> Iptv.vodRows("movie", 1));
+        Future<List<Addons.Row>> iptvShows = Addons.POOL.submit(() -> Iptv.vodRows("series", 1));
 
         Library lib;
         try {
@@ -160,6 +162,11 @@ public final class Blend {
                 if (!type.equals(r.type)) continue;
                 h.rows.add(withTypeTitle(r));
             }
+            try {
+                for (Addons.Row r : (type.equals("movie") ? iptvMovies : iptvShows).get(60, TimeUnit.SECONDS)) {
+                    h.rows.add(withTypeTitle(r));
+                }
+            } catch (Exception ignored) { }
         }
         for (Addons.Row r : catalogs) {
             if (!r.type.equals("movie") && !r.type.equals("series")) h.rows.add(withTypeTitle(r));
@@ -184,6 +191,7 @@ public final class Blend {
         List<Future<List<JSONObject>>> serverJobs = new ArrayList<>();
         for (MediaServer s : servers) serverJobs.add(Addons.POOL.submit(() -> Sources.search(s, q)));
         List<Future<Addons.Row>> catalogJobs = Addons.searchJobs(q);
+        serverJobs.add(Addons.POOL.submit(() -> Iptv.search(q)));
 
         Library lib;
         try {
