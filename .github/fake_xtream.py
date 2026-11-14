@@ -77,7 +77,12 @@ class H(BaseHTTPRequestHandler):
         if p.startswith("/live/") and p.endswith(".ts"):
             return self.send(404, "no ts")
         if p.startswith("/live/") and p.endswith(".m3u8"):
-            return self.send(200, "#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=800000\n" + HLS + "\n", "application/vnd.apple.mpegurl")
+            # Real Xtream servers usually redirect streams to a load balancer.
+            self.send_response(302)
+            self.send_header("Location", HLS)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
         if p == "/list.m3u":
             body = "#EXTM3U\n"
             for c in LIVE:

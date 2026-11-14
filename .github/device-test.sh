@@ -45,7 +45,8 @@ key BACK 2; key BACK 2
 adb shell am start -W -n $P/.MainActivity
 sleep 35
 nudge; key DPAD_DOWN 1; key DPAD_DOWN 1; key DPAD_CENTER 30
-texts movies-with-iptv 60; shot 14-movies-iptv
+key DPAD_RIGHT 2; key DPAD_DOWN 2; key DPAD_DOWN 2; sleep 2
+texts movies-with-iptv 80; shot 14-movies-iptv
 crashes movies-iptv
 
 adb logcat -d > out/logcat.txt

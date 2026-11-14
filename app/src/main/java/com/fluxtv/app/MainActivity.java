@@ -323,6 +323,7 @@ public class MainActivity extends Activity {
     }
 
     private JSONObject firstItem;
+    private int sectionGen = 0;
     private String firstEyebrow = "";
 
     private void continueRow(String type) {
@@ -340,8 +341,12 @@ public class MainActivity extends Activity {
     }
 
     private void posterRow(String title, String note, List<JSONObject> items) {
+        posterRow(rows, title, note, items);
+    }
+
+    private void posterRow(ViewGroup target, String title, String note, List<JSONObject> items) {
         if (items.isEmpty()) return;
-        LinearLayout row = Ui.row(this, rows, title, note);
+        LinearLayout row = Ui.row(this, target, title, note);
         for (JSONObject p : items) {
             row.addView(Ui.poster(this, p, v -> DetailActivity.open(this, p), () -> feature(p, title)));
             if (firstItem == null) { firstItem = p; firstEyebrow = title; }
@@ -369,22 +374,29 @@ public class MainActivity extends Activity {
             String t = r.title.replace(" · Movies", "").replace(" · Shows", "");
             posterRow(t, r.note, r.items);
         }
+        // Fixed slots so rows that load later keep their place: IPTV categories, then genres.
+        LinearLayout iptvSlot = Ui.vertical(this), genreSlot = Ui.vertical(this);
+        iptvSlot.setClipChildren(false);
+        genreSlot.setClipChildren(false);
+        rows.addView(iptvSlot);
+        rows.addView(genreSlot);
+        int gen = ++sectionGen;
         List<Addons.Row> iptv = genreRows.get("iptv:" + type);
         if (iptv != null) {
-            for (Addons.Row r : iptv) posterRow(r.title, "IPTV", r.items);
+            for (Addons.Row r : iptv) posterRow(iptvSlot, r.title, "IPTV", r.items);
         } else if (Iptv.vodEnabled() && !Iptv.sources().isEmpty()) {
             App.async(() -> Iptv.vodRows(type, 8), list -> {
                 genreRows.put("iptv:" + type, list);
-                if (section.equals(type)) for (Addons.Row r : list) posterRow(r.title, "IPTV", r.items);
+                if (gen == sectionGen) for (Addons.Row r : list) posterRow(iptvSlot, r.title, "IPTV", r.items);
             }, null);
         }
         List<Addons.Row> genres = genreRows.get(type);
         if (genres != null) {
-            for (Addons.Row r : genres) posterRow(r.title, null, r.items);
+            for (Addons.Row r : genres) posterRow(genreSlot, r.title, null, r.items);
         } else {
             App.async(() -> Addons.genreRows(type, 10), list -> {
                 genreRows.put(type, list);
-                if (section.equals(type)) for (Addons.Row r : list) posterRow(r.title, null, r.items);
+                if (gen == sectionGen) for (Addons.Row r : list) posterRow(genreSlot, r.title, null, r.items);
             }, null);
         }
     }
