@@ -63,6 +63,12 @@ adb shell am start -W -n $P/.SearchActivity --ez voice true
 sleep 6; top voice; texts voice 15; shot 11-voice
 crashes search
 
+# Quick Settings panel (also its own launcher entry)
+adb shell am start -W -n $P/.QuickSettingsActivity
+sleep 4; nudge; top quick; texts quick 30; shot 12-quick-settings
+key DPAD_RIGHT 1; key DPAD_CENTER 5; top quick-open; key BACK 2
+crashes quick
+
 adb logcat -d > out/logcat.txt
 kill $FAKE_PID 2>/dev/null
 exit 0

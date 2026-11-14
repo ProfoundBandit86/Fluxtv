@@ -183,6 +183,14 @@ public class MainActivity extends Activity {
         drawerItem(R.drawable.ic_heart, "Favorites", "favorites", () -> showSection("favorites"));
         drawerItem(R.drawable.ic_apps, "Apps", null, () -> startActivity(new Intent(this, AppsActivity.class)));
         drawer.addView(new View(this), new LinearLayout.LayoutParams(1, 0, 1f));
+        drawerItem(R.drawable.ic_sliders, "Quick settings", null, () -> startActivity(new Intent(this, QuickSettingsActivity.class)));
+        if (new Intent(QuickSettingsActivity.SMART_HOME).resolveActivity(getPackageManager()) != null) {
+            drawerItem(R.drawable.ic_ghome, "Google Home", null, () -> {
+                try {
+                    startActivity(new Intent(QuickSettingsActivity.SMART_HOME));
+                } catch (Exception ignored) { }
+            });
+        }
         drawerItem(R.drawable.ic_settings, "Settings", null, () -> startActivity(new Intent(this, SettingsActivity.class)));
 
         LinearLayout profile = drawerRow();

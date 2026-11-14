@@ -2,6 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!-- Continue watching from other apps (Android TV "Watch Next") -->
     <uses-permission android:name="com.android.providers.tv.permission.READ_EPG_DATA" />
     <!-- Self-updates from GitHub Releases -->
@@ -27,6 +28,12 @@
         </intent>
         <intent>
             <action android:name="android.speech.action.RECOGNIZE_SPEECH" />
+        </intent>
+        <intent>
+            <action android:name="com.google.android.libraries.tv.smarthome.intent.action.OPEN_SMART_HOME" />
+        </intent>
+        <intent>
+            <action android:name="android.settings.SETTINGS" />
         </intent>
     </queries>
 
@@ -78,6 +85,20 @@
         <activity android:name=".CreditsActivity" android:exported="${testExported}" android:screenOrientation="landscape" />
         <activity android:name=".PersonActivity" android:exported="${testExported}" android:screenOrientation="landscape" />
         <activity android:name=".HomeRowsActivity" android:exported="${testExported}" android:screenOrientation="landscape" />
+        <!-- Its own entry in the app list, so Button Mapper can put it on a remote button. -->
+        <activity
+            android:name=".QuickSettingsActivity"
+            android:exported="true"
+            android:label="Flux Quick Settings"
+            android:taskAffinity="com.fluxtv.app.quicksettings"
+            android:excludeFromRecents="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar.Fullscreen">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
         <activity android:name=".AppsActivity" android:exported="${testExported}" android:screenOrientation="landscape" />
         <activity
             android:name=".PlayerActivity"
