@@ -109,15 +109,28 @@ public class SearchActivity extends FluxActivity {
         setContentView(root);
 
         Gemini.warmUp();   // connect to Google while you're still speaking
-        String q = getIntent().getStringExtra("query");
-        if (q != null && !q.isEmpty() && savedInstanceState == null) {
+        if (savedInstanceState == null) handle(getIntent());
+        else mic.requestFocus();
+    }
+
+    /** Search opened again while already open (e.g. from the sidebar): act on the new request. */
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handle(intent);
+    }
+
+    private void handle(Intent i) {
+        String q = i.getStringExtra("query");
+        if (q != null && !q.isEmpty()) {
             input.setText(q);
             search();
-        } else if (BuildConfig.TEST_BUILD && getIntent().getBooleanExtra("demo_listen", false)) {
+        } else if (BuildConfig.TEST_BUILD && i.getBooleanExtra("demo_listen", false)) {
             showListening("Listening… say a title, or describe what you feel like watching");
             heard.setText("funny heist movies from the nineties");
             wave.setLevel(6f);
-        } else if (getIntent().getBooleanExtra("voice", false) && savedInstanceState == null) {
+        } else if (i.getBooleanExtra("voice", false)) {
             mic.post(this::voice);
         } else {
             mic.requestFocus();

@@ -468,21 +468,21 @@ public class SettingsActivity extends FluxActivity {
         tile.setBackground(s);
         View card = new View(this);
         card.setBackground(Ui.rounded(this, panel, 0, 6));
-        android.widget.FrameLayout.LayoutParams cl = new android.widget.FrameLayout.LayoutParams(Ui.dp(this, 46), Ui.dp(this, 30), Gravity.START | Gravity.CENTER_VERTICAL);
-        cl.leftMargin = Ui.dp(this, 14);
+        android.widget.FrameLayout.LayoutParams cl = new android.widget.FrameLayout.LayoutParams(Ui.dp(this, 40), Ui.dp(this, 26), Gravity.START | Gravity.CENTER_VERTICAL);
+        cl.leftMargin = Ui.dp(this, 12);
         tile.addView(card, cl);
         View dot = new View(this);
         dot.setBackground(Ui.rounded(this, accent, 0, 99));
         android.widget.FrameLayout.LayoutParams dl = new android.widget.FrameLayout.LayoutParams(Ui.dp(this, 22), Ui.dp(this, 22), Gravity.END | Gravity.CENTER_VERTICAL);
-        dl.rightMargin = Ui.dp(this, 14);
+        dl.rightMargin = Ui.dp(this, 12);
         tile.addView(dot, dl);
         tile.setOnFocusChangeListener((v, has) -> v.animate().scaleX(has ? 1.06f : 1f).scaleY(has ? 1.06f : 1f).setDuration(120).start());
-        col.addView(tile, new LinearLayout.LayoutParams(Ui.dp(this, 112), Ui.dp(this, 64)));
+        col.addView(tile, new LinearLayout.LayoutParams(Ui.dp(this, 100), Ui.dp(this, 60)));
         TextView n = Ui.text(this, (String) Theme.THEMES[i][0], 12, selected ? Ui.TEXT : Ui.MUTED);
         n.setPadding(0, Ui.dp(this, 6), 0, 0);
         col.addView(n);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        lp.setMargins(0, Ui.dp(this, 4), Ui.dp(this, 14), Ui.dp(this, 8));
+        lp.setMargins(0, Ui.dp(this, 4), Ui.dp(this, 12), Ui.dp(this, 8));
         col.setLayoutParams(lp);
         return col;
     }
