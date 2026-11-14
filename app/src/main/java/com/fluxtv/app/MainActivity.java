@@ -46,6 +46,7 @@ public class MainActivity extends Activity {
 
     private FrameLayout contentRoot;
     private LinearLayout drawer, rows;
+    private android.widget.ScrollView drawerPanel;
     private View dim;
     private ScrollView scroll;
     private TextView clock, status, avatarText;
@@ -59,6 +60,7 @@ public class MainActivity extends Activity {
     private Blend.Home home;
     private List<JSONObject> external = new ArrayList<>();
     private List<Addons.Row> appRows = new ArrayList<>();
+    private boolean drawerHasDownloads;
     private List<Tmdb.Service> services = new ArrayList<>();
     private final Map<String, List<Addons.Row>> extraRows = new HashMap<>();
     private int loadedVersion = -1, themeVersion = -1, renderedChanges = -1, sectionGen = 0;
@@ -93,7 +95,7 @@ public class MainActivity extends Activity {
         dim.setVisibility(View.GONE);
         root.addView(dim, new FrameLayout.LayoutParams(-1, -1));
         buildDrawer();
-        root.addView(drawer, new FrameLayout.LayoutParams(Ui.dp(this, 250), ViewGroup.LayoutParams.MATCH_PARENT));
+        root.addView(drawerPanel, new FrameLayout.LayoutParams(Ui.dp(this, 250), ViewGroup.LayoutParams.MATCH_PARENT));
         setContentView(root);
     }
 
@@ -165,10 +167,15 @@ public class MainActivity extends Activity {
     private void buildDrawer() {
         drawer = Ui.vertical(this);
         drawer.setPadding(Ui.dp(this, 16), Ui.dp(this, 26), Ui.dp(this, 16), Ui.dp(this, 20));
-        drawer.setBackground(new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
+        // The menu scrolls when it's taller than the screen.
+        drawerPanel = new FocusScroll.Vertical(this);
+        drawerPanel.setFillViewport(true);
+        drawerPanel.setFocusable(false);
+        drawerPanel.setBackground(new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
                 new int[]{Ui.PANEL, Ui.alpha(Ui.PANEL, 0.97f)}));
-        drawer.setElevation(Ui.dp(this, 12));
-        drawer.setTranslationX(-Ui.dp(this, 250));
+        drawerPanel.setElevation(Ui.dp(this, 12));
+        drawerPanel.setTranslationX(-Ui.dp(this, 250));
+        drawerPanel.addView(drawer, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         drawer.setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);
 
         TextView logo = Ui.heading(this, "Flux", 22);
@@ -183,15 +190,11 @@ public class MainActivity extends Activity {
         drawerItem(R.drawable.ic_live, "Live TV", null, () -> startActivity(new Intent(this, LiveActivity.class)));
         drawerItem(R.drawable.ic_heart, "Favorites", "favorites", () -> showSection("favorites"));
         drawerItem(R.drawable.ic_apps, "Apps", null, () -> startActivity(new Intent(this, AppsActivity.class)));
-        drawer.addView(new View(this), new LinearLayout.LayoutParams(1, 0, 1f));
-        drawerItem(R.drawable.ic_sliders, "Quick settings", null, () -> startActivity(new Intent(this, QuickSettingsActivity.class)));
-        if (new Intent(QuickSettingsActivity.SMART_HOME).resolveActivity(getPackageManager()) != null) {
-            drawerItem(R.drawable.ic_ghome, "Google Home", null, () -> {
-                try {
-                    startActivity(new Intent(QuickSettingsActivity.SMART_HOME));
-                } catch (Exception ignored) { }
-            });
+        drawerHasDownloads = Arr.anyConfigured();
+        if (drawerHasDownloads) {
+            drawerItem(R.drawable.ic_download, "Downloads", null, () -> startActivity(new Intent(this, DownloadsActivity.class)));
         }
+        drawer.addView(new View(this), new LinearLayout.LayoutParams(1, 0, 1f));
         drawerItem(R.drawable.ic_settings, "Settings", null, () -> startActivity(new Intent(this, SettingsActivity.class)));
 
         LinearLayout profile = drawerRow();
@@ -262,7 +265,7 @@ public class MainActivity extends Activity {
         lastContentFocus = getCurrentFocus();
         drawer.setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
         contentRoot.setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);   // focus stays in the menu
-        drawer.animate().translationX(0).setDuration(220).setInterpolator(new DecelerateInterpolator()).start();
+        drawerPanel.animate().translationX(0).setDuration(220).setInterpolator(new DecelerateInterpolator()).start();
         dim.setVisibility(View.VISIBLE);
         dim.animate().alpha(1f).setDuration(220).start();
         View target = drawerItems.get(section);
@@ -272,7 +275,7 @@ public class MainActivity extends Activity {
     private void closeDrawer(boolean restoreFocus) {
         if (!drawerOpen) return;
         drawerOpen = false;
-        drawer.animate().translationX(-Ui.dp(this, 250)).setDuration(200).setInterpolator(new DecelerateInterpolator()).start();
+        drawerPanel.animate().translationX(-Ui.dp(this, 250)).setDuration(200).setInterpolator(new DecelerateInterpolator()).start();
         dim.animate().alpha(0f).setDuration(200).withEndAction(() -> dim.setVisibility(View.GONE)).start();
         drawer.setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);
         contentRoot.setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
@@ -345,7 +348,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
-        if (themeVersion != Theme.version()) {
+        if (themeVersion != Theme.version() || drawerHasDownloads != Arr.anyConfigured()) {
             recreate();
             return;
         }

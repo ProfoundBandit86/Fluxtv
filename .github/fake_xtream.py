@@ -57,6 +57,52 @@ DISCOVER_TV = {"results": [{"id": 1396, "name": "Breaking Bad", "first_air_date"
 
 
 TRAKT_LOG = []
+ARR_LOG = []
+ADDED = {"radarr": False}
+GEMINI_LOG = []
+SOON = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() + 3 * 86400))
+
+
+def arr_get(svc, p):
+    if p == "/system/status":
+        return {"version": "5.9.0" if svc == "radarr" else "4.0.10"}
+    if p == "/qualityprofile":
+        return [{"id": 1, "name": "HD-1080p"}, {"id": 4, "name": "Ultra-HD"}]
+    if p == "/rootfolder":
+        return [{"path": "/movies" if svc == "radarr" else "/tv"}]
+    if svc == "radarr":
+        if p.startswith("/movie/lookup"):
+            return {"title": "The Shawshank Redemption", "year": 1994, "tmdbId": 278, "imdbId": "tt0111161", "images": [], "id": 5 if ADDED["radarr"] else 0}
+        if p == "/movie/5":
+            return {"id": 5, "title": "The Shawshank Redemption", "monitored": True, "hasFile": False}
+        if p == "/queue":
+            return {"records": [{"title": "Shawshank.1994.1080p", "movie": {"title": "The Shawshank Redemption"}, "size": 8e9, "sizeleft": 2e9,
+                                 "timeleft": "00:12:00", "trackedDownloadState": "downloading"}]}
+        if p == "/calendar":
+            return [{"title": "Upcoming Movie", "digitalRelease": SOON, "imdbId": "tt0133093", "hasFile": False, "images": []}]
+    else:
+        if p.startswith("/series/lookup"):
+            return [{"title": "Breaking Bad", "year": 2008, "tvdbId": 81189, "id": 7, "monitored": True}]
+        if p == "/series/7":
+            return {"id": 7, "title": "Breaking Bad", "monitored": True, "statistics": {"episodeFileCount": 40, "episodeCount": 62}}
+        if p == "/queue":
+            return {"records": []}
+        if p == "/calendar":
+            return [{"seasonNumber": 2, "episodeNumber": 3, "airDateUtc": SOON, "hasFile": False,
+                     "series": {"title": "Test Show", "imdbId": "tt0903747", "images": []}}]
+    return None
+
+
+def sab(mode):
+    if mode == "version":
+        return {"version": "4.3.3"}
+    if mode == "queue":
+        return {"queue": {"paused": False, "speed": "12.5 M", "sizeleft": "3.2 GB", "timeleft": "0:04:10",
+                          "slots": [{"nzo_id": "SABnzbd_nzo_1", "filename": "Some.Show.S02E03.1080p", "percentage": "45", "status": "Downloading",
+                                     "sizeleft": "1.1 GB", "size": "2.0 GB", "timeleft": "0:01:30"}]}}
+    if mode == "history":
+        return {"history": {"slots": [{"name": "Old.Movie.2020.1080p", "status": "Completed", "size": "4.4 GB"}]}}
+    return {"status": True}
 TRAKT_POLLS = [0]
 SRT = "1\n00:00:00,500 --> 00:10:00,000\nFLUX ADDON SUBTITLE\n"
 
@@ -86,7 +132,13 @@ class H(BaseHTTPRequestHandler):
                     return self.send(400, "{}")
                 return self.send(200, json.dumps({"access_token": "acc", "refresh_token": "ref", "expires_in": 86400, "created_at": int(time.time())}))
             return self.send(201, json.dumps({"added": {}, "deleted": {}}))
+        if u.path.startswith("/radarr/") or u.path.startswith("/sonarr/"):
+            ARR_LOG.append({"path": u.path, "body": raw[:300]})
+            if u.path == "/radarr/api/v3/movie":
+                ADDED["radarr"] = True
+            return self.send(201, "{}")
         if u.path.endswith(":generateContent"):
+            GEMINI_LOG.append({"path": u.path, "body": raw[:600]})
             text = json.dumps([{"title": "The Matrix", "year": 1999, "type": "movie"},
                                {"title": "Breaking Bad", "year": 2008, "type": "series"}])
             return self.send(200, json.dumps({"candidates": [{"content": {"parts": [{"text": text}]}}]}))
@@ -96,6 +148,16 @@ class H(BaseHTTPRequestHandler):
         u = urlparse(self.path)
         q = {k: v[0] for k, v in parse_qs(u.query).items()}
         p = u.path
+        if p == "/arr/_log":
+            return self.send(200, json.dumps({"arr": ARR_LOG, "gemini": GEMINI_LOG}, indent=1))
+        for svc in ("radarr", "sonarr"):
+            if p.startswith("/" + svc + "/api/v3"):
+                r = arr_get(svc, p[len("/" + svc + "/api/v3"):])
+                ARR_LOG.append({"path": self.path})
+                return self.send(200, json.dumps(r)) if r is not None else self.send(404, "{}")
+        if p == "/sabnzbd/api":
+            ARR_LOG.append({"path": self.path.split("apikey")[0]})
+            return self.send(200, json.dumps(sab(q.get("mode", ""))))
         if p.startswith("/trakt/"):
             tp = p[len("/trakt"):]
             if tp == "/_log":

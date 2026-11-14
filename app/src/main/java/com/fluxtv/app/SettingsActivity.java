@@ -130,10 +130,19 @@ public class SettingsActivity extends Activity {
         src.addView(Ui.button(this, R.drawable.ic_cloud, "Real-Debrid", v -> startActivity(new Intent(this, AccountActivity.class))));
         src.addView(Ui.button(this, R.drawable.ic_live, "Live TV & IPTV", v -> startActivity(new Intent(this, IptvActivity.class))));
         content.addView(src);
+        LinearLayout dl = Ui.horizontal(this);
+        dl.addView(Ui.button(this, R.drawable.ic_download, "Downloads · Radarr, Sonarr, SABnzbd", v -> startActivity(new Intent(this, ArrSetupActivity.class))));
+        if (Arr.anyConfigured()) dl.addView(Ui.button(this, "Open Downloads", v -> startActivity(new Intent(this, DownloadsActivity.class))));
+        content.addView(dl);
 
         content.addView(section("Search & discovery"));
         content.addView(label("Gemini API key (smart voice search) · from aistudio.google.com"));
         content.addView(keyField("gemini_key", "Gemini API key"));
+        content.addView(label("Gemini search speed"));
+        LinearLayout gs = Ui.horizontal(this);
+        gs.addView(Ui.pill(this, "Fast (Flash-Lite)", Gemini.fast(), v -> { Gemini.setFast(true); render(); }));
+        gs.addView(Ui.pill(this, "Smarter (Flash)", !Gemini.fast(), v -> { Gemini.setFast(false); render(); }));
+        content.addView(gs);
         content.addView(label("TMDB API key or read token (services, cast & crew) · from themoviedb.org/settings/api"));
         content.addView(keyField("tmdb_key", "TMDB API key"));
         content.addView(label("Region for streaming services"));

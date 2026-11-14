@@ -182,12 +182,32 @@ public final class ConfigServer {
                 Iptv.setVodEnabled("on".equals(f(form, "vod")));
                 Store.bumpSources();
                 return "IPTV movies & series " + ("on".equals(f(form, "vod")) ? "shown" : "hidden");
+            // ---- Radarr / Sonarr / SABnzbd
+            case "/arr": {
+                String which = f(form, "which");
+                if (which.equals("sab")) return Sab.save(f(form, "url"), f(form, "key"));
+                Arr arr = which.equals("sonarr") ? Arr.SONARR : Arr.RADARR;
+                return arr.save(f(form, "url"), f(form, "key"));
+            }
+            case "/arr-remove": {
+                String which = f(form, "which");
+                if (which.equals("sab")) Sab.remove(); else (which.equals("sonarr") ? Arr.SONARR : Arr.RADARR).remove();
+                return "Removed";
+            }
+            case "/arr-defaults": {
+                Arr arr = f(form, "which").equals("sonarr") ? Arr.SONARR : Arr.RADARR;
+                arr.setDefaults(f(form, "profile"), f(form, "root"));
+                return arr.name + " defaults saved";
+            }
             // ---- keys
             case "/keys":
                 if (!f(form, "gemini").isEmpty()) Store.put("gemini_key", f(form, "gemini"));
                 if (!f(form, "tmdb").isEmpty()) Store.put("tmdb_key", f(form, "tmdb"));
                 Store.bumpSources();
                 return "Keys saved";
+            case "/gemini-speed":
+                Gemini.setFast(!"smart".equals(f(form, "speed")));
+                return "Gemini search speed saved";
             case "/key-remove":
                 if (f(form, "key").equals("gemini_key") || f(form, "key").equals("tmdb_key")) Store.put(f(form, "key"), "");
                 Store.bumpSources();
@@ -405,6 +425,14 @@ public final class ConfigServer {
           .append("<button>Save player settings</button></form><p class='u'>While watching: press ↑ (or Menu) for Audio, Subtitles, "
                   + "Speed and more. Subtitles from add-ons need a subtitles add-on such as OpenSubtitles v3.</p></details>");
 
+        // ---------------- downloads
+        sb.append("<details><summary>Radarr, Sonarr &amp; SABnzbd</summary><p class='u'>API keys: in each app under Settings → General. "
+                + "Once connected, title pages get an Add to Radarr/Sonarr button and the sidebar gets Downloads.</p>");
+        arrForm(sb, "radarr", "Radarr", "http://192.168.1.10:7878", Arr.RADARR.configured(), Arr.RADARR);
+        arrForm(sb, "sonarr", "Sonarr", "http://192.168.1.10:8989", Arr.SONARR.configured(), Arr.SONARR);
+        arrForm(sb, "sab", "SABnzbd", "http://192.168.1.10:8080", Sab.configured(), null);
+        sb.append("</details>");
+
         // ---------------- add-ons
         sb.append("<details><summary>Add-ons</summary><form method='post' action='/install'>")
           .append("<input name='url' placeholder='https://…/manifest.json' autocomplete='off'><button>Install</button></form>");
@@ -467,10 +495,36 @@ public final class ConfigServer {
           .append(" · TMDB (streaming services, cast &amp; crew): ").append(Store.get("tmdb_key").isEmpty() ? "not set" : "saved").append("</p>")
           .append("<form method='post' action='/keys'><input name='gemini' placeholder='Gemini API key (aistudio.google.com)' autocomplete='off'>")
           .append("<input name='tmdb' placeholder='TMDB API key or read token' autocomplete='off'><button>Save keys</button></form>");
+        sb.append("<form method='post' action='/gemini-speed' class='row'><b>Gemini search</b>")
+          .append(select("speed", new String[]{"fast", "smart"}, new String[]{"Fast (Flash-Lite)", "Smarter (Flash)"}, Gemini.fast() ? "fast" : "smart"))
+          .append("<button>Save</button></form>");
         if (!Store.get("gemini_key").isEmpty()) sb.append(form("/key-remove", hidden("key", "gemini_key"), "Remove Gemini key", "g s"));
         if (!Store.get("tmdb_key").isEmpty()) sb.append(form("/key-remove", hidden("key", "tmdb_key"), "Remove TMDB key", "g s"));
         sb.append("</details></body></html>");
         return sb.toString();
+    }
+
+    private static void arrForm(StringBuilder sb, String which, String name, String example, boolean on, Arr arr) {
+        sb.append("<h3>").append(name).append("</h3><p class='u'>").append(on ? "Connected to " + esc(Store.get(which + "_url")) : "Not set up")
+          .append("</p><form method='post' action='/arr'>").append(hidden("which", which))
+          .append("<input name='url' placeholder='").append(on ? esc(Store.get(which + "_url")) : example).append("' autocomplete='off'>")
+          .append("<input name='key' placeholder='").append(on ? "API key saved (paste to replace)" : "API key").append("' autocomplete='off'>")
+          .append("<button>Save &amp; test</button></form>");
+        if (!on) return;
+        sb.append(form("/arr-remove", hidden("which", which), "Remove", "rm s"));
+        if (arr == null) return;
+        try {
+            List<String[]> profiles = arr.profiles();
+            List<String> roots = arr.rootFolders();
+            String[] pv = new String[profiles.size()], pl = new String[profiles.size()];
+            for (int i = 0; i < pv.length; i++) { pv[i] = profiles.get(i)[0]; pl[i] = profiles.get(i)[1]; }
+            String[] rv = roots.toArray(new String[0]);
+            sb.append("<form method='post' action='/arr-defaults'>").append(hidden("which", which))
+              .append("Quality for new ").append(arr == Arr.RADARR ? "movies" : "shows").append(select("profile", pv, pl, arr.profile()))
+              .append("Save to").append(select("root", rv, rv, arr.root())).append("<button>Save defaults</button></form>");
+        } catch (Exception e) {
+            sb.append("<p class='u'>Couldn't read profiles: ").append(esc(App.message(e))).append("</p>");
+        }
     }
 
     private static String hidden(String name, String value) {

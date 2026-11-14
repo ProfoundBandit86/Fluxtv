@@ -83,10 +83,27 @@
         <activity android:name=".LiveActivity" android:exported="${testExported}" android:screenOrientation="landscape" />
         <activity android:name=".IptvActivity" android:exported="${testExported}" android:screenOrientation="landscape"
             android:windowSoftInputMode="adjustResize" />
-        <activity android:name=".ServiceActivity" android:exported="${testExported}" android:screenOrientation="landscape" />
+        <activity android:name=".ServiceActivity" android:exported="true" android:screenOrientation="landscape">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="fluxtv" android:host="service" />
+            </intent-filter>
+        </activity>
+        <activity android:name=".ServiceShortcutActivity" android:exported="true" android:label="Flux service page"
+            android:icon="@drawable/icon" android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            <intent-filter>
+                <action android:name="android.intent.action.CREATE_SHORTCUT" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
         <activity android:name=".CreditsActivity" android:exported="${testExported}" android:screenOrientation="landscape" />
         <activity android:name=".PersonActivity" android:exported="${testExported}" android:screenOrientation="landscape" />
         <activity android:name=".HomeRowsActivity" android:exported="${testExported}" android:screenOrientation="landscape" />
+        <activity android:name=".DownloadsActivity" android:exported="${testExported}" android:screenOrientation="landscape" />
+        <activity android:name=".ArrSetupActivity" android:exported="${testExported}" android:screenOrientation="landscape"
+            android:windowSoftInputMode="adjustPan" />
         <activity android:name=".ProfilesActivity" android:exported="${testExported}" android:screenOrientation="landscape"
             android:windowSoftInputMode="adjustPan" />
         <!-- Its own entry in the app list, so Button Mapper can put it on a remote button. -->

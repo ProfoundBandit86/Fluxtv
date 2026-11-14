@@ -77,6 +77,7 @@ public class SearchActivity extends Activity {
         results.setClipChildren(false);
         content.addView(results);
 
+        Gemini.warmUp();   // connect to Google while you're still speaking
         if (getIntent().getBooleanExtra("voice", false) && savedInstanceState == null) {
             mic.post(this::voice);
         } else {

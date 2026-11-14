@@ -36,6 +36,39 @@ public final class Gemini {
         return Http.map("x-goog-api-key", Store.get("gemini_key").trim(), "Accept", "application/json");
     }
 
+    /** "Fast" (default) uses Flash-Lite; "Smart" uses full Flash. Both skip long thinking. */
+    public static boolean fast() {
+        return !"smart".equals(Store.get("gemini_speed"));
+    }
+
+    public static void setFast(boolean fast) {
+        Store.put("gemini_speed", fast ? "fast" : "smart");
+        Store.put("gemini_model_t", "0");   // pick the model again
+    }
+
+    /** Opens the connection to Google ahead of time (e.g. while you're speaking), so the search starts faster. */
+    public static void warmUp() {
+        if (!enabled()) return;
+        App.IO.execute(() -> {
+            try {
+                Http.call("GET", api() + "models/" + model(), headers(), null, null);
+            } catch (Exception ignored) { }
+        });
+    }
+
+    private static final java.util.Map<String, List<JSONObject>> CACHE = new java.util.LinkedHashMap<String, List<JSONObject>>() {
+        @Override protected boolean removeEldestEntry(java.util.Map.Entry<String, List<JSONObject>> e) { return size() > 30; }
+    };
+
+    /** Asks for quick answers: thinking off (2.5) or minimal (3+). */
+    private static JSONObject thinking(String model) throws Exception {
+        Matcher m = Pattern.compile("gemini-(\\d+)").matcher(model);
+        int major = m.find() ? Integer.parseInt(m.group(1)) : 0;
+        if (major >= 3) return new JSONObject().put("thinkingLevel", "minimal");
+        if (major == 2 && model.contains("2.5")) return new JSONObject().put("thinkingBudget", 0);
+        return null;
+    }
+
     /** Newest generally-available Flash model for this key, re-checked once a day. */
     static synchronized String model() {
         String cached = Store.get("gemini_model");
@@ -53,8 +86,9 @@ public final class Gemini {
                 if (methods == null || !methods.toString().contains("generateContent")) continue;
                 Matcher x = MODEL.matcher(m.optString("name"));
                 if (!x.find()) continue;
+                boolean lite = x.group(2) != null;
                 double score = Double.parseDouble(x.group(1)) * 10
-                        + (x.group(2) == null ? 1 : 0)                                   // full Flash over Flash-Lite
+                        + (lite == fast() ? 1 : 0)                                       // Flash-Lite when "Fast"
                         - (x.group(3) != null && x.group(3).startsWith("-preview") ? 5 : 0);   // prefer stable
                 if (score > bestScore) {
                     bestScore = score;
@@ -70,8 +104,20 @@ public final class Gemini {
     /** Titles Gemini suggests for a request, resolved to cards. */
     public static List<JSONObject> search(String request) throws Exception {
         if (!enabled()) throw new Exception("Add a Gemini API key in Settings");
+        String cacheKey = request.trim().toLowerCase(Locale.ROOT);
+        synchronized (CACHE) {
+            if (CACHE.containsKey(cacheKey)) return new ArrayList<>(CACHE.get(cacheKey));
+        }
+        List<JSONObject> found = ask(request);
+        synchronized (CACHE) {
+            if (!found.isEmpty()) CACHE.put(cacheKey, found);
+        }
+        return found;
+    }
+
+    private static List<JSONObject> ask(String request) throws Exception {
         String prompt = "You are the search box of a TV app for movies and TV series. The viewer said: \""
-                + request.replace("\"", "'") + "\". Reply with ONLY a JSON array (no other text) of up to 20 "
+                + request.replace("\"", "'") + "\". Reply with ONLY a JSON array (no other text) of up to 15 "
                 + "movies or TV series that best match. If they named a specific title, put it first. Each item: "
                 + "{\"title\": English title, \"year\": release year as a number, \"type\": \"movie\" or \"series\"}.";
         JSONObject body = new JSONObject();
@@ -83,12 +129,20 @@ public final class Gemini {
         turn.put("parts", parts);
         contents.put(turn);
         body.put("contents", contents);
-        body.put("generationConfig", new JSONObject().put("responseMimeType", "application/json"));
-
         String model = model();
+        JSONObject gen = new JSONObject().put("responseMimeType", "application/json").put("maxOutputTokens", 1200);
+        JSONObject think = thinking(model);
+        if (think != null) gen.put("thinkingConfig", think);
+        body.put("generationConfig", gen);
         String reply;
         try {
-            reply = Http.call("POST", api() + "models/" + model + ":generateContent", headers(), body.toString(), "application/json");
+            try {
+                reply = Http.call("POST", api() + "models/" + model + ":generateContent", headers(), body.toString(), "application/json");
+            } catch (Http.HttpException e) {
+                if (e.code != 400 || !gen.has("thinkingConfig")) throw e;
+                gen.remove("thinkingConfig");   // this model doesn't take that thinking setting
+                reply = Http.call("POST", api() + "models/" + model + ":generateContent", headers(), body.toString(), "application/json");
+            }
         } catch (Http.HttpException e) {
             if (e.code == 400 && body.has("generationConfig")) {   // older model without JSON mode
                 body.remove("generationConfig");
@@ -117,7 +171,7 @@ public final class Gemini {
         JSONArray picks = new JSONArray(t.substring(a, b + 1));
 
         List<Future<JSONObject>> jobs = new ArrayList<>();
-        for (int i = 0; i < picks.length() && i < 20; i++) {
+        for (int i = 0; i < picks.length() && i < 15; i++) {
             JSONObject p = picks.optJSONObject(i);
             if (p == null) continue;
             String title = p.optString("title");
@@ -129,7 +183,7 @@ public final class Gemini {
         java.util.Set<String> seen = new java.util.HashSet<>();
         for (Future<JSONObject> f : jobs) {
             try {
-                JSONObject r = f.get(20, TimeUnit.SECONDS);
+                JSONObject r = f.get(8, TimeUnit.SECONDS);
                 if (r != null && seen.add(r.optString("id"))) out.add(r);
             } catch (Exception ignored) { }
         }

@@ -38,6 +38,11 @@ echo "== SETTINGS PAGE: $(grep -o '<summary>[^<]*' out/settings-page.html | tr '
 echo "== TRAKT STATUS: $(grep -o 'Trakt: [^<]*' out/settings-page.html | head -3 | tr '\n' ' ')"
 curl -s -m 30 -X POST --data-urlencode "player_sub_size=2" --data-urlencode "player_sub_style=1" --data-urlencode "player_audio_lang=en" http://127.0.0.1:8090/player | grep -o "<p class='m'>[^<]*"
 curl -s -m 30 -X POST --data-urlencode "name=Kids" http://127.0.0.1:8090/profile-add | grep -o "<p class='m'>[^<]*"
+# Radarr, Sonarr, SABnzbd (fake)
+curl -s -m 30 -X POST --data-urlencode "which=radarr" --data-urlencode "url=http://10.0.2.2:8000/radarr" --data-urlencode "key=rk" http://127.0.0.1:8090/arr | grep -o "<p class='m'>[^<]*"
+curl -s -m 30 -X POST --data-urlencode "which=sonarr" --data-urlencode "url=10.0.2.2:8000/sonarr/" --data-urlencode "key=sk" http://127.0.0.1:8090/arr | grep -o "<p class='m'>[^<]*"
+curl -s -m 30 -X POST --data-urlencode "which=sab" --data-urlencode "url=http://10.0.2.2:8000/sabnzbd" --data-urlencode "key=bk" http://127.0.0.1:8090/arr | grep -o "<p class='m'>[^<]*"
+curl -s -m 30 http://127.0.0.1:8090/ > out/settings-page-arr.html; echo "== ARR SETTINGS: $(grep -o "Connected to [^<]*" out/settings-page-arr.html | tr '\n' ' ')"
 adb shell am force-stop $P
 
 # Another app's Home row (Android TV preview channel), published from the shell
@@ -57,6 +62,8 @@ nudge; top home; texts home 60; shot 01-home
 for i in 1 2 3; do key DPAD_DOWN 1; done; sleep 2; texts home-scrolled 40; shot 02-home-scrolled
 # Sidebar: ← from the first card opens it
 key DPAD_LEFT 1; key DPAD_LEFT 1; key DPAD_LEFT 2; texts drawer 20; shot 03-drawer
+for i in 1 2 3 4 5 6 7 8 9 10; do key DPAD_DOWN 0; done; sleep 1; shot 03b-drawer-bottom
+for i in 1 2 3 4 5 6 7 8 9 10; do key DPAD_UP 0; done; sleep 1; key DPAD_DOWN 1
 key DPAD_DOWN 1; texts drawer-down 30; key DPAD_CENTER 20; top movies; texts movies 30; shot 04-movies
 key DPAD_DOWN 2; key DPAD_DOWN 2; shot 04b-movies-scrolled
 crashes home
@@ -86,6 +93,20 @@ key DPAD_RIGHT 1; key DPAD_RIGHT 1; key DPAD_CENTER 2; texts player-speed 20; sh
 key BACK 1; key BACK 1; key BACK 3
 crashes player
 echo "== TRAKT LOG"; curl -s http://127.0.0.1:8000/trakt/_log | python3 -c "import json,sys; [print(e['path'], e['body'][:160]) for e in json.load(sys.stdin)]"
+
+# Radarr: add from the title page
+adb shell am start -W -n $P/.DetailActivity --es type movie --es id tt0111161 --es name Test
+sleep 12; nudge; texts detail-arr 30; shot 23-detail-radarr
+tap "Add to Radarr"; sleep 4; texts arr-quality 20; shot 24-arr-quality
+tap "HD-1080p"; sleep 6; texts arr-added 30; shot 25-arr-added
+adb shell am start -W -n $P/.DetailActivity --es type series --es id tt0903747 --es name "Breaking Bad"
+sleep 12; nudge; texts detail-sonarr 30; shot 26-detail-sonarr
+adb shell am start -W -n $P/.DownloadsActivity; sleep 6; texts downloads 60; shot 27-downloads
+adb shell am start -W -n $P/.ArrSetupActivity; sleep 5; texts arr-setup 60; shot 28-arr-setup
+crashes arr
+echo "== ARR LOG"; curl -s http://127.0.0.1:8000/arr/_log | python3 -c "import json,sys; d=json.load(sys.stdin); [print(e['path'], e.get('body','')[:200]) for e in d['arr'] if 'body' in e]; [print('GEMINI', e['path'], e['body'][-260:]) for e in d['gemini']]"
+# Remote-button link to a service page
+adb shell am start -W -a android.intent.action.VIEW -d "fluxtv://service/disney"; sleep 8; top deeplink; texts deeplink 10; shot 29-deeplink-disney
 
 # Service page
 adb shell am start -W -n $P/.ServiceActivity --es service netflix

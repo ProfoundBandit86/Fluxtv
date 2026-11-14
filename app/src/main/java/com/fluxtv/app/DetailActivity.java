@@ -274,6 +274,106 @@ public class DetailActivity extends Activity {
         return g != null ? g : meta.optJSONArray("genre");
     }
 
+    // ------------------------------------------------------------ Radarr / Sonarr
+
+    private Arr.Status arrStatus;
+    private boolean arrLoading, arrMissing;
+
+    private String arrLabel(Arr arr) {
+        if (arrLoading && arrStatus == null) return arr.name + "…";
+        if (arrMissing) return arr.name + ": not found";
+        if (arrStatus == null) return "Add to " + arr.name;
+        if (!arrStatus.added) return "Add to " + arr.name;
+        return arr.name + " · " + arrStatus.text;
+    }
+
+    private void loadArrStatus(Arr arr) {
+        arrLoading = true;
+        String mid = meta.optString("id", id), name = meta.optString("name"), year = meta.optString("releaseInfo");
+        App.async(() -> {
+            Arr.Status st = arr.status(mid, name, year);
+            return st == null ? new Arr.Status() : st;
+        }, st -> {
+            arrLoading = false;
+            arrMissing = st.item == null;
+            arrStatus = st.item == null ? null : st;
+            View b = buttons.findViewWithTag("arr");
+            if (b instanceof android.widget.Button) ((android.widget.Button) b).setText(arrLabel(arr));
+        }, e -> {
+            arrLoading = false;
+            View b = buttons.findViewWithTag("arr");
+            if (b instanceof android.widget.Button) ((android.widget.Button) b).setText(arr.name + ": can't connect");
+        });
+    }
+
+    private void arrClicked(Arr arr) {
+        if (arrLoading) return;
+        if (arrStatus == null) {
+            arrStatus = null;
+            arrMissing = false;
+            loadArrStatus(arr);
+            return;
+        }
+        if (!arrStatus.added) {
+            chooseArrDefaults(arr, () -> {
+                Toast.makeText(this, "Adding to " + arr.name + "…", Toast.LENGTH_SHORT).show();
+                Arr.Status st = arrStatus;
+                App.async(() -> { arr.add(st.item, arr.profile(), arr.root()); return true; }, ok -> {
+                    Toast.makeText(this, "Added to " + arr.name + ". It's searching for downloads now.", Toast.LENGTH_LONG).show();
+                    arrStatus = null;
+                    loadArrStatus(arr);
+                }, e -> Toast.makeText(this, arr.name + ": " + App.message(e), Toast.LENGTH_LONG).show());
+            });
+            return;
+        }
+        Arr.Status st = arrStatus;
+        new android.app.AlertDialog.Builder(this)
+                .setTitle(meta.optString("name") + " in " + arr.name)
+                .setMessage(st.text + (st.monitored ? " · monitored" : " · not monitored"))
+                .setPositiveButton("Search again", (d, w) -> App.async(() -> { arr.search(st.item); return true; },
+                        ok -> Toast.makeText(this, arr.name + " is searching", Toast.LENGTH_SHORT).show(),
+                        e -> Toast.makeText(this, arr.name + ": " + App.message(e), Toast.LENGTH_LONG).show()))
+                .setNeutralButton("Downloads", (d, w) -> startActivity(new Intent(this, DownloadsActivity.class)))
+                .setNegativeButton("Close", null)
+                .show();
+    }
+
+    /** Makes sure a quality profile and folder are picked (asks once, then remembers). */
+    private void chooseArrDefaults(Arr arr, Runnable then) {
+        if (!arr.profile().isEmpty() && !arr.root().isEmpty()) {
+            then.run();
+            return;
+        }
+        App.async(() -> new Object[]{arr.profiles(), arr.rootFolders()}, r -> {
+            @SuppressWarnings("unchecked") java.util.List<String[]> profiles = (java.util.List<String[]>) r[0];
+            @SuppressWarnings("unchecked") java.util.List<String> roots = (java.util.List<String>) r[1];
+            if (profiles.isEmpty() || roots.isEmpty()) {
+                Toast.makeText(this, arr.name + " needs a quality profile and a root folder first", Toast.LENGTH_LONG).show();
+                return;
+            }
+            Runnable pickRoot = () -> {
+                if (roots.size() == 1 || !arr.root().isEmpty()) {
+                    if (arr.root().isEmpty()) arr.setDefaults(null, roots.get(0));
+                    then.run();
+                    return;
+                }
+                new android.app.AlertDialog.Builder(this).setTitle("Save " + (isSeries() ? "shows" : "movies") + " to")
+                        .setItems(roots.toArray(new String[0]), (d, w) -> { arr.setDefaults(null, roots.get(w)); then.run(); })
+                        .show();
+            };
+            if (profiles.size() == 1 || !arr.profile().isEmpty()) {
+                if (arr.profile().isEmpty()) arr.setDefaults(profiles.get(0)[0], null);
+                pickRoot.run();
+                return;
+            }
+            String[] names = new String[profiles.size()];
+            for (int i = 0; i < names.length; i++) names[i] = profiles.get(i)[1];
+            new android.app.AlertDialog.Builder(this).setTitle("Quality (you can change this in Settings)")
+                    .setItems(names, (d, w) -> { arr.setDefaults(profiles.get(w)[0], null); pickRoot.run(); })
+                    .show();
+        }, e -> Toast.makeText(this, arr.name + ": " + App.message(e), Toast.LENGTH_LONG).show());
+    }
+
     private boolean isSeries() {
         return "series".equals(type) || hasEpisodes();
     }
@@ -333,6 +433,14 @@ public class DetailActivity extends Activity {
                     }
                 }
             }, null);
+        }
+
+        Arr arr = Arr.forType(isSeries() ? "series" : "movie");
+        if (arr.configured()) {
+            android.widget.Button ab = Ui.button(this, R.drawable.ic_download, arrLabel(arr), v -> arrClicked(arr));
+            ab.setTag("arr");
+            buttons.addView(ab);
+            if (arrStatus == null && !arrLoading) loadArrStatus(arr);
         }
 
         String trailer = trailerId();

@@ -22,7 +22,10 @@ public class ServiceActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        String key = getIntent().getStringExtra("service");
+        String extraKey = getIntent().getStringExtra("service");
+        // Also opened by link (remote-button shortcuts): fluxtv://service/netflix
+        if (extraKey == null && getIntent().getData() != null) extraKey = getIntent().getData().getLastPathSegment();
+        final String key = extraKey == null ? "netflix" : extraKey;
         content = Ui.page(this, null);
         content.setClipChildren(false);
 

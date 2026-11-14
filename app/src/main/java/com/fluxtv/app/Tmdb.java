@@ -46,6 +46,13 @@ public final class Tmdb {
             {"tubi", "Tubi", "tubi tv|tubi", "", "com.tubitv"},
     };
 
+    /** [key, name] of every streaming service Flux has a page for. */
+    public static List<String[]> serviceNames() {
+        List<String[]> out = new ArrayList<>();
+        for (String[] d : SERVICES) out.add(new String[]{d[0], d[1]});
+        return out;
+    }
+
     public static class Service {
         public String key, name, logo = "", wordmark = "";
         public int providerId;
