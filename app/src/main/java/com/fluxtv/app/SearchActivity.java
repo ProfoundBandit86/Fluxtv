@@ -117,6 +117,7 @@ public class SearchActivity extends FluxActivity {
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
+        android.util.Log.i("FluxSearch", "onNewIntent");
         setIntent(intent);
         handle(intent);
     }
@@ -228,9 +229,10 @@ public class SearchActivity extends FluxActivity {
 
     private void showListening(String hint) {
         android.util.Log.i("FluxSearch", "showListening: " + hint);
+        listen.animate().cancel();
+        listen.setAlpha(1f);
         listen.setVisibility(View.VISIBLE);
-        listen.setAlpha(0f);
-        listen.animate().alpha(1f).setDuration(150).start();
+        listen.bringToFront();
         heard.setText("");
         heard.setTextColor(Ui.TEXT);
         listenHint.setText(hint);
@@ -241,7 +243,8 @@ public class SearchActivity extends FluxActivity {
         android.util.Log.i("FluxSearch", "hideListening", new Throwable());
         listening = false;
         wave.setActive(false);
-        listen.animate().alpha(0f).setDuration(150).withEndAction(() -> listen.setVisibility(View.GONE)).start();
+        listen.animate().cancel();
+        listen.setVisibility(View.GONE);
     }
 
     private void voice() {
