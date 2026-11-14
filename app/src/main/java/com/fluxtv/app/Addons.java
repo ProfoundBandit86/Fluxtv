@@ -128,6 +128,20 @@ public final class Addons {
         return null;
     }
 
+    /** Genre names for movies or series (from the first add-on catalog that has genres). */
+    public static List<String> genreNames(String type) {
+        Object[] ac = genreCatalog(type);
+        return ac == null ? new ArrayList<>() : Addon.genres((JSONObject) ac[1]);
+    }
+
+    /** One page (about 100 titles) of a genre; skip = how many were already shown. */
+    public static List<JSONObject> genrePage(String type, String genre, int skip) throws Exception {
+        Object[] ac = genreCatalog(type);
+        if (ac == null) return new ArrayList<>();
+        String extra = "genre=" + Http.enc(genre) + (skip > 0 ? "&skip=" + skip : "");
+        return fetchRow((Addon) ac[0], (JSONObject) ac[1], extra, genre).items;
+    }
+
     /** Rows like "Action", "Comedy"… for the Movies / TV Shows sections. */
     public static List<Row> genreRows(String type, int max) {
         Object[] ac = genreCatalog(type);

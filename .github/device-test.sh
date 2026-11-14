@@ -65,7 +65,7 @@ key DPAD_LEFT 1; key DPAD_LEFT 1; key DPAD_LEFT 2; texts drawer 20; shot 03-draw
 for i in 1 2 3 4 5 6 7 8 9 10; do key DPAD_DOWN 0; done; sleep 1; shot 03b-drawer-bottom
 for i in 1 2 3 4 5 6 7 8 9 10; do key DPAD_UP 0; done; sleep 1; key DPAD_DOWN 1
 key DPAD_DOWN 1; texts drawer-down 30; key DPAD_CENTER 20; top movies; texts movies 30; shot 04-movies
-key DPAD_DOWN 2; key DPAD_DOWN 2; shot 04b-movies-scrolled
+texts movies-genres 40; key DPAD_DOWN 2; key DPAD_DOWN 2; shot 04b-movies-scrolled
 crashes home
 
 # Rows from other apps + Customize Home lists them
@@ -105,6 +105,14 @@ adb shell am start -W -n $P/.DownloadsActivity; sleep 6; texts downloads 60; sho
 adb shell am start -W -n $P/.ArrSetupActivity; sleep 5; texts arr-setup 60; shot 28-arr-setup
 crashes arr
 echo "== ARR LOG"; curl -s http://127.0.0.1:8000/arr/_log | python3 -c "import json,sys; d=json.load(sys.stdin); [print(e['path'], e.get('body','')[:200]) for e in d['arr'] if 'body' in e]; [print('GEMINI', e['path'], e['body'][-260:]) for e in d['gemini']]"
+# Fallback: an episode with no streams anywhere goes to Sonarr
+adb shell am start -W -n $P/.StreamsActivity --es pi_type series --es pi_meta tt9999997 --es pi_video tt9999997:2:3 --es pi_name FallbackShow --es pi_label S2E3
+sleep 15; texts fallback 30; shot 31-fallback-sonarr
+# Genres in Movies
+adb shell am start -W -n $P/.GenreActivity --es type movie --es genre Action
+sleep 12; nudge; texts genre 30; shot 32-genre-action
+crashes fallback
+echo "== ARR LOG 2"; curl -s http://127.0.0.1:8000/arr/_log | python3 -c "import json,sys; d=json.load(sys.stdin); [print(e['path'], e.get('body','')[:160]) for e in d['arr'] if 'body' in e]"
 # Remote-button link to a service page
 adb shell am start -W -a android.intent.action.VIEW -d "fluxtv://service/disney"; sleep 8; top deeplink; texts deeplink 10; shot 29-deeplink-disney
 

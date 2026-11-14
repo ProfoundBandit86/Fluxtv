@@ -104,6 +104,7 @@
         <activity android:name=".DownloadsActivity" android:exported="${testExported}" android:screenOrientation="landscape" />
         <activity android:name=".ArrSetupActivity" android:exported="${testExported}" android:screenOrientation="landscape"
             android:windowSoftInputMode="adjustPan" />
+        <activity android:name=".GenreActivity" android:exported="${testExported}" android:screenOrientation="landscape" />
         <activity android:name=".ProfilesActivity" android:exported="${testExported}" android:screenOrientation="landscape"
             android:windowSoftInputMode="adjustPan" />
         <!-- Its own entry in the app list, so Button Mapper can put it on a remote button. -->

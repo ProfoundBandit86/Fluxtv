@@ -134,6 +134,13 @@ public class SettingsActivity extends Activity {
         dl.addView(Ui.button(this, R.drawable.ic_download, "Downloads · Radarr, Sonarr, SABnzbd", v -> startActivity(new Intent(this, ArrSetupActivity.class))));
         if (Arr.anyConfigured()) dl.addView(Ui.button(this, "Open Downloads", v -> startActivity(new Intent(this, DownloadsActivity.class))));
         content.addView(dl);
+        if (Arr.RADARR.configured() || Arr.SONARR.configured()) {
+            content.addView(label("When nothing can play from your servers or Real-Debrid"));
+            LinearLayout fb = Ui.horizontal(this);
+            fb.addView(Ui.pill(this, "Send to Radarr / Sonarr automatically", Arr.fallbackOn(), v -> { Arr.setFallback(true); render(); }));
+            fb.addView(Ui.pill(this, "Only when I press the button", !Arr.fallbackOn(), v -> { Arr.setFallback(false); render(); }));
+            content.addView(fb);
+        }
 
         content.addView(section("Search & discovery"));
         content.addView(label("Gemini API key (smart voice search) · from aistudio.google.com"));

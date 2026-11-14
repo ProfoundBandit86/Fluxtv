@@ -52,6 +52,10 @@ public class StreamsActivity extends Activity {
     private PlayInfo info;
     private LinearLayout list, filters;
     private TextView status, banner;
+    private LinearLayout requestRow;
+    private android.widget.Button requestBtn;
+    private boolean requested;
+    private final java.util.Set<Item> failed = new java.util.HashSet<>();
     private LinearLayout bannerBox;
     private final List<Item> items = new ArrayList<>();
     private String filter = "All";
@@ -115,6 +119,17 @@ public class StreamsActivity extends Activity {
         LinearLayout.LayoutParams blp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         blp.setMargins(0, 0, 0, Ui.dp(this, 10));
         panel.addView(bannerBox, blp);
+
+        // Radarr / Sonarr fallback.
+        requestRow = Ui.horizontal(this);
+        requestRow.setGravity(Gravity.CENTER_VERTICAL);
+        Arr arr = Arr.forType(info.type);
+        if (arr.configured() && !info.metaId.startsWith("iptv:")) {
+            requestBtn = Ui.button(this, R.drawable.ic_download, "Get with " + arr.name, v -> requestFromArr(false));
+            requestRow.addView(requestBtn);
+            requestRow.setPadding(0, 0, 0, Ui.dp(this, 8));
+        }
+        panel.addView(requestRow);
 
         filters = Ui.horizontal(this);
         panel.addView(filters);
@@ -180,8 +195,16 @@ public class StreamsActivity extends Activity {
             View retry = Ui.button(this, "Retry", v -> load());
             list.addView(retry);
             retry.post(retry::requestFocus);
+            if (autoRequest()) requestFromArr(true);
             return;
         }
+        // Nothing here can actually play (no library copy, no direct link, no Real-Debrid): fall back.
+        boolean playable = false;
+        for (Item i : items) {
+            JSONObject j = i.s.json;
+            if (i.library || !j.optString("url").isEmpty() || (!j.optString("infoHash").isEmpty() && RealDebrid.isSignedIn())) playable = true;
+        }
+        if (!playable && autoRequest()) requestFromArr(true);
         int lib = 0;
         for (Item i : items) if (i.library) lib++;
         status.setText(items.size() + " streams" + (lib > 0 ? " · " + lib + " from your library" : "")
@@ -305,6 +328,31 @@ public class StreamsActivity extends Activity {
 
     // ------------------------------------------------------------ playing
 
+    private boolean autoRequest() {
+        return !requested && Arr.fallbackOn() && Arr.forType(info.type).configured() && !info.metaId.startsWith("iptv:");
+    }
+
+    /** Sends the title (or this episode) to Radarr/Sonarr. */
+    private void requestFromArr(boolean automatic) {
+        if (requested && automatic) return;
+        requested = true;
+        Arr arr = Arr.forType(info.type);
+        if (requestBtn != null) requestBtn.setText("Sending to " + arr.name + "…");
+        App.async(() -> Arr.request(info), msg -> {
+            if (isFinishing()) return;
+            showBanner(msg);
+            if (requestBtn != null) {
+                requestBtn.setText("Open Downloads");
+                requestBtn.setOnClickListener(v -> startActivity(new Intent(this, DownloadsActivity.class)));
+            }
+        }, e -> {
+            if (isFinishing()) return;
+            requested = false;
+            showBanner(arr.name + ": " + App.message(e));
+            if (requestBtn != null) requestBtn.setText("Get with " + arr.name);
+        });
+    }
+
     private void showBanner(String msg) {
         banner.setText(msg);
         bannerBox.setVisibility(View.VISIBLE);
@@ -362,6 +410,15 @@ public class StreamsActivity extends Activity {
                     showBanner(App.message(e));
                     if (e instanceof RealDebrid.RdException && ((RealDebrid.RdException) e).unavailable) {
                         markUnavailable(it, e instanceof RealDebrid.NotCachedException ? "Not ready" : "Blocked");
+                        failed.add(it);
+                        // Every Real-Debrid stream failed and there's no library copy: fall back.
+                        boolean anyLeft = false;
+                        for (Item i : items) {
+                            if (i.library || !i.s.json.optString("url").isEmpty()) anyLeft = true;
+                            else if (!i.s.json.optString("infoHash").isEmpty() && !failed.contains(i)) anyLeft = true;
+                        }
+                        if (!anyLeft && autoRequest()) requestFromArr(true);
+                        else if (requestBtn != null) showBanner(App.message(e) + "  Or press \"Get with " + Arr.forType(info.type).name + "\".");
                     }
                     it.row.requestFocus();
                 });

@@ -622,6 +622,7 @@ public class MainActivity extends Activity {
 
     private void renderType(String type) {
         continueRow(type);
+        genreButtons(type);
         posterRow(rows, "Favorites", null, favorites(type));
         for (Addons.Row r : home.rows) {
             if (!type.equals(r.type) || "IPTV".equals(r.note)) continue;
@@ -651,6 +652,23 @@ public class MainActivity extends Activity {
                 if (gen == sectionGen) for (Addons.Row r : list) posterRow(genreSlot, r.title, null, r.items);
             }, null);
         }
+    }
+
+    /** A row of genre buttons; each opens a full page of that genre. */
+    private void genreButtons(String type) {
+        LinearLayout slot = Ui.vertical(this);
+        slot.setClipChildren(false);
+        rows.addView(slot);
+        int gen = sectionGen;
+        App.async(() -> Addons.genreNames(type), names -> {
+            if (gen != sectionGen || names.isEmpty()) return;
+            LinearLayout row = Ui.row(this, slot, "Genres");
+            for (String g : names) {
+                android.widget.Button b = Ui.button(this, g, v -> startActivity(new Intent(this, GenreActivity.class)
+                        .putExtra("type", type).putExtra("genre", g)));
+                row.addView(b);
+            }
+        }, null);
     }
 
     private void renderFavorites() {

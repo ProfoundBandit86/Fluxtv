@@ -189,6 +189,9 @@ public final class ConfigServer {
                 Arr arr = which.equals("sonarr") ? Arr.SONARR : Arr.RADARR;
                 return arr.save(f(form, "url"), f(form, "key"));
             }
+            case "/arr-fallback":
+                Arr.setFallback("on".equals(f(form, "fallback")));
+                return "Saved";
             case "/arr-remove": {
                 String which = f(form, "which");
                 if (which.equals("sab")) Sab.remove(); else (which.equals("sonarr") ? Arr.SONARR : Arr.RADARR).remove();
@@ -442,6 +445,10 @@ public final class ConfigServer {
         arrForm(sb, "radarr", "Radarr", "http://192.168.1.10:7878", Arr.RADARR.configured(), Arr.RADARR);
         arrForm(sb, "sonarr", "Sonarr", "http://192.168.1.10:8989", Arr.SONARR.configured(), Arr.SONARR);
         arrForm(sb, "sab", "SABnzbd", "http://192.168.1.10:8080", Sab.configured(), null);
+        sb.append("<h3>Fallback</h3><form method='post' action='/arr-fallback'>When nothing can play from your servers or Real-Debrid")
+          .append(select("fallback", new String[]{"on", "off"}, new String[]{"Send it to Radarr / Sonarr automatically",
+                  "Only when I press \"Get with Radarr/Sonarr\""}, Arr.fallbackOn() ? "on" : "off"))
+          .append("<button>Save</button></form>");
         sb.append("</details>");
 
         // ---------------- add-ons

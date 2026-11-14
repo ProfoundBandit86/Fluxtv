@@ -220,6 +220,101 @@ public final class Arr {
         post("/command", cmd);
     }
 
+    // ------------------------------------------------------------ fallback when nothing can play
+
+    /** On by default: titles with nothing playable on your servers or Real-Debrid go to Radarr/Sonarr. */
+    public static boolean fallbackOn() {
+        return !"off".equals(Store.get("arr_fallback"));
+    }
+
+    public static void setFallback(boolean on) {
+        Store.put("arr_fallback", on ? "on" : "off");
+    }
+
+    /** Uses saved defaults, or the first quality profile / folder (and remembers them). */
+    private void ensureDefaults() throws Exception {
+        if (profile().isEmpty()) {
+            List<String[]> p = profiles();
+            if (p.isEmpty()) throw new Exception(name + " has no quality profiles");
+            setDefaults(p.get(0)[0], null);
+        }
+        if (root().isEmpty()) {
+            List<String> r = rootFolders();
+            if (r.isEmpty()) throw new Exception(name + " has no root folder");
+            setDefaults(null, r.get(0));
+        }
+    }
+
+    /**
+     * Sends a title (or just this episode) to Radarr/Sonarr to download. Movies are added and searched;
+     * for a show only the episode you picked is monitored and searched, not the whole series.
+     * Returns a message for the viewer.
+     */
+    public static String request(PlayInfo info) throws Exception {
+        Arr arr = forType(info.type);
+        if (!arr.configured()) throw new Exception(arr.name + " isn't set up");
+        Status st = arr.status(info.metaId, info.name, "");
+        if (st == null || st.item == null) throw new Exception(arr.name + " couldn't find " + info.name);
+        int[] se = seasonEpisode(info.videoId);
+        if (arr.movies()) {
+            if (!st.added) {
+                arr.ensureDefaults();
+                arr.add(st.item, arr.profile(), arr.root());
+                return "Not on your servers or Real-Debrid, so it was sent to Radarr. Watch it in Downloads.";
+            }
+            if (st.downloaded) return "Radarr already has this movie. It should show up on your server shortly.";
+            arr.search(st.item);
+            return "Radarr is searching for it again. Watch it in Downloads.";
+        }
+        int seriesId = st.added ? st.item.optInt("id") : 0;
+        if (!st.added) {
+            arr.ensureDefaults();
+            JSONObject body = new JSONObject(st.item.toString());
+            body.remove("id");
+            body.put("qualityProfileId", Integer.parseInt(arr.profile()));
+            body.put("rootFolderPath", arr.root());
+            body.put("monitored", true);
+            body.put("seasonFolder", true);
+            body.put("addOptions", new JSONObject().put("monitor", se == null ? "all" : "none")
+                    .put("searchForMissingEpisodes", se == null));
+            try {
+                JSONArray lp = new JSONArray(arr.get("/languageprofile"));
+                if (lp.length() > 0) body.put("languageProfileId", lp.optJSONObject(0).optInt("id"));
+            } catch (Exception ignored) { }
+            seriesId = new JSONObject(arr.post("/series", body)).optInt("id");
+            if (se == null) return "Sent " + info.name + " to Sonarr. Watch it in Downloads.";
+        }
+        if (se == null) {
+            arr.search(st.item);
+            return "Sonarr is searching for " + info.name + ".";
+        }
+        // Find the episode (a newly added show takes a few seconds to fill in).
+        int episodeId = 0;
+        for (int tries = 0; tries < 10 && episodeId == 0; tries++) {
+            JSONArray eps = new JSONArray(arr.get("/episode?seriesId=" + seriesId));
+            for (int i = 0; i < eps.length(); i++) {
+                JSONObject e = eps.optJSONObject(i);
+                if (e.optInt("seasonNumber") == se[0] && e.optInt("episodeNumber") == se[1]) episodeId = e.optInt("id");
+            }
+            if (episodeId == 0) Thread.sleep(2000);
+        }
+        if (episodeId == 0) throw new Exception("Sonarr doesn't list S" + se[0] + " E" + se[1] + " yet");
+        Http.call("PUT", arr.url() + "/api/v3/episode/monitor", arr.headers(),
+                new JSONObject().put("episodeIds", new JSONArray().put(episodeId)).put("monitored", true).toString(), "application/json");
+        arr.post("/command", new JSONObject().put("name", "EpisodeSearch").put("episodeIds", new JSONArray().put(episodeId)));
+        return "S" + se[0] + " E" + se[1] + " isn't on your servers or Real-Debrid, so Sonarr is getting it. Watch it in Downloads.";
+    }
+
+    /** [season, episode] from ids like tt123:2:5 or tmdb:tv:1396:2:5; null for a movie or whole show. */
+    static int[] seasonEpisode(String videoId) {
+        String[] p = videoId.split(":");
+        try {
+            if (p.length >= 3 && p[0].startsWith("tt")) return new int[]{Integer.parseInt(p[1]), Integer.parseInt(p[2])};
+            if (p.length >= 5 && p[0].equals("tmdb")) return new int[]{Integer.parseInt(p[3]), Integer.parseInt(p[4])};
+        } catch (NumberFormatException ignored) { }
+        return null;
+    }
+
     // ------------------------------------------------------------ queue & calendar
 
     /** Downloads Radarr/Sonarr are tracking: title, sub, progress (0..1). */

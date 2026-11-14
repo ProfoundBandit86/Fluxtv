@@ -83,6 +83,8 @@ def arr_get(svc, p):
     else:
         if p.startswith("/series/lookup"):
             return [{"title": "Breaking Bad", "year": 2008, "tvdbId": 81189, "id": 7, "monitored": True}]
+        if p == "/episode":
+            return [{"id": 701, "seasonNumber": 2, "episodeNumber": 3}, {"id": 702, "seasonNumber": 2, "episodeNumber": 4}]
         if p == "/series/7":
             return {"id": 7, "title": "Breaking Bad", "monitored": True, "statistics": {"episodeFileCount": 40, "episodeCount": 62}}
         if p == "/queue":
@@ -143,6 +145,13 @@ class H(BaseHTTPRequestHandler):
                                {"title": "Breaking Bad", "year": 2008, "type": "series"}])
             return self.send(200, json.dumps({"candidates": [{"content": {"parts": [{"text": text}]}}]}))
         self.send(404, "not found")
+
+    def do_PUT(self):
+        u = urlparse(self.path)
+        n = int(self.headers.get("Content-Length", 0) or 0)
+        raw = self.rfile.read(n).decode("utf-8", "replace")
+        ARR_LOG.append({"path": "PUT " + u.path, "body": raw[:300]})
+        self.send(202, "{}")
 
     def do_GET(self):
         u = urlparse(self.path)
