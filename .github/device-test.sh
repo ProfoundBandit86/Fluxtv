@@ -164,7 +164,7 @@ adb shell settings put secure enabled_accessibility_services $P/$P.HomeButtonSer
 adb shell settings put secure accessibility_enabled 1
 sleep 3
 adb shell am start -W -n $P/.SettingsActivity --es category home; sleep 4; texts settings-home 30; shot 35-settings-home
-adb shell input keyevent HOME; sleep 4; top after-home
+adb shell input keyevent HOME; sleep 7; top after-home; adb logcat -d | grep FluxHome | tail -5
 shot 36-after-home-button
 curl -s -m 20 http://127.0.0.1:8090/ > /dev/null
 adb shell am start -W -n $P/.SettingsActivity; sleep 3

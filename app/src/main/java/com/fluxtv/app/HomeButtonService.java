@@ -41,6 +41,7 @@ public class HomeButtonService extends AccessibilityService {
             if (pkg.equals(getPackageName()) || pkg.equals("com.android.settings") || pkg.contains("fallbackhome")
                     || pkg.equals("com.android.tv.settings")) continue;
             stockHomes.add(pkg + "/" + ri.activityInfo.name);
+            android.util.Log.i("FluxHome", "Watching for " + pkg + "/" + ri.activityInfo.name);
             if (ri.activityInfo.targetActivity != null) stockHomes.add(pkg + "/" + ri.activityInfo.targetActivity);
         }
     }
@@ -60,6 +61,7 @@ public class HomeButtonService extends AccessibilityService {
             }
             if (!match) return;
         }
+        android.util.Log.i("FluxHome", "Built-in home opened (" + pkg + "/" + cls + "), opening Flux");
         long now = SystemClock.elapsedRealtime();
         if (now - lastLaunch < 800) return;
         lastLaunch = now;
@@ -101,7 +103,9 @@ public class HomeButtonService extends AccessibilityService {
     public static boolean isDefaultHome(Context c) {
         ResolveInfo ri = c.getPackageManager().resolveActivity(
                 new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME), PackageManager.MATCH_DEFAULT_ONLY);
-        return ri != null && ri.activityInfo != null && c.getPackageName().equals(ri.activityInfo.packageName);
+        if (ri == null || ri.activityInfo == null) return false;
+        // With no default chosen Android returns its chooser ("android"); only a real match counts.
+        return c.getPackageName().equals(ri.activityInfo.packageName);
     }
 
     /** Opens the TV's accessibility settings, where the user turns the service on. */

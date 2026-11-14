@@ -16,6 +16,11 @@
 
     <!-- Needed to list installed apps on Android 11+ (Apps screen). -->
     <queries>
+        <!-- Other home-screen apps (to tell whether Flux is the home screen, and for Home button takeover). -->
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.HOME" />
+        </intent>
         <intent>
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />
