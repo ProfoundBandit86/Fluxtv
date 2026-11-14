@@ -266,6 +266,9 @@ public class PlayerActivity extends Activity {
     private View barButton(String label, String page) {
         android.widget.Button b = Ui.button(this, label, v -> showPanel(page));
         b.setTextSize(14);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        lp.setMargins(Ui.dp(this, 3), 0, Ui.dp(this, 3), 0);
+        b.setLayoutParams(lp);
         b.setOnFocusChangeListener((v, has) -> { if (has) view.showController(); });
         return b;
     }
