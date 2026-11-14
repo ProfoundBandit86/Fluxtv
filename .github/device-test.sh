@@ -60,6 +60,7 @@ adb shell am start -W -n $P/.MainActivity
 sleep 35
 nudge; top home; texts home 60; shot 01-home
 for i in 1 2 3; do key DPAD_DOWN 1; done; sleep 2; texts home-scrolled 40; shot 02-home-scrolled
+key DPAD_LEFT 2; texts row-left-drawer 30; shot 02b-row-left-opens-drawer; key DPAD_RIGHT 2
 # Sidebar: ← from the first card opens it
 key DPAD_LEFT 1; key DPAD_LEFT 1; key DPAD_LEFT 2; texts drawer 20; shot 03-drawer
 for i in 1 2 3 4 5 6 7 8 9 10; do key DPAD_DOWN 0; done; sleep 1; shot 03b-drawer-bottom
@@ -164,7 +165,11 @@ adb shell settings put secure enabled_accessibility_services $P/$P.HomeButtonSer
 adb shell settings put secure accessibility_enabled 1
 sleep 3
 adb shell am start -W -n $P/.SettingsActivity --es category home; sleep 4; texts settings-home 30; shot 35-settings-home
-adb shell input keyevent HOME; sleep 7; top after-home; adb logcat -d | grep FluxHome | tail -5
+adb logcat -c
+adb shell am start -W -n $P/.SettingsActivity; sleep 3
+adb shell input keyevent HOME; sleep 2; top after-home-2s; adb logcat -d | grep FluxHome | tail -5
+adb shell am start -W -n $P/.SettingsActivity; sleep 3
+adb shell input keyevent --longpress HOME; sleep 3; top after-long-home; shot 37-long-home
 shot 36-after-home-button
 curl -s -m 20 http://127.0.0.1:8090/ > /dev/null
 adb shell am start -W -n $P/.SettingsActivity; sleep 3

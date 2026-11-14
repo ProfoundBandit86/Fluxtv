@@ -335,7 +335,7 @@ public class MainActivity extends Activity {
                     focusContent();   // stale focus (e.g. a row that was just rebuilt): move back onto Home
                     return true;
                 }
-                if (f == null || next == null) {
+                if (f == null || Ui.leftLeavesRow(f, next)) {
                     openDrawer();
                     return true;
                 }

@@ -3,5 +3,5 @@
     <string name="app_name">Flux TV</string>
     <string name="home_service_label">Flux TV Home button</string>
     <string name="home_service_summary">Makes the Home button open Flux TV instead of the built-in home screen.</string>
-    <string name="home_service_description">When the TV\'s built-in home screen opens (Home button, waking up, turning on), Flux TV opens instead. Flux only looks at which app\'s screen just opened. It does not read what is on screen or what you type.</string>
+    <string name="home_service_description">When the TV\'s built-in home screen opens (Home button, waking up, turning on), Flux TV opens instead. Flux only watches for the Home button and which app\'s screen just opened. It does not read what is on screen or what you type.</string>
 </resources>

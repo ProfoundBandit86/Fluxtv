@@ -29,6 +29,7 @@ public class HomeButtonService extends AccessibilityService {
     protected void onServiceConnected() {
         super.onServiceConnected();
         findStockHomes();
+        Store.put("home_service_seen", String.valueOf(System.currentTimeMillis()));
     }
 
     /** Every other app that can be the home screen (e.g. Google TV's launcherx). */
@@ -63,14 +64,59 @@ public class HomeButtonService extends AccessibilityService {
         }
         android.util.Log.i("FluxHome", "Built-in home opened (" + pkg + "/" + cls + "), opening Flux");
         long now = SystemClock.elapsedRealtime();
-        if (now - lastLaunch < 800) return;
+        if (now - lastLaunch < 1500) return;
         lastLaunch = now;
-        Intent i = new Intent(this, MainActivity.class)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NO_ANIMATION)
-                .putExtra("section", "home");
+        Store.put("home_last_screen", String.valueOf(System.currentTimeMillis()));
+        launch(new Intent(this, MainActivity.class).putExtra("section", "home"));
+    }
+
+    // ------------------------------------------------------------ the Home key itself
+
+    private boolean homeDown, longFired;
+    private final android.os.Handler handler = new android.os.Handler(android.os.Looper.getMainLooper());
+    private final Runnable longPress = () -> {
+        longFired = true;
+        Store.put("home_last_key", String.valueOf(System.currentTimeMillis()));
+        // Holding Home: open Flux's Quick Settings (Google's own panel can't be reached once the key is taken).
+        launch(new Intent(this, QuickSettingsActivity.class));
+    };
+
+    /**
+     * Catches Home before the TV acts on it (like Projectivy and Button Mapper). Catching it here avoids
+     * Android's few-second block on opening apps right after Home is pressed.
+     */
+    @Override
+    protected boolean onKeyEvent(android.view.KeyEvent e) {
+        if (e.getKeyCode() != android.view.KeyEvent.KEYCODE_HOME || !enabled(this) || isDefaultHome(this)) return false;
+        android.util.Log.i("FluxHome", "Home key " + (e.getAction() == android.view.KeyEvent.ACTION_DOWN ? "down" : "up"));
+        if (e.getAction() == android.view.KeyEvent.ACTION_DOWN) {
+            if (e.getRepeatCount() == 0) {
+                homeDown = true;
+                longFired = false;
+                handler.postDelayed(longPress, 600);
+            }
+            return true;
+        }
+        if (e.getAction() == android.view.KeyEvent.ACTION_UP) {
+            handler.removeCallbacks(longPress);
+            if (homeDown && !longFired) {
+                Store.put("home_last_key", String.valueOf(System.currentTimeMillis()));
+                lastLaunch = SystemClock.elapsedRealtime();
+                launch(new Intent(this, MainActivity.class).putExtra("section", "home"));
+            }
+            homeDown = false;
+            return true;
+        }
+        return true;
+    }
+
+    private void launch(Intent i) {
+        i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NO_ANIMATION);
         try {
             startActivity(i);
-        } catch (Exception ignored) { }
+        } catch (Exception ex) {
+            android.util.Log.w("FluxHome", "Couldn't open Flux", ex);
+        }
     }
 
     @Override
@@ -117,6 +163,18 @@ public class HomeButtonService extends AccessibilityService {
                 c.startActivity(new Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
             } catch (Exception ignored) { }
         }
+    }
+
+    /** e.g. "Home button last caught 2 min ago" (helps tell whether the TV sends Home to Flux at all). */
+    public static String lastSeen() {
+        long k = 0, w = 0;
+        try { k = Long.parseLong(Store.get("home_last_key")); } catch (Exception ignored) { }
+        try { w = Long.parseLong(Store.get("home_last_screen")); } catch (Exception ignored) { }
+        long t = Math.max(k, w);
+        if (t == 0) return "Flux hasn't caught a Home press yet. Press Home once to test.";
+        long min = (System.currentTimeMillis() - t) / 60000;
+        return "Last Home press caught " + (min < 1 ? "just now" : min + " min ago")
+                + (k >= w ? " (Home key)" : " (built-in home screen opened)") + ".";
     }
 
     public static String status(Context c) {

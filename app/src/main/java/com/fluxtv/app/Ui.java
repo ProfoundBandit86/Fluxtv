@@ -159,6 +159,19 @@ public final class Ui {
         return b;
     }
 
+    /**
+     * True when ← from `from` would leave its row (no item to its left on the same line), so the
+     * sidebar should open instead of focus jumping to something further down the screen.
+     */
+    public static boolean leftLeavesRow(View from, View next) {
+        if (next == null) return true;
+        int[] a = new int[2], b = new int[2];
+        from.getLocationOnScreen(a);
+        next.getLocationOnScreen(b);
+        int fromMid = a[1] + from.getHeight() / 2, nextTop = b[1], nextBottom = b[1] + next.getHeight();
+        return fromMid < nextTop || fromMid > nextBottom;
+    }
+
     /** The big white Play button: a bold first line and a smaller second line (e.g. which source will play). */
     public static Button primary(Context c, int iconRes, String title, String sub, View.OnClickListener click) {
         Button b = button(c, iconRes, "", click);

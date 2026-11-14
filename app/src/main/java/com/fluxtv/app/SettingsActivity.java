@@ -219,10 +219,12 @@ public class SettingsActivity extends FluxActivity {
         content.addView(st);
         if (!isHome) {
             content.addView(label("Like Projectivy: no computer needed. Turn on \"Flux TV Home button\" in the TV's Accessibility "
-                    + "settings, and Home (and turning the TV on) opens Flux. Holding Home still opens Google's own panel."));
+                    + "settings, and Home (and turning the TV on) opens Flux. Holding Home opens Flux Quick Settings."));
             LinearLayout r = buttonRow();
             r.addView(Ui.button(this, R.drawable.ic_access, running ? "Accessibility settings" : "Turn on in Accessibility settings",
                     v -> HomeButtonService.openSettings(this)));
+            if (running) content.addView(label(HomeButtonService.lastSeen()
+                    + " Not working after an update? Switch Flux TV Home button off and on again in Accessibility."));
             if (running) {
                 r.addView(Ui.pill(this, "Home opens Flux", HomeButtonService.enabled(this), v -> { HomeButtonService.setEnabled(true); render(); }));
                 r.addView(Ui.pill(this, "Off", !HomeButtonService.enabled(this), v -> { HomeButtonService.setEnabled(false); render(); }));

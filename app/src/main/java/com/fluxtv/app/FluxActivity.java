@@ -255,7 +255,7 @@ public abstract class FluxActivity extends Activity {
         }
         if (!inside) return false;
         try {
-            return FocusFinder.getInstance().findNextFocus(content, f, View.FOCUS_LEFT) == null;
+            return Ui.leftLeavesRow(f, FocusFinder.getInstance().findNextFocus(content, f, View.FOCUS_LEFT));
         } catch (IllegalArgumentException ex) {
             return false;
         }
