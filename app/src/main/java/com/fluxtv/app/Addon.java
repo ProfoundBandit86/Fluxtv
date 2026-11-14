@@ -84,6 +84,23 @@ public class Addon {
         return true;
     }
 
+    /** Genre names a catalog can filter by (empty if none). */
+    public static List<String> genres(JSONObject c) {
+        List<String> out = new ArrayList<>();
+        JSONArray extra = c.optJSONArray("extra");
+        if (extra != null) for (int i = 0; i < extra.length(); i++) {
+            JSONObject e = extra.optJSONObject(i);
+            if (e == null || !"genre".equals(e.optString("name"))) continue;
+            JSONArray opts = e.optJSONArray("options");
+            if (opts != null) for (int j = 0; j < opts.length(); j++) out.add(opts.optString(j));
+        }
+        if (out.isEmpty() && contains(c.optJSONArray("extraSupported"), "genre") && c.optJSONArray("genres") != null) {
+            JSONArray g = c.optJSONArray("genres");
+            for (int j = 0; j < g.length(); j++) out.add(g.optString(j));
+        }
+        return out;
+    }
+
     public static boolean isSearchCatalog(JSONObject c) {
         JSONArray extra = c.optJSONArray("extra");
         if (extra != null) for (int i = 0; i < extra.length(); i++) {

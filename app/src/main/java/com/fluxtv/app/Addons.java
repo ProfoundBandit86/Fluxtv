@@ -117,6 +117,61 @@ public final class Addons {
         return jobs;
     }
 
+    /** First catalog of this type that can filter by genre. */
+    private static Object[] genreCatalog(String type) {
+        for (Addon a : all()) {
+            for (JSONObject cat : a.catalogs()) {
+                if (!type.equals(cat.optString("type")) || !Addon.isHomeCatalog(cat)) continue;
+                if (!Addon.genres(cat).isEmpty()) return new Object[]{a, cat};
+            }
+        }
+        return null;
+    }
+
+    /** Rows like "Action", "Comedy"… for the Movies / TV Shows sections. */
+    public static List<Row> genreRows(String type, int max) {
+        Object[] ac = genreCatalog(type);
+        List<Row> out = new ArrayList<>();
+        if (ac == null) return out;
+        Addon a = (Addon) ac[0];
+        JSONObject cat = (JSONObject) ac[1];
+        List<Future<Row>> jobs = new ArrayList<>();
+        List<String> genres = Addon.genres(cat);
+        for (int i = 0; i < genres.size() && i < max; i++) {
+            String g = genres.get(i);
+            jobs.add(POOL.submit(() -> {
+                Row r = fetchRow(a, cat, "genre=" + Http.enc(g), g);
+                r.type = type;
+                r.note = a.name();
+                return r;
+            }));
+        }
+        for (Future<Row> f : jobs) {
+            try {
+                Row r = f.get(40, TimeUnit.SECONDS);
+                if (!r.items.isEmpty()) out.add(r);
+            } catch (Exception ignored) { }
+        }
+        return out;
+    }
+
+    /** Titles in the same genre, for "More like this". */
+    public static List<JSONObject> similar(String type, String genre, String excludeId) {
+        List<JSONObject> out = new ArrayList<>();
+        Object[] ac = genreCatalog(type);
+        if (ac == null || genre == null || genre.isEmpty()) return out;
+        JSONObject cat = (JSONObject) ac[1];
+        String match = null;
+        for (String g : Addon.genres(cat)) if (g.equalsIgnoreCase(genre)) match = g;
+        if (match == null) return out;
+        try {
+            for (JSONObject m : fetchRow((Addon) ac[0], cat, "genre=" + Http.enc(match), match).items) {
+                if (!m.optString("id").equals(excludeId) && out.size() < 20) out.add(m);
+            }
+        } catch (Exception ignored) { }
+        return out;
+    }
+
     static List<Future<Row>> searchJobs(String query) {
         List<Future<Row>> jobs = new ArrayList<>();
         for (Addon a : all()) {

@@ -24,6 +24,12 @@ public final class Store {
 
     private static SharedPreferences p;
     private static int addonsVersion = 0;
+    private static int changes = 0;
+
+    /** Bumps when favorites or watch progress change. */
+    public static int changes() {
+        return changes;
+    }
 
     private Store() { }
 
@@ -194,6 +200,7 @@ public final class Store {
             added = true;
         }
         p.edit().putString(key("library"), lib.toString()).apply();
+        changes++;
         return added;
     }
 
@@ -234,6 +241,7 @@ public final class Store {
             all.put(info.videoId, e);
         } catch (JSONException ignored) { }
         p.edit().putString(key("progress"), all.toString()).apply();
+        changes++;
     }
 
     /** Most recent unfinished item per title, newest first. */
@@ -262,6 +270,11 @@ public final class Store {
             e.put("type", meta.optString("type"));
             e.put("name", meta.optString("name"));
             e.put("poster", meta.optString("poster"));
+            e.put("background", meta.optString("background"));
+            e.put("description", meta.optString("description"));
+            e.put("releaseInfo", meta.optString("releaseInfo"));
+            if (!meta.optString("badge").isEmpty()) e.put("badge", meta.optString("badge"));
+            if (!meta.optString("serverId").isEmpty()) e.put("serverId", meta.optString("serverId"));
         } catch (JSONException ignored) { }
         return e;
     }

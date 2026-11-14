@@ -23,6 +23,11 @@ public final class ImageLoader {
     private ImageLoader() { }
 
     public static void load(ImageView view, String url, int targetWidthPx) {
+        load(view, url, targetWidthPx, null);
+    }
+
+    /** onLoaded runs on the main thread once the picture is shown (not if it fails). */
+    public static void load(ImageView view, String url, int targetWidthPx, Runnable onLoaded) {
         view.setTag(url);
         if (url == null || url.isEmpty()) {
             view.setImageDrawable(null);
@@ -31,6 +36,7 @@ public final class ImageLoader {
         Bitmap cached = CACHE.get(url);
         if (cached != null) {
             view.setImageBitmap(cached);
+            if (onLoaded != null) onLoaded.run();
             return;
         }
         view.setImageDrawable(null);
@@ -39,7 +45,10 @@ public final class ImageLoader {
             if (b == null) return;
             CACHE.put(url, b);
             App.MAIN.post(() -> {
-                if (url.equals(view.getTag())) view.setImageBitmap(b);
+                if (url.equals(view.getTag())) {
+                    view.setImageBitmap(b);
+                    if (onLoaded != null) onLoaded.run();
+                }
             });
         });
     }

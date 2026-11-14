@@ -18,34 +18,36 @@ curl -s -m 30 -X POST --data-urlencode "key=DUMMYTOKEN123" http://127.0.0.1:8090
 adb shell am force-stop $P
 adb logcat -c
 
-# Home
+# Home, then the Movies / TV Shows / Favorites sections from the sidebar
 adb shell am start -W -n $P/.MainActivity
 sleep 35
-top home; texts home 30; shot 01-home
-key DPAD_RIGHT 2; key DPAD_RIGHT 2; texts hero 12; shot 02-poster-focused
-key DPAD_DOWN 2; key DPAD_RIGHT 2; shot 03-second-row
-key DPAD_CENTER 12
-top details; nudge; texts details 20; shot 04-details
-crashes details
-key DPAD_CENTER 35
-top streams; nudge; texts streams 20; shot 05-streams
-key DPAD_CENTER 12
-texts stream-error 25; shot 06-stream-error
-crashes streams
+top home; texts home 20; shot 01-home
+nudge; key DPAD_DOWN 1; key DPAD_DOWN 1; key DPAD_CENTER 25
+texts movies 30; shot 02-movies
+key DPAD_DOWN 1; key DPAD_CENTER 25
+texts shows 30; shot 03-shows
+crashes sections
 
-# Series page
+# Title page (movie): favorite it
+adb shell am start -W -n $P/.DetailActivity --es type movie --es id tt0111161 --es name "Movie test"
+sleep 15; nudge; texts movie-detail 30; shot 04-movie-detail
+key DPAD_RIGHT 1; key DPAD_CENTER 2; texts after-favorite 12
+for i in 1 2 3 4; do key DPAD_DOWN 1; done; sleep 3; shot 05-movie-detail-scrolled
+crashes movie-detail
+
+# Series title page
 adb shell am start -W -n $P/.DetailActivity --es type series --es id tt0903747 --es name "Series test"
-sleep 15; nudge; top series; texts series 30; shot 07-series
+sleep 15; nudge; shot 06-series
+for i in 1 2; do key DPAD_DOWN 1; done; sleep 3; shot 07-series-episodes
 crashes series
 
-# Settings: pick the second accent colour, then see home recoloured
-adb shell am start -W -n $P/.SettingsActivity
-sleep 4; nudge; key DPAD_RIGHT 1; key DPAD_CENTER 3
-texts settings 30; shot 08-settings
-crashes settings
+# Favorites section
 adb shell am start -W -n $P/.MainActivity
-sleep 30; shot 09-home-recoloured
-crashes home-recoloured
+sleep 5; key BACK 1; nudge
+for i in 1 2 3 4 5; do key DPAD_UP 1; done
+key DPAD_DOWN 1; key DPAD_DOWN 1; key DPAD_DOWN 1; key DPAD_DOWN 1; key DPAD_CENTER 5
+texts favorites 20; shot 08-favorites
+crashes favorites
 
 adb logcat -d > out/logcat.txt
 exit 0

@@ -38,6 +38,11 @@ public class MainActivity extends Activity {
     private ImageView heroImage;
     private TextView heroEyebrow, heroTitle, heroMeta, heroText;
     private View homeItem;
+    private final java.util.Map<String, View> railItems = new java.util.HashMap<>();
+    /** home, movie, series, favorites */
+    private String section = "home";
+    private Blend.Home home;
+    private final java.util.Map<String, List<Addons.Row>> genreRows = new java.util.HashMap<>();
     private int loadedVersion = -1, themeVersion = -1;
     private String loadedProfile = "";
     private JSONObject heroItem;
@@ -145,15 +150,15 @@ public class MainActivity extends Activity {
         lp.setMargins(0, 0, 0, Ui.dp(this, 22));
         rail.addView(logo, lp);
 
-        homeItem = railItem(R.drawable.ic_home, "Home", true, v -> scroll.smoothScrollTo(0, 0));
-        railItem(R.drawable.ic_search, "Search", false, v -> startActivity(new Intent(this, SearchActivity.class)));
-        railItem(R.drawable.ic_addons, "Add-ons", false, v -> startActivity(new Intent(this, AddonsActivity.class)));
-        railItem(R.drawable.ic_servers, "Servers", false, v -> startActivity(new Intent(this, ServersActivity.class)));
-        railItem(R.drawable.ic_cloud, "Debrid", false, v -> startActivity(new Intent(this, AccountActivity.class)));
-        railItem(R.drawable.ic_apps, "Apps", false, v -> startActivity(new Intent(this, AppsActivity.class)));
+        homeItem = railItem(R.drawable.ic_home, "Home", "home", v -> showSection("home"));
+        railItem(R.drawable.ic_search, "Search", null, v -> startActivity(new Intent(this, SearchActivity.class)));
+        railItem(R.drawable.ic_movie, "Movies", "movie", v -> showSection("movie"));
+        railItem(R.drawable.ic_tv, "TV Shows", "series", v -> showSection("series"));
+        railItem(R.drawable.ic_heart, "Favorites", "favorites", v -> showSection("favorites"));
+        railItem(R.drawable.ic_apps, "Apps", null, v -> startActivity(new Intent(this, AppsActivity.class)));
         View spacer = new View(this);
         rail.addView(spacer, new LinearLayout.LayoutParams(1, 0, 1f));
-        railItem(R.drawable.ic_settings, "Settings", false, v -> startActivity(new Intent(this, SettingsActivity.class)));
+        railItem(R.drawable.ic_settings, "Settings", null, v -> startActivity(new Intent(this, SettingsActivity.class)));
 
         avatar = Ui.heading(this, "", 15);
         avatar.setGravity(Gravity.CENTER);
@@ -171,7 +176,7 @@ public class MainActivity extends Activity {
         rail.addView(avatar, ap);
     }
 
-    private View railItem(int icon, String label, boolean current, View.OnClickListener click) {
+    private View railItem(int icon, String label, String sectionKey, View.OnClickListener click) {
         LinearLayout item = Ui.vertical(this);
         item.setGravity(Gravity.CENTER);
         item.setFocusable(true);
@@ -180,9 +185,13 @@ public class MainActivity extends Activity {
         item.setContentDescription(label);
         StateListDrawable s = new StateListDrawable();
         s.addState(new int[]{android.R.attr.state_focused}, Ui.rounded(this, Ui.TEXT, 0, 12));
-        s.addState(new int[]{}, current ? Ui.rounded(this, Ui.BUTTON, 0, 12) : Ui.rounded(this, Color.TRANSPARENT, 0, 12));
+        s.addState(new int[]{android.R.attr.state_selected}, Ui.rounded(this, Ui.BUTTON, 0, 12));
+        s.addState(new int[]{}, Ui.rounded(this, Color.TRANSPARENT, 0, 12));
         item.setBackground(s);
-        ColorStateList tint = Ui.onFocusDark(current ? Ui.TEXT : Ui.DIM);
+        ColorStateList tint = new ColorStateList(
+                new int[][]{{android.R.attr.state_focused}, {android.R.attr.state_selected}, {}},
+                new int[]{Ui.BG, Ui.ACCENT, Ui.DIM});
+        if (sectionKey != null) railItems.put(sectionKey, item);
         ImageView ic = Ui.icon(this, icon, 20, Ui.TEXT);
         ic.setColorFilter(null);
         ic.setImageTintList(tint);
@@ -215,6 +224,7 @@ public class MainActivity extends Activity {
         avatar.setText(name.isEmpty() ? "?" : name.substring(0, 1).toUpperCase());
         updateStatus();
         if (Store.addonsVersion() != loadedVersion || !name.equals(loadedProfile)) load();
+        else if (Store.changes() != renderedChanges) renderSection();   // favorites / progress changed
         App.MAIN.removeCallbacks(clockTick);
         clockTick.run();
         Updater.check(this, false);   // automatic update check on every reload of the home screen
@@ -230,9 +240,29 @@ public class MainActivity extends Activity {
 
     @Override
     public void onBackPressed() {
-        // We may be the TV's home screen, so never close; jump to the menu instead.
-        homeItem.requestFocus();
+        // We may be the TV's home screen, so never close.
+        View f = getCurrentFocus();
+        boolean inRail = f != null && f.getParent() == rail;
+        if (!section.equals("home") && inRail) {
+            showSection("home");
+            homeItem.requestFocus();
+            return;
+        }
+        View current = railItems.get(section);
+        (current != null ? current : homeItem).requestFocus();
         scroll.smoothScrollTo(0, 0);
+    }
+
+    private void showSection(String key) {
+        if (!key.equals(section)) {
+            section = key;
+            scroll.scrollTo(0, 0);
+            heroItem = null;
+            renderSection();
+        } else {
+            scroll.smoothScrollTo(0, 0);
+        }
+        for (java.util.Map.Entry<String, View> e : railItems.entrySet()) e.getValue().setSelected(e.getKey().equals(section));
     }
 
     private void updateStatus() {
@@ -252,54 +282,126 @@ public class MainActivity extends Activity {
         TextView loading = Ui.text(this, "Loading your movies and shows…", 14, Ui.MUTED);
         loading.setPadding(0, Ui.dp(this, 40), 0, 0);
         rows.addView(loading);
-        App.async(Blend::home, this::render, e -> {
+        App.async(Blend::home, h -> {
+            home = h;
+            renderSection();
+        }, e -> {
             rows.removeAllViews();
             rows.addView(Ui.text(this, "Couldn't load: " + App.message(e), 14, Ui.MUTED));
         });
     }
 
-    private void render(Blend.Home home) {
-        rows.removeAllViews();
-        View firstCard = null;
+    private int renderedChanges = -1;
 
-        if (!home.continueWatching.isEmpty()) {
-            LinearLayout row = Ui.row(this, rows, "Continue watching");
-            for (JSONObject p : home.continueWatching) {
-                String img = !p.optString("still").isEmpty() ? p.optString("still")
-                        : !p.optString("background").isEmpty() ? p.optString("background") : p.optString("poster");
-                View card = Ui.landscape(this, img, p.optString("name"), p.optString("sub"), p.optString("badge"),
-                        p.optDouble("progress", 0), 196, v -> DetailActivity.open(this, p), () -> feature(p, "Continue watching"));
-                row.addView(card);
-                if (firstCard == null) firstCard = card;
-            }
-        }
-        List<JSONObject> watchlist = Store.library();
-        if (!watchlist.isEmpty()) {
-            LinearLayout row = Ui.row(this, rows, "My watchlist");
-            for (JSONObject p : watchlist) {
-                View card = Ui.poster(this, p, v -> DetailActivity.open(this, p), () -> feature(p, "In your watchlist"));
-                row.addView(card);
-                if (firstCard == null) firstCard = card;
-            }
-        }
-        for (Addons.Row r : home.rows) {
-            LinearLayout row = Ui.row(this, rows, r.title, r.note);
-            String eyebrow = r.title;
-            for (JSONObject p : r.items) {
-                View card = Ui.poster(this, p, v -> DetailActivity.open(this, p), () -> feature(p, eyebrow));
-                row.addView(card);
-                if (firstCard == null) firstCard = card;
-            }
+    private void renderSection() {
+        renderedChanges = Store.changes();
+        for (java.util.Map.Entry<String, View> e : railItems.entrySet()) e.getValue().setSelected(e.getKey().equals(section));
+        if (home == null) return;
+        rows.removeAllViews();
+        firstItem = null;
+        firstEyebrow = "";
+        switch (section) {
+            case "favorites": renderFavorites(); break;
+            case "movie":
+            case "series": renderType(section); break;
+            default: renderHome(); break;
         }
         if (rows.getChildCount() == 0) {
-            TextView t = Ui.text(this, "Nothing here yet. Add streaming add-ons or a Plex / Jellyfin / Emby server "
-                    + "from the menu on the left.", 15, Ui.MUTED);
+            TextView t = Ui.text(this, section.equals("favorites")
+                    ? "No favorites yet. Open any movie or show and press ♥ Favorite to keep it here."
+                    : "Nothing here yet. Add streaming add-ons or a Plex / Jellyfin / Emby server in Settings.", 15, Ui.MUTED);
             t.setPadding(0, Ui.dp(this, 40), Ui.dp(this, 40), 0);
             rows.addView(t);
+            heroTitle.setText(section.equals("favorites") ? "Favorites" : section.equals("movie") ? "Movies"
+                    : section.equals("series") ? "TV Shows" : "Flux");
+            heroEyebrow.setText("");
+            heroMeta.setText("");
+            heroText.setText("");
+            heroImage.setImageDrawable(null);
         }
-        JSONObject first = !home.continueWatching.isEmpty() ? home.continueWatching.get(0)
-                : !home.rows.isEmpty() && !home.rows.get(0).items.isEmpty() ? home.rows.get(0).items.get(0) : null;
-        if (first != null) feature(first, home.continueWatching.isEmpty() ? home.rows.get(0).title : "Continue watching");
+        if (firstItem != null) feature(firstItem, firstEyebrow);
+    }
+
+    private JSONObject firstItem;
+    private String firstEyebrow = "";
+
+    private void continueRow(String type) {
+        List<JSONObject> list = new ArrayList<>();
+        for (JSONObject p : home.continueWatching) if (type == null || type.equals(p.optString("type"))) list.add(p);
+        if (list.isEmpty()) return;
+        LinearLayout row = Ui.row(this, rows, "Continue watching");
+        for (JSONObject p : list) {
+            String img = !p.optString("still").isEmpty() ? p.optString("still")
+                    : !p.optString("background").isEmpty() ? p.optString("background") : p.optString("poster");
+            row.addView(Ui.landscape(this, img, p.optString("name"), p.optString("sub"), p.optString("badge"),
+                    p.optDouble("progress", 0), 196, v -> DetailActivity.open(this, p), () -> feature(p, "Continue watching")));
+            if (firstItem == null) { firstItem = p; firstEyebrow = "Continue watching"; }
+        }
+    }
+
+    private void posterRow(String title, String note, List<JSONObject> items) {
+        if (items.isEmpty()) return;
+        LinearLayout row = Ui.row(this, rows, title, note);
+        for (JSONObject p : items) {
+            row.addView(Ui.poster(this, p, v -> DetailActivity.open(this, p), () -> feature(p, title)));
+            if (firstItem == null) { firstItem = p; firstEyebrow = title; }
+        }
+    }
+
+    private List<JSONObject> favorites(String type) {
+        List<JSONObject> out = new ArrayList<>();
+        for (JSONObject p : Store.library()) if (type == null || type.equals(p.optString("type"))) out.add(p);
+        return out;
+    }
+
+    private void renderHome() {
+        continueRow(null);
+        posterRow("Favorites", null, favorites(null));
+        for (Addons.Row r : home.rows) posterRow(r.title, r.note, r.items);
+    }
+
+    /** Movies or TV Shows: only that type, plus genre rows. */
+    private void renderType(String type) {
+        continueRow(type);
+        posterRow("Favorites", null, favorites(type));
+        for (Addons.Row r : home.rows) {
+            if (!type.equals(r.type)) continue;
+            String t = r.title.replace(" · Movies", "").replace(" · Shows", "");
+            posterRow(t, r.note, r.items);
+        }
+        List<Addons.Row> genres = genreRows.get(type);
+        if (genres != null) {
+            for (Addons.Row r : genres) posterRow(r.title, null, r.items);
+        } else {
+            App.async(() -> Addons.genreRows(type, 10), list -> {
+                genreRows.put(type, list);
+                if (section.equals(type)) for (Addons.Row r : list) posterRow(r.title, null, r.items);
+            }, null);
+        }
+    }
+
+    /** All favorites as a grid, movies then shows. */
+    private void renderFavorites() {
+        for (String type : new String[]{"movie", "series"}) {
+            List<JSONObject> list = favorites(type);
+            if (list.isEmpty()) continue;
+            String title = type.equals("movie") ? "Movies" : "TV Shows";
+            TextView h = Ui.heading(this, title, 17);
+            h.setPadding(0, Ui.dp(this, 18), 0, Ui.dp(this, 4));
+            rows.addView(h);
+            int perRow = 7;
+            LinearLayout line = null;
+            for (int i = 0; i < list.size(); i++) {
+                if (i % perRow == 0) {
+                    line = Ui.horizontal(this);
+                    line.setClipChildren(false);
+                    rows.addView(line);
+                }
+                JSONObject p = list.get(i);
+                line.addView(Ui.poster(this, p, v -> DetailActivity.open(this, p), () -> feature(p, "Favorites")));
+                if (firstItem == null) { firstItem = p; firstEyebrow = "Favorites"; }
+            }
+        }
     }
 
     /** Shows the focused title in the featured area. */
@@ -377,6 +479,7 @@ public class MainActivity extends Activity {
     }
 
     private void switchProfile(String name) {
+        genreRows.clear();
         Store.setProfile(name);
         avatar.setText(name.substring(0, 1).toUpperCase());
         updateStatus();

@@ -5,6 +5,7 @@ import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.Color;
+import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Bundle;
@@ -29,22 +30,27 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
-/** Title page: backdrop, info, Play/Resume, watchlist, trailer, seasons and episode cards. */
+/**
+ * Title page: full-screen backdrop, title art, rating and genre chips, Play/Resume,
+ * Favorite and Trailer, then Episodes, More like this, and an About section.
+ */
 public class DetailActivity extends Activity {
 
-    private String type, id, serverId;
+    private String type, id, serverId, badge;
     private JSONObject meta;
-    private LinearLayout buttons, seasonsBar, episodes, info;
-    private ImageView backdrop;
-    private TextView title, metaLine, description, cast;
-    private View episodesHeader;
+    private LinearLayout buttons, seasonsBar, episodes, chips, similarRow, about;
+    private ImageView backdrop, logo;
+    private TextView title, description, credits;
+    private View episodesHeader, similarHeader, aboutHeader, dimmer;
     private int selectedSeason = Integer.MIN_VALUE;
+    private boolean similarLoaded;
 
     public static void open(Context c, JSONObject m) {
         c.startActivity(new Intent(c, DetailActivity.class)
                 .putExtra("type", m.optString("type"))
                 .putExtra("id", m.optString("id"))
                 .putExtra("serverId", m.optString("serverId"))
+                .putExtra("badge", m.optString("badge"))
                 .putExtra("name", m.optString("name"))
                 .putExtra("poster", m.optString("poster"))
                 .putExtra("background", m.optString("background")));
@@ -56,58 +62,86 @@ public class DetailActivity extends Activity {
         type = getIntent().getStringExtra("type");
         id = getIntent().getStringExtra("id");
         serverId = getIntent().getStringExtra("serverId");
+        badge = getIntent().getStringExtra("badge");
 
         FrameLayout root = new FrameLayout(this);
         root.setBackgroundColor(Ui.BG);
 
+        // Full-screen backdrop with cinematic fades.
         backdrop = new ImageView(this);
         backdrop.setScaleType(ImageView.ScaleType.CENTER_CROP);
-        root.addView(backdrop, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 380), Gravity.TOP));
+        root.addView(backdrop, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         View sLeft = new View(this);
-        sLeft.setBackground(Ui.scrim(GradientDrawable.Orientation.LEFT_RIGHT, Ui.BG, 1f));
-        root.addView(sLeft, new FrameLayout.LayoutParams(Ui.dp(this, 640), Ui.dp(this, 380), Gravity.TOP | Gravity.START));
+        sLeft.setBackground(new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
+                new int[]{Ui.BG, Ui.alpha(Ui.BG, 0.92f), Ui.alpha(Ui.BG, 0.45f), Ui.alpha(Ui.BG, 0f)}));
+        root.addView(sLeft, new FrameLayout.LayoutParams(Ui.dp(this, 760), ViewGroup.LayoutParams.MATCH_PARENT, Gravity.START));
         View sBottom = new View(this);
         sBottom.setBackground(Ui.scrim(GradientDrawable.Orientation.BOTTOM_TOP, Ui.BG, 1f));
-        FrameLayout.LayoutParams sb = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 200), Gravity.TOP);
-        sb.setMargins(0, Ui.dp(this, 182), 0, 0);
-        root.addView(sBottom, sb);
+        root.addView(sBottom, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 240), Gravity.BOTTOM));
+        dimmer = new View(this);
+        dimmer.setBackgroundColor(Ui.BG);
+        dimmer.setAlpha(0f);
+        root.addView(dimmer, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         String bg = getIntent().getStringExtra("background");
-        ImageLoader.load(backdrop, bg == null || bg.isEmpty() ? getIntent().getStringExtra("poster") : bg, Ui.dp(this, 900));
+        ImageLoader.load(backdrop, bg == null || bg.isEmpty() ? getIntent().getStringExtra("poster") : bg, Ui.dp(this, 1100));
 
         ScrollView scroll = new ScrollView(this);
         scroll.setVerticalScrollBarEnabled(false);
         scroll.setClipChildren(false);
         LinearLayout content = Ui.vertical(this);
         content.setClipChildren(false);
-        content.setPadding(Ui.dp(this, 56), Ui.dp(this, 48), 0, Ui.dp(this, 60));
+        content.setPadding(Ui.dp(this, 64), 0, 0, Ui.dp(this, 70));
         scroll.addView(content);
         root.addView(scroll, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        // Backdrop dims as you scroll down to episodes and details.
+        scroll.setOnScrollChangeListener((v, x, y, ox, oy) -> dimmer.setAlpha(Math.min(0.75f, y / (float) Ui.dp(this, 380))));
         setContentView(root);
 
-        info = Ui.vertical(this);
-        info.setPadding(0, 0, Ui.dp(this, 56), 0);
-        title = Ui.heading(this, getIntent().getStringExtra("name"), 40);
-        title.setMaxLines(2);
-        metaLine = Ui.text(this, "", 13, Ui.MUTED);
-        metaLine.setPadding(0, Ui.dp(this, 10), 0, Ui.dp(this, 12));
-        description = Ui.text(this, "Loading…", 14, Ui.alpha(Ui.TEXT, 0.82f));
-        description.setMaxLines(3);
-        description.setEllipsize(TextUtils.TruncateAt.END);
-        cast = Ui.text(this, "", 12, Ui.DIM);
-        cast.setPadding(0, Ui.dp(this, 10), 0, 0);
-        cast.setMaxLines(2);
-        buttons = Ui.horizontal(this);
-        buttons.setPadding(0, Ui.dp(this, 18), 0, 0);
-        info.addView(title);
-        info.addView(metaLine);
-        info.addView(description);
-        info.addView(cast);
-        info.addView(buttons);
-        content.addView(info, new LinearLayout.LayoutParams(Ui.dp(this, 620), ViewGroup.LayoutParams.WRAP_CONTENT));
+        // ---- hero block, sitting in the lower-left of the first screen
+        LinearLayout hero = Ui.vertical(this);
+        hero.setGravity(Gravity.BOTTOM);
+        hero.setPadding(0, 0, Ui.dp(this, 64), Ui.dp(this, 28));
+        hero.setMinimumHeight(Math.max(Ui.dp(this, 300), getResources().getDisplayMetrics().heightPixels - Ui.dp(this, 120)));
 
-        episodesHeader = Ui.heading(this, "Episodes", 17);
-        episodesHeader.setPadding(0, Ui.dp(this, 34), 0, Ui.dp(this, 2));
-        episodesHeader.setVisibility(View.GONE);
+        if (badge != null && !badge.isEmpty()) {
+            TextView own = Ui.eyebrow(this, "In your " + badge + " library");
+            own.setPadding(0, 0, 0, Ui.dp(this, 10));
+            hero.addView(own);
+        }
+        logo = new ImageView(this);
+        logo.setAdjustViewBounds(true);
+        logo.setScaleType(ImageView.ScaleType.FIT_START);
+        logo.setMaxHeight(Ui.dp(this, 96));
+        logo.setMaxWidth(Ui.dp(this, 380));
+        logo.setVisibility(View.GONE);
+        hero.addView(logo, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        title = Ui.heading(this, getIntent().getStringExtra("name"), 42);
+        title.setMaxLines(2);
+        title.setEllipsize(TextUtils.TruncateAt.END);
+        hero.addView(title);
+
+        chips = Ui.horizontal(this);
+        chips.setGravity(Gravity.CENTER_VERTICAL);
+        chips.setPadding(0, Ui.dp(this, 14), 0, Ui.dp(this, 14));
+        hero.addView(chips);
+
+        description = Ui.text(this, "Loading…", 15, Ui.alpha(Ui.TEXT, 0.86f));
+        description.setMaxLines(4);
+        description.setEllipsize(TextUtils.TruncateAt.END);
+        description.setLineSpacing(0, 1.3f);
+        hero.addView(description);
+        credits = Ui.text(this, "", 12, Ui.MUTED);
+        credits.setPadding(0, Ui.dp(this, 12), 0, 0);
+        credits.setMaxLines(2);
+        hero.addView(credits);
+
+        buttons = Ui.horizontal(this);
+        buttons.setPadding(0, Ui.dp(this, 22), 0, 0);
+        hero.addView(buttons);
+        content.addView(hero, new LinearLayout.LayoutParams(Ui.dp(this, 640), ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        // ---- episodes
+        episodesHeader = sectionTitle("Episodes");
         content.addView(episodesHeader);
         seasonsBar = Ui.horizontal(this);
         content.addView(seasonsBar);
@@ -116,13 +150,37 @@ public class DetailActivity extends Activity {
         content.addView(epHolder);
         episodes = Ui.row(this, epHolder, "");
 
+        // ---- more like this
+        similarHeader = sectionTitle("More like this");
+        content.addView(similarHeader);
+        LinearLayout simHolder = Ui.vertical(this);
+        simHolder.setClipChildren(false);
+        content.addView(simHolder);
+        similarRow = Ui.row(this, simHolder, "");
+
+        // ---- about
+        aboutHeader = sectionTitle("About");
+        content.addView(aboutHeader);
+        about = Ui.vertical(this);
+        content.addView(about, new LinearLayout.LayoutParams(Ui.dp(this, 760), ViewGroup.LayoutParams.WRAP_CONTENT));
+
         load();
+    }
+
+    private TextView sectionTitle(String s) {
+        TextView t = Ui.heading(this, s, 18);
+        t.setPadding(0, Ui.dp(this, 30), 0, Ui.dp(this, 6));
+        t.setVisibility(View.GONE);
+        return t;
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        if (meta != null) render();   // refresh resume / watched markers
+        if (meta != null) {   // refresh resume / watched markers and favorite state
+            renderButtons();
+            if (isSeries()) renderSeasons();
+        }
     }
 
     private void load() {
@@ -152,32 +210,62 @@ public class DetailActivity extends Activity {
     private void render() {
         title.setText(meta.optString("name"));
         String bg = meta.optString("background");
-        if (!bg.isEmpty()) ImageLoader.load(backdrop, bg, Ui.dp(this, 900));
+        if (!bg.isEmpty()) ImageLoader.load(backdrop, bg, Ui.dp(this, 1100));
+        String logoUrl = meta.optString("logo");
+        if (!logoUrl.isEmpty()) {
+            ImageLoader.load(logo, logoUrl, Ui.dp(this, 380), () -> {
+                logo.setVisibility(View.VISIBLE);
+                title.setVisibility(View.GONE);
+            });
+        }
 
+        // Chips: IMDb rating, year, runtime, seasons, genres.
+        chips.removeAllViews();
+        if (!meta.optString("imdbRating").isEmpty()) {
+            LinearLayout r = Ui.horizontal(this);
+            r.setGravity(Gravity.CENTER_VERTICAL);
+            TextView imdb = Ui.chip(this, "IMDb", Color.parseColor("#F5C518"), Color.BLACK);
+            imdb.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
+            r.addView(imdb);
+            TextView score = Ui.heading(this, meta.optString("imdbRating"), 15);
+            score.setPadding(0, 0, Ui.dp(this, 14), 0);
+            r.addView(score);
+            chips.addView(r);
+        }
         List<String> bits = new ArrayList<>();
-        if (!meta.optString("imdbRating").isEmpty()) bits.add("★ " + meta.optString("imdbRating"));
         String year = meta.optString("releaseInfo", meta.optString("year"));
         if (!year.isEmpty()) bits.add(year);
         if (!meta.optString("runtime").isEmpty()) bits.add(meta.optString("runtime"));
         if (isSeries()) {
-            int n = seasons().size();
+            int n = 0;
+            for (int k : seasons().keySet()) if (k > 0) n++;
             if (n > 0) bits.add(n + (n == 1 ? " season" : " seasons"));
         }
-        JSONArray genres = meta.optJSONArray("genres");
-        if (genres == null) genres = meta.optJSONArray("genre");
-        if (genres != null) bits.add(join(genres, ", ", 3));
-        metaLine.setText(TextUtils.join("   ·   ", bits));
-        description.setText(meta.optString("description"));
+        TextView facts = Ui.text(this, TextUtils.join("   ·   ", bits), 14, Ui.TEXT);
+        facts.setPadding(0, 0, Ui.dp(this, 14), 0);
+        chips.addView(facts);
+        JSONArray genres = genres();
+        if (genres != null) for (int i = 0; i < genres.length() && i < 3; i++) {
+            chips.addView(Ui.chip(this, genres.optString(i), Ui.alpha(Color.WHITE, 0.12f), Ui.TEXT));
+        }
 
+        description.setText(meta.optString("description"));
         JSONArray castArr = meta.optJSONArray("cast");
         StringBuilder people = new StringBuilder();
-        if (castArr != null && castArr.length() > 0) people.append("Starring ").append(join(castArr, ", ", 4));
+        if (castArr != null && castArr.length() > 0) people.append("Starring  ").append(join(castArr, ", ", 4));
         JSONArray dir = meta.optJSONArray("director");
-        if (dir != null && dir.length() > 0) people.append(people.length() > 0 ? "   ·   " : "").append("Directed by ").append(join(dir, ", ", 2));
-        cast.setText(people);
+        if (dir != null && dir.length() > 0) people.append(people.length() > 0 ? "      " : "").append("Director  ").append(join(dir, ", ", 2));
+        credits.setText(people);
 
         renderButtons();
         if (isSeries()) renderSeasons();
+        renderAbout();
+        loadSimilar();
+    }
+
+    private JSONArray genres() {
+        JSONArray g = meta.optJSONArray("genres");
+        return g != null ? g : meta.optJSONArray("genre");
     }
 
     private boolean isSeries() {
@@ -207,11 +295,16 @@ public class DetailActivity extends Activity {
             }
         }
 
-        boolean inLib = Store.inLibrary(id);
-        buttons.addView(Ui.button(this, inLib ? R.drawable.ic_check : R.drawable.ic_plus, inLib ? "In watchlist" : "Watchlist", v -> {
-            Store.toggleLibrary(meta);
+        boolean fav = Store.inLibrary(meta.optString("id", id));
+        buttons.addView(Ui.button(this, fav ? R.drawable.ic_heart_filled : R.drawable.ic_heart, fav ? "Favorited" : "Favorite", v -> {
+            JSONObject m = meta;
+            try {
+                if (badge != null && !badge.isEmpty()) m.put("badge", badge);
+                if (serverId != null && !serverId.isEmpty()) m.put("serverId", serverId);
+            } catch (Exception ignored) { }
+            Store.toggleLibrary(m);
             renderButtons();
-            View b = buttons.getChildAt(1);
+            View b = buttons.getChildAt(isSeries() && nextEpisode() == null ? 0 : 1);
             if (b != null) b.requestFocus();
         }));
 
@@ -226,6 +319,64 @@ public class DetailActivity extends Activity {
             }));
         }
         if (focusedIndex >= 0 && focusedIndex < buttons.getChildCount()) buttons.getChildAt(focusedIndex).requestFocus();
+    }
+
+    // ------------------------------------------------------------ about + similar
+
+    private void renderAbout() {
+        about.removeAllViews();
+        List<String[]> rows = new ArrayList<>();
+        String released = meta.optString("released");
+        if (released.length() >= 10) rows.add(new String[]{"Released", released.substring(0, 10)});
+        else if (!meta.optString("releaseInfo").isEmpty()) rows.add(new String[]{"Released", meta.optString("releaseInfo")});
+        if (!meta.optString("runtime").isEmpty()) rows.add(new String[]{"Runtime", meta.optString("runtime")});
+        JSONArray g = genres();
+        if (g != null && g.length() > 0) rows.add(new String[]{"Genres", join(g, ", ", 6)});
+        JSONArray dir = meta.optJSONArray("director");
+        if (dir != null && dir.length() > 0) rows.add(new String[]{"Director", join(dir, ", ", 4)});
+        JSONArray writer = meta.optJSONArray("writer");
+        if (writer != null && writer.length() > 0) rows.add(new String[]{"Writers", join(writer, ", ", 4)});
+        JSONArray cast = meta.optJSONArray("cast");
+        if (cast != null && cast.length() > 0) rows.add(new String[]{"Cast", join(cast, ", ", 10)});
+        if (!meta.optString("country").isEmpty()) rows.add(new String[]{"Country", meta.optString("country")});
+        if (!meta.optString("awards").isEmpty()) rows.add(new String[]{"Awards", meta.optString("awards")});
+        if (badge != null && !badge.isEmpty()) rows.add(new String[]{"Library", "Available on your " + badge + " server"});
+        for (String[] r : rows) {
+            LinearLayout line = Ui.horizontal(this);
+            line.setPadding(0, Ui.dp(this, 7), 0, Ui.dp(this, 7));
+            TextView k = Ui.text(this, r[0], 13, Ui.DIM);
+            line.addView(k, new LinearLayout.LayoutParams(Ui.dp(this, 120), ViewGroup.LayoutParams.WRAP_CONTENT));
+            TextView v = Ui.text(this, r[1], 13, Ui.TEXT);
+            line.addView(v, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+            about.addView(line);
+            View rule = new View(this);
+            rule.setBackgroundColor(Ui.alpha(Color.WHITE, 0.07f));
+            about.addView(rule, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 1));
+        }
+        aboutHeader.setVisibility(rows.isEmpty() ? View.GONE : View.VISIBLE);
+        // A focusable spacer so the remote can scroll down to read this section.
+        if (!rows.isEmpty()) {
+            Button top = Ui.button(this, "Back to top", v -> {
+                View b = buttons.getChildAt(0);
+                if (b != null) b.requestFocus();
+            });
+            ((LinearLayout.LayoutParams) top.getLayoutParams()).setMargins(0, Ui.dp(this, 18), 0, 0);
+            about.addView(top);
+        }
+    }
+
+    private void loadSimilar() {
+        if (similarLoaded) return;
+        similarLoaded = true;
+        JSONArray g = genres();
+        String genre = g != null && g.length() > 0 ? g.optString(0) : "";
+        String t = isSeries() ? "series" : "movie";
+        String self = meta.optString("id", id);
+        App.async(() -> Addons.similar(t, genre, self), list -> {
+            similarRow.removeAllViews();
+            for (JSONObject m : list) similarRow.addView(Ui.poster(this, m, v -> open(this, m), null));
+            similarHeader.setVisibility(list.isEmpty() ? View.GONE : View.VISIBLE);
+        }, null);
     }
 
     // ------------------------------------------------------------ series
@@ -314,7 +465,7 @@ public class DetailActivity extends Activity {
             JSONObject p = Store.progress(ep.optString("id"));
             boolean done = Store.isFinished(p);
             double progress = done ? 1 : p != null && p.optLong("dur") > 0 ? (double) p.optLong("pos") / p.optLong("dur") : 0;
-            String badge = done ? "Watched" : ep.optString("id").equals(nextId) ? "Up next" : "";
+            String epBadge = done ? "Watched" : ep.optString("id").equals(nextId) ? "Up next" : "";
             String released = ep.optString("released");
             String sub = p != null && !done && p.optLong("pos") > 30000 ? Ui.left(p.optLong("pos"), p.optLong("dur"))
                     : released.length() >= 10 ? released.substring(0, 10) : "";
@@ -322,8 +473,8 @@ public class DetailActivity extends Activity {
             String name = ep.optString("name", ep.optString("title"));
             String img = ep.optString("thumbnail");
             if (img.isEmpty()) img = meta.optString("background", meta.optString("poster"));
-            episodes.addView(Ui.landscape(this, img, n + " · " + (name.isEmpty() ? "Episode " + n : name), sub, badge,
-                    progress, 210, v -> openStreams(ep.optString("id"), episodeLabel(ep)), null));
+            episodes.addView(Ui.landscape(this, img, n + " · " + (name.isEmpty() ? "Episode " + n : name), sub, epBadge,
+                    progress, 220, v -> openStreams(ep.optString("id"), episodeLabel(ep)), null));
         }
     }
 
@@ -341,9 +492,7 @@ public class DetailActivity extends Activity {
     private void openStreams(String videoId, String label) {
         PlayInfo pi = PlayInfo.of(type, meta.optString("id", id), videoId, meta.optString("name"), meta.optString("poster"), label);
         pi.background = meta.optString("background");
-        Intent i = pi.into(new Intent(this, StreamsActivity.class));
-        // Library fallback: if this is a streaming page for a title you own, the server copy is matched by IMDb id.
-        startActivity(i);
+        startActivity(pi.into(new Intent(this, StreamsActivity.class)));
     }
 
     private String trailerId() {
