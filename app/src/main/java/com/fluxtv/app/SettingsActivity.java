@@ -34,7 +34,7 @@ public class SettingsActivity extends FluxActivity {
     private static final String[][] CATEGORIES = {
             {"profiles", "Profiles & Trakt", "Who's watching, watchlist sync"},
             {"home", "Home screen", "Home button, rows, region"},
-            {"appearance", "Appearance", "Colours"},
+            {"appearance", "Appearance", "Themes and colours"},
             {"player", "Player", "Subtitles, picture, size limits"},
             {"sources", "Sources", "Add-ons, servers, Real-Debrid, IPTV"},
             {"downloads", "Downloads", "Radarr, Sonarr, SABnzbd"},
@@ -252,6 +252,18 @@ public class SettingsActivity extends FluxActivity {
 
     private void paneAppearance() {
         heading("Appearance", null);
+        content.addView(section("Themes"));
+        LinearLayout grid = null;
+        int current = Theme.themeIndex();
+        for (int i = 0; i < Theme.THEMES.length; i++) {
+            if (i % 6 == 0) grid = buttonRow();
+            int idx = i;
+            grid.addView(themeTile(i, i == current, v -> {
+                Theme.setTheme(idx);
+                recreate();
+            }));
+        }
+        content.addView(label(current >= 0 ? "Theme: " + Theme.THEMES[current][0] : "Custom colours"));
         content.addView(section("Accent colour"));
         LinearLayout accents = buttonRow();
         for (int i = 0; i < Theme.ACCENT_HEX.length; i++) {
@@ -351,6 +363,11 @@ public class SettingsActivity extends FluxActivity {
         LinearLayout gs = buttonRow();
         gs.addView(Ui.pill(this, "Fast (Flash-Lite)", Gemini.fast(), v -> { Gemini.setFast(true); render(); }));
         gs.addView(Ui.pill(this, "Smarter (Flash)", !Gemini.fast(), v -> { Gemini.setFast(false); render(); }));
+        content.addView(section("Voice search screen"));
+        LinearLayout vs = buttonRow();
+        boolean sys = Store.get("voice_ui").equals("system");
+        vs.addView(Ui.pill(this, "Flux's own", !sys, v -> { Store.put("voice_ui", ""); render(); }));
+        vs.addView(Ui.pill(this, "The TV's built-in one", sys, v -> { Store.put("voice_ui", "system"); render(); }));
         content.addView(section("TMDB (streaming services, cast & crew)"));
         content.addView(label("API key or read token from themoviedb.org/settings/api"));
         content.addView(keyField("tmdb_key", "TMDB API key"));
@@ -427,6 +444,42 @@ public class SettingsActivity extends FluxActivity {
         TextView t = Ui.text(this, s, 13, Ui.DIM);
         t.setPadding(0, Ui.dp(this, 4), 0, Ui.dp(this, 6));
         return t;
+    }
+
+    /** A small preview of a theme: its background, a card, and its accent. */
+    private View themeTile(int i, boolean selected, View.OnClickListener click) {
+        int bg = Theme.bgColor((int) Theme.THEMES[i][2], 0), panel = Theme.bgColor((int) Theme.THEMES[i][2], 2);
+        int accent = Color.parseColor(Theme.ACCENT_HEX[(int) Theme.THEMES[i][1]]);
+        LinearLayout col = Ui.vertical(this);
+        col.setGravity(Gravity.CENTER_HORIZONTAL);
+        android.widget.FrameLayout tile = new android.widget.FrameLayout(this);
+        tile.setFocusable(true);
+        tile.setClickable(true);
+        tile.setOnClickListener(click);
+        tile.setContentDescription((String) Theme.THEMES[i][0]);
+        StateListDrawable s = new StateListDrawable();
+        s.addState(new int[]{android.R.attr.state_focused}, Ui.rounded(this, bg, Ui.TEXT, 12));
+        s.addState(new int[]{}, Ui.rounded(this, bg, selected ? accent : Ui.BORDER, 12));
+        tile.setBackground(s);
+        View card = new View(this);
+        card.setBackground(Ui.rounded(this, panel, 0, 6));
+        android.widget.FrameLayout.LayoutParams cl = new android.widget.FrameLayout.LayoutParams(Ui.dp(this, 46), Ui.dp(this, 30), Gravity.START | Gravity.CENTER_VERTICAL);
+        cl.leftMargin = Ui.dp(this, 14);
+        tile.addView(card, cl);
+        View dot = new View(this);
+        dot.setBackground(Ui.rounded(this, accent, 0, 99));
+        android.widget.FrameLayout.LayoutParams dl = new android.widget.FrameLayout.LayoutParams(Ui.dp(this, 22), Ui.dp(this, 22), Gravity.END | Gravity.CENTER_VERTICAL);
+        dl.rightMargin = Ui.dp(this, 14);
+        tile.addView(dot, dl);
+        tile.setOnFocusChangeListener((v, has) -> v.animate().scaleX(has ? 1.06f : 1f).scaleY(has ? 1.06f : 1f).setDuration(120).start());
+        col.addView(tile, new LinearLayout.LayoutParams(Ui.dp(this, 112), Ui.dp(this, 64)));
+        TextView n = Ui.text(this, (String) Theme.THEMES[i][0], 12, selected ? Ui.TEXT : Ui.MUTED);
+        n.setPadding(0, Ui.dp(this, 6), 0, 0);
+        col.addView(n);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        lp.setMargins(0, Ui.dp(this, 4), Ui.dp(this, 14), Ui.dp(this, 8));
+        col.setLayoutParams(lp);
+        return col;
     }
 
     /** Round colour swatch: white ring when focused, check-style inner ring when selected. */

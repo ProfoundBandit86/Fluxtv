@@ -243,6 +243,10 @@ public final class ConfigServer {
                 return Trakt.sync();
             // ---- appearance & home
             case "/appearance":
+                if (!f(form, "theme").isEmpty()) {
+                    Theme.setTheme(Integer.parseInt(f(form, "theme")));
+                    return "Theme saved";
+                }
                 if (!f(form, "accent").isEmpty()) Theme.setAccent(Integer.parseInt(f(form, "accent")));
                 if (!f(form, "bg").isEmpty()) Theme.setBackground(Integer.parseInt(f(form, "bg")));
                 return "Colours saved";
@@ -443,7 +447,11 @@ public final class ConfigServer {
         sb.append("</select><button>Save</button></form></details>");
 
         // ---------------- appearance
-        sb.append("" + section("appearance", "Appearance", "Colours") + "<form method='post' action='/appearance'>Accent colour")
+        String[] themeNames = new String[Theme.THEMES.length];
+        for (int i = 0; i < themeNames.length; i++) themeNames[i] = (String) Theme.THEMES[i][0];
+        sb.append("" + section("appearance", "Appearance", "Themes and colours") + "<form method='post' action='/appearance'>Theme")
+          .append(select("theme", themeNames, Theme.themeIndex())).append("<button>Use theme</button></form>")
+          .append("<h3>Or mix your own</h3><form method='post' action='/appearance'>Accent colour")
           .append(select("accent", Theme.ACCENT_NAMES, Theme.accentIndex())).append("Background")
           .append(select("bg", Theme.BG_NAMES, Theme.bgIndex())).append("<button>Save colours</button></form></details>");
 

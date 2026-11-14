@@ -158,13 +158,23 @@ nudge; key DPAD_CENTER 10; top person-click; texts person-click 10; shot 09-pers
 crashes credits
 
 # Gemini search (typed), then voice
-adb shell am start -W -n $P/.SearchActivity
-sleep 3; adb shell input text "mind%sbending%smovies"; key ENTER 20
+adb shell am start -W -n $P/.SearchActivity --es query "mind bending movies"
+sleep 20
 texts gemini 40; shot 10-gemini
 adb shell am force-stop $P
+adb shell pm grant $P android.permission.RECORD_AUDIO
+adb shell am start -W -n $P/.SearchActivity
+sleep 4; shot 11a-search-start; texts search-start 30
 adb shell am start -W -n $P/.SearchActivity --ez voice true
-sleep 6; top voice; texts voice 15; shot 11-voice
+sleep 3; top voice; shot 11-voice; sleep 5; texts voice 15; shot 11b-voice-after
 crashes search
+
+# Themes
+adb shell am start -W -n $P/.SettingsActivity --es category appearance; sleep 4; shot 38-themes
+curl -s -m 20 -X POST --data-urlencode "theme=2" http://127.0.0.1:8090/appearance | grep -o "<p class='m'>[^<]*"
+adb shell am start -W -n $P/.MainActivity; sleep 8; nudge; shot 39-home-ocean-theme
+curl -s -m 20 -X POST --data-urlencode "theme=0" http://127.0.0.1:8090/appearance > /dev/null
+crashes themes
 
 # Quick Settings panel (also its own launcher entry)
 adb shell am start -W -n $P/.QuickSettingsActivity
