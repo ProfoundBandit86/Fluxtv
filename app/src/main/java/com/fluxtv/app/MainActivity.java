@@ -82,6 +82,10 @@ public class MainActivity extends Activity {
         sb.setMargins(0, Ui.dp(this, 182), 0, 0);
         main.addView(scrimBottom, sb);
 
+        View scrimTop = new View(this);
+        scrimTop.setBackground(Ui.scrim(GradientDrawable.Orientation.TOP_BOTTOM, Ui.BG, 0.85f));
+        main.addView(scrimTop, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 90), Gravity.TOP));
+
         // Top bar: greeting, sources, clock.
         LinearLayout top = Ui.horizontal(this);
         top.setGravity(Gravity.CENTER_VERTICAL);
@@ -186,10 +190,12 @@ public class MainActivity extends Activity {
         ic.setDuplicateParentStateEnabled(true);
         item.addView(ic);
         TextView t = Ui.text(this, label, 9, Ui.DIM);
+        t.setGravity(Gravity.CENTER);
+        t.setSingleLine(true);
         t.setTextColor(tint);
         t.setPadding(0, Ui.dp(this, 4), 0, 0);
         t.setDuplicateParentStateEnabled(true);
-        item.addView(t);
+        item.addView(t, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(Ui.dp(this, 60), Ui.dp(this, 54));
         lp.setMargins(0, Ui.dp(this, 3), 0, Ui.dp(this, 3));
         rail.addView(item, lp);
