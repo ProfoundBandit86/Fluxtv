@@ -7,6 +7,9 @@ on:
     branches: [device-test]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   emulator:
     runs-on: ubuntu-latest
@@ -44,6 +47,15 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           script: bash .github/device-test.sh
+
+      - name: Push screenshots to the device-test-output branch
+        if: always()
+        run: |
+          cd out
+          git init -q -b device-test-output
+          git -c user.name=ci -c user.email=ci@example.com add -A
+          git -c user.name=ci -c user.email=ci@example.com commit -q -m "Device test output ${{ github.run_number }}"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" device-test-output
 
       - uses: actions/upload-artifact@v4
         if: always()

@@ -29,6 +29,8 @@ for i in 1 2; do key DPAD_DOWN 2; focus down-$i; done
 shot 2-after-keys
 key DPAD_CENTER 10
 top after-ok; texts after-ok 12; shot 3-after-ok
+adb shell uiautomator dump /sdcard/ui.xml; adb shell cat /sdcard/ui.xml > out/detail-ui.xml; head -c 1500 out/detail-ui.xml; echo
+sleep 10; shot 3b-detail-later
 crashes ok
 # Direct click on the first poster's title
 adb shell am start -W -n $P/.MainActivity; sleep 5
