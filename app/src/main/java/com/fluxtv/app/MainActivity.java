@@ -128,7 +128,11 @@ public class MainActivity extends Activity {
         rows.setPadding(Ui.dp(this, 40), 0, 0, Ui.dp(this, 160));
         scroll.addView(rows);
         FrameLayout.LayoutParams rp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
-        rp.setMargins(0, Ui.dp(this, 250), 0, 0);
+        // Rows start below the featured area; on short screens the featured text shrinks so rows fit.
+        float heightDp = getResources().getDisplayMetrics().heightPixels / getResources().getDisplayMetrics().density;
+        int rowsTop = heightDp >= 520 ? 250 : 190;
+        if (rowsTop < 250) heroText.setMaxLines(1);
+        rp.setMargins(0, Ui.dp(this, rowsTop), 0, 0);
         main.addView(scroll, rp);
 
         setContentView(root);

@@ -141,22 +141,24 @@ public class DetailActivity extends Activity {
         content.addView(hero, new LinearLayout.LayoutParams(Ui.dp(this, 640), ViewGroup.LayoutParams.WRAP_CONTENT));
 
         // ---- episodes
+        LinearLayout epGroup = Ui.vertical(this);
+        epGroup.setTag("group");
+        epGroup.setClipChildren(false);
+        content.addView(epGroup);
         episodesHeader = sectionTitle("Episodes");
-        content.addView(episodesHeader);
+        epGroup.addView(episodesHeader);
         seasonsBar = Ui.horizontal(this);
-        content.addView(seasonsBar);
-        LinearLayout epHolder = Ui.vertical(this);
-        epHolder.setClipChildren(false);
-        content.addView(epHolder);
-        episodes = Ui.row(this, epHolder, "");
+        epGroup.addView(seasonsBar);
+        episodes = Ui.row(this, epGroup, "");
 
         // ---- more like this
+        LinearLayout simGroup = Ui.vertical(this);
+        simGroup.setTag("group");
+        simGroup.setClipChildren(false);
+        content.addView(simGroup);
         similarHeader = sectionTitle("More like this");
-        content.addView(similarHeader);
-        LinearLayout simHolder = Ui.vertical(this);
-        simHolder.setClipChildren(false);
-        content.addView(simHolder);
-        similarRow = Ui.row(this, simHolder, "");
+        simGroup.addView(similarHeader);
+        similarRow = Ui.row(this, simGroup, "");
 
         // ---- about
         aboutHeader = sectionTitle("About");
@@ -452,6 +454,7 @@ public class DetailActivity extends Activity {
                 selectedSeason = s;
                 renderSeasons();
             });
+            pill.setOnFocusChangeListener((x, has) -> { if (has) x.post(() -> Ui.reveal(x)); });
             seasonsBar.addView(pill);
             if (s == selectedSeason) selectedPill = pill;
         }

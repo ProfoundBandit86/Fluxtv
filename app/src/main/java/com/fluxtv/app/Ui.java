@@ -211,6 +211,33 @@ public final class Ui {
         return (v, has) -> v.animate().scaleX(has ? scale : 1f).scaleY(has ? scale : 1f).setDuration(140).start();
     }
 
+    /**
+     * Scrolls the nearest vertical ScrollView so the focused card's whole row is on screen
+     * (a block tagged "group" wins over one tagged "row", e.g. season pills + episodes).
+     */
+    public static void reveal(View card) {
+        View group = null, row = null;
+        android.view.ViewParent p = card.getParent();
+        View child = card;
+        while (p instanceof View && !(p instanceof android.widget.ScrollView)) {
+            View v = (View) p;
+            if (row == null && "row".equals(v.getTag())) row = v;
+            if (group == null && "group".equals(v.getTag())) group = v;
+            child = v;
+            p = v.getParent();
+        }
+        if (!(p instanceof android.widget.ScrollView)) return;
+        android.widget.ScrollView sv = (android.widget.ScrollView) p;
+        View target = group != null ? group : row;
+        if (target == null) return;
+        int top = 0;
+        for (View v = target; v != null && v.getParent() != sv; v = (View) v.getParent()) top += v.getTop();
+        int bottom = top + target.getHeight();
+        int margin = dp(card.getContext(), 6);
+        int y = sv.getScrollY(), h = sv.getHeight();
+        if (top - margin < y || bottom + margin > y + h) sv.smoothScrollTo(0, Math.max(0, top - margin));
+    }
+
     /** Rounded image that clips its picture to the corners. */
     public static ImageView image(Context c, int bg, float radiusDp) {
         ImageView img = new ImageView(c);
@@ -279,6 +306,7 @@ public final class Ui {
         f.setOnFocusChangeListener((v, has) -> {
             grow(1.06f).onFocusChange(v, has);
             t.setTextColor(has ? TEXT : DIM);
+            if (has) col.post(() -> reveal(col));
             if (has && onFocus != null) onFocus.run();
         });
         return col;
@@ -318,6 +346,7 @@ public final class Ui {
         }
         f.setOnFocusChangeListener((v, has) -> {
             grow(1.04f).onFocusChange(v, has);
+            if (has) col.post(() -> reveal(col));
             if (has && onFocus != null) onFocus.run();
         });
         return col;
@@ -329,6 +358,11 @@ public final class Ui {
     }
 
     public static LinearLayout row(Context c, ViewGroup parent, String title, String note) {
+        LinearLayout block = vertical(c);
+        block.setTag("row");
+        block.setClipChildren(false);
+        parent.addView(block);
+        parent = block;
         if (title != null && !title.isEmpty()) {
             LinearLayout h = horizontal(c);
             h.setGravity(Gravity.BOTTOM);

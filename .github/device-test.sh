@@ -24,6 +24,8 @@ sleep 35
 top home; texts home 20; shot 01-home
 nudge; key DPAD_DOWN 1; key DPAD_DOWN 1; key DPAD_CENTER 25
 texts movies 30; shot 02-movies
+key DPAD_RIGHT 2; key DPAD_DOWN 2; shot 02b-movies-row2; key DPAD_DOWN 2; shot 02c-movies-row3; key DPAD_LEFT 1; key DPAD_LEFT 1; key DPAD_LEFT 1
+for i in 1 2 3 4 5 6; do key DPAD_UP 1; done; key DPAD_DOWN 1; key DPAD_DOWN 1; key DPAD_DOWN 1
 key DPAD_DOWN 1; key DPAD_CENTER 25
 texts shows 30; shot 03-shows
 crashes sections
@@ -38,7 +40,7 @@ crashes movie-detail
 # Series title page
 adb shell am start -W -n $P/.DetailActivity --es type series --es id tt0903747 --es name "Series test"
 sleep 15; nudge; shot 06-series
-for i in 1 2; do key DPAD_DOWN 1; done; sleep 3; shot 07-series-episodes
+for i in 1 2; do key DPAD_DOWN 1; done; sleep 3; shot 07-series-episodes; key DPAD_DOWN 2; shot 07b-series-more
 crashes series
 
 # Favorites section
