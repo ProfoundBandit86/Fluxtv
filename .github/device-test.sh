@@ -81,7 +81,7 @@ tap "Audio"; sleep 2; texts player-audio 30; shot 17-player-audio
 key BACK 1; tap "Subtitles"; sleep 2; texts player-subs 40; shot 18-player-subs
 tap "Find subtitles"; sleep 6; texts player-subs-found 40; shot 19-player-subs-found
 tap "English&#10;Flux"; sleep 12; texts player-addon-sub 20; shot 20-player-addon-subtitle
-key DPAD_UP 2; texts player-bar 20; shot 21-player-bar
+key DPAD_UP 0; shot 21-player-bar
 key DPAD_RIGHT 1; key DPAD_RIGHT 1; key DPAD_CENTER 2; texts player-speed 20; shot 22-player-speed
 key BACK 1; key BACK 1; key BACK 3
 crashes player

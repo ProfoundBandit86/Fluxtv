@@ -240,6 +240,9 @@ public final class ConfigServer {
                     if (form.containsKey(k)) Store.put(k, f(form, k));
                 }
                 return "Player settings saved";
+            case "/test-channel":
+                if (!BuildConfig.TEST_BUILD) return null;
+                return WatchNext.insertTestChannel(App.ctx);
             case "/test-config":
                 if (!BuildConfig.TEST_BUILD) return null;
                 Store.put("test_tmdb", f(form, "tmdb"));

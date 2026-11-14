@@ -19,7 +19,8 @@ import java.util.List;
  */
 public final class WatchNext {
 
-    public static final String PERMISSION = "com.android.providers.tv.permission.READ_EPG_DATA";
+    /** Lets a launcher read the rows and Watch Next items that other apps publish (asked for at runtime). */
+    public static final String PERMISSION = "android.permission.READ_TV_LISTINGS";
     private static final Uri URI = Uri.parse("content://android.media.tv/watch_next_program");
 
     /** Row type for rows other apps publish (Android TV "channels"). */
@@ -42,7 +43,7 @@ public final class WatchNext {
             if (cur == null) return out;
             while (cur.moveToNext()) {
                 String pkg = str(cur, "package_name");
-                if (pkg.isEmpty() || pkg.equals(c.getPackageName())) continue;
+                if (pkg.isEmpty() || (pkg.equals(c.getPackageName()) && !BuildConfig.TEST_BUILD)) continue;
                 if (!"TYPE_PREVIEW".equals(str(cur, "type"))) continue;
                 chans.add(new String[]{str(cur, "_id"), str(cur, "display_name"), pkg});
             }
@@ -102,6 +103,25 @@ public final class WatchNext {
         return out;
     }
 
+    /** Test builds only: publishes a Home row the way another app would, so the emulator test can see one. */
+    static String insertTestChannel(Context c) {
+        android.content.ContentValues ch = new android.content.ContentValues();
+        ch.put("type", "TYPE_PREVIEW");
+        ch.put("display_name", "Shell Picks");
+        Uri chUri = c.getContentResolver().insert(CHANNELS, ch);
+        long id = Long.parseLong(chUri.getLastPathSegment());
+        for (String t : new String[]{"Test Movie One", "Test Movie Two", "Test Movie Three"}) {
+            android.content.ContentValues p = new android.content.ContentValues();
+            p.put("channel_id", id);
+            p.put("type", 0);
+            p.put("title", t);
+            p.put("poster_art_aspect_ratio", 0);
+            p.put("intent_uri", "intent:#Intent;action=android.settings.SETTINGS;end");
+            c.getContentResolver().insert(PREVIEW, p);
+        }
+        return "Test channel " + id;
+    }
+
     /** True when two lists of app rows have the same rows and items (to skip needless redraws). */
     public static boolean sameRows(List<Addons.Row> a, List<Addons.Row> b) {
         if (a.size() != b.size()) return false;
@@ -128,7 +148,7 @@ public final class WatchNext {
             if (cur == null) return out;
             while (cur.moveToNext() && out.size() < 40) {
                 String pkg = str(cur, "package_name");
-                if (pkg.isEmpty() || pkg.equals(c.getPackageName())) continue;
+                if (pkg.isEmpty() || (pkg.equals(c.getPackageName()) && !BuildConfig.TEST_BUILD)) continue;
                 if ("0".equals(str(cur, "browsable"))) continue;
                 JSONObject p = new JSONObject();
                 String title = str(cur, "title");
