@@ -27,18 +27,65 @@ adb shell am start -W -n $P/.AddonsActivity; sleep 4
 adb forward tcp:8090 tcp:8090
 curl -s -m 30 -X POST --data-urlencode "tmdb=http://10.0.2.2:8000/3" --data-urlencode "gemini=http://10.0.2.2:8000/gemini/" http://127.0.0.1:8090/test-config | grep -o "<p class='m'>[^<]*"
 curl -s -m 30 -X POST --data-urlencode "tmdb=fakeTmdbKey" --data-urlencode "gemini=fakeGeminiKey" http://127.0.0.1:8090/keys | grep -o "<p class='m'>[^<]*"
+# Trakt (fake) + a subtitles add-on
+curl -s -m 30 -X POST --data-urlencode "tmdb=http://10.0.2.2:8000/3" --data-urlencode "gemini=http://10.0.2.2:8000/gemini/" --data-urlencode "trakt=http://10.0.2.2:8000/trakt" http://127.0.0.1:8090/test-config | grep -o "<p class='m'>[^<]*"
+curl -s -m 60 -X POST --data-urlencode "url=http://10.0.2.2:8000/subs/manifest.json" http://127.0.0.1:8090/install | grep -o "<p class='m'>[^<]*"
+curl -s -m 30 -X POST --data-urlencode "id=fakeClientId" --data-urlencode "secret=fakeSecret" http://127.0.0.1:8090/trakt-app | grep -o "<p class='m'>[^<]*"
+curl -s -m 30 -X POST --data-urlencode "name=Default" http://127.0.0.1:8090/trakt-link | grep -o "<p class='m'>[^<]*"
+sleep 8
+curl -s -m 30 http://127.0.0.1:8090/ > out/settings-page.html
+echo "== SETTINGS PAGE: $(grep -o '<summary>[^<]*' out/settings-page.html | tr '\n' ' ')"
+echo "== TRAKT STATUS: $(grep -o 'Trakt: [^<]*' out/settings-page.html | head -3 | tr '\n' ' ')"
+curl -s -m 30 -X POST --data-urlencode "player_sub_size=2" --data-urlencode "player_sub_style=1" --data-urlencode "player_audio_lang=en" http://127.0.0.1:8090/player | grep -o "<p class='m'>[^<]*"
+curl -s -m 30 -X POST --data-urlencode "name=Kids" http://127.0.0.1:8090/profile-add | grep -o "<p class='m'>[^<]*"
 adb shell am force-stop $P
+
+# Another app's Home row (Android TV preview channel), published from the shell
+adb shell pm grant $P com.android.providers.tv.permission.READ_EPG_DATA
+adb shell content insert --uri content://android.media.tv/channel --bind type:s:TYPE_PREVIEW --bind display_name:s:"Shell Picks" --bind input_id:s:test.input --bind browsable:i:1
+CH=$(adb shell content query --uri content://android.media.tv/channel --projection _id:display_name | grep "Shell Picks" | grep -o "_id=[0-9]*" | head -1 | cut -d= -f2)
+echo "== CHANNEL id: $CH"
+for t in "Shell Movie One" "Shell Movie Two" "Shell Movie Three"; do
+  adb shell content insert --uri content://android.media.tv/preview_program --bind channel_id:l:${CH:-1} --bind type:i:0 --bind "title:s:$t" --bind poster_art_aspect_ratio:i:0 --bind browsable:i:1 --bind "intent_uri:s:intent:#Intent;action=android.settings.SETTINGS;end"
+done
+adb shell content query --uri content://android.media.tv/preview_program --projection _id:title:channel_id | head -5
 
 # Home: Continue watching, apps, services, rows
 adb shell am start -W -n $P/.MainActivity
 sleep 35
-nudge; top home; texts home 50; shot 01-home
+nudge; top home; texts home 60; shot 01-home
 for i in 1 2 3; do key DPAD_DOWN 1; done; sleep 2; texts home-scrolled 40; shot 02-home-scrolled
 # Sidebar: ← from the first card opens it
 key DPAD_LEFT 1; key DPAD_LEFT 1; key DPAD_LEFT 2; texts drawer 20; shot 03-drawer
 key DPAD_DOWN 1; texts drawer-down 30; key DPAD_CENTER 20; top movies; texts movies 30; shot 04-movies
 key DPAD_DOWN 2; key DPAD_DOWN 2; shot 04b-movies-scrolled
 crashes home
+
+# Rows from other apps + Customize Home lists them
+for i in 1 2 3 4 5 6; do key DPAD_DOWN 1; done; sleep 2; texts home-deep 60; shot 04c-home-deep
+adb shell am start -W -n $P/.HomeRowsActivity; sleep 3; texts home-rows 60; shot 04d-home-rows
+crashes home-rows
+
+# Profiles & Trakt, Settings
+adb shell am start -W -n $P/.ProfilesActivity; sleep 4; nudge; texts profiles 40; shot 13-profiles
+adb shell am start -W -n $P/.SettingsActivity; sleep 4; texts settings 60; shot 14-settings
+key DPAD_DOWN 1; key DPAD_DOWN 1; key DPAD_DOWN 1; key DPAD_DOWN 1; shot 14b-settings-scrolled
+crashes settings
+
+# Player options: audio, subtitles (built-in and from an add-on), speed
+tap() { adb shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1; B=$(adb shell cat /sdcard/ui.xml | grep -o "<node[^>]*text=\"$1[^>]*>" | head -1 | grep -o 'bounds="[^"]*"' | grep -o '[0-9]*' | tr '\n' ' '); set -- $B; if [ -n "$4" ]; then adb shell input tap $(( ($1+$3)/2 )) $(( ($2+$4)/2 )); else echo "== no element for tap"; fi; }
+adb shell am start -W -n $P/.PlayerActivity --es url "https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_fmp4/master.m3u8" --es pi_type movie --es pi_meta tt0111161 --es pi_video tt0111161 --es pi_name "Player Test"
+sleep 20; shot 15-player
+key MENU 2; texts player-menu 30; shot 16-player-menu
+tap "Audio"; sleep 2; texts player-audio 30; shot 17-player-audio
+key BACK 1; tap "Subtitles"; sleep 2; texts player-subs 40; shot 18-player-subs
+tap "Find subtitles"; sleep 6; texts player-subs-found 40; shot 19-player-subs-found
+tap "English&#10;Flux"; sleep 12; texts player-addon-sub 20; shot 20-player-addon-subtitle
+key DPAD_UP 2; texts player-bar 20; shot 21-player-bar
+key DPAD_RIGHT 1; key DPAD_RIGHT 1; key DPAD_CENTER 2; texts player-speed 20; shot 22-player-speed
+key BACK 1; key BACK 1; key BACK 3
+crashes player
+echo "== TRAKT LOG"; curl -s http://127.0.0.1:8000/trakt/_log | python3 -c "import json,sys; [print(e['path'], e['body'][:160]) for e in json.load(sys.stdin)]"
 
 # Service page
 adb shell am start -W -n $P/.ServiceActivity --es service netflix

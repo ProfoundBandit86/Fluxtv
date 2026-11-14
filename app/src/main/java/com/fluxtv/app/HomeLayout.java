@@ -15,6 +15,32 @@ public final class HomeLayout {
 
     private HomeLayout() { }
 
+    /** Remembers the rows on offer, also for the phone settings page. */
+    static void setAvailable(List<Addons.Row> rows) {
+        available.clear();
+        available.addAll(rows);
+        org.json.JSONArray a = new org.json.JSONArray();
+        for (Addons.Row r : ordered(rows)) {
+            try {
+                a.put(new org.json.JSONObject().put("key", key(r)).put("title", r.title).put("note", r.note));
+            } catch (Exception ignored) { }
+        }
+        Store.put("home_available", a.toString());
+    }
+
+    /** Rows saved by setAvailable: [{key, title, note}], in your order. */
+    static List<org.json.JSONObject> savedAvailable() {
+        List<org.json.JSONObject> out = new ArrayList<>();
+        try {
+            JSONArray a = new JSONArray(Store.get("home_available").isEmpty() ? "[]" : Store.get("home_available"));
+            for (int i = 0; i < a.length(); i++) out.add(a.optJSONObject(i));
+        } catch (Exception ignored) { }
+        List<org.json.JSONObject> sorted = new ArrayList<>();
+        for (String k : order()) for (org.json.JSONObject o : out) if (o.optString("key").equals(k) && !sorted.contains(o)) sorted.add(o);
+        for (org.json.JSONObject o : out) if (!sorted.contains(o)) sorted.add(o);
+        return sorted;
+    }
+
     public static String key(Addons.Row r) {
         return r.title + "|" + r.note;
     }

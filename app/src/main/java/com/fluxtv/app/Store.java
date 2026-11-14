@@ -180,6 +180,29 @@ public final class Store {
         p.edit().putString("profiles", new JSONArray(all).toString()).apply();
     }
 
+    /** Deletes a profile and its favorites, progress and Trakt link. */
+    public static synchronized void removeProfile(String name) {
+        List<String> all = profiles();
+        all.remove(name);
+        if (all.isEmpty()) all.add("Default");
+        SharedPreferences.Editor e = p.edit().putString("profiles", new JSONArray(all).toString());
+        for (String k : new String[]{"library", "progress", "trakt_tokens", "trakt_snap", "trakt_last"}) e.remove(k + ":" + name);
+        if (name.equals(profile())) e.putString("profile", all.get(0));
+        e.apply();
+        changes++;
+        addonsVersion++;
+    }
+
+    /** A per-profile value (e.g. Trakt sign-in) for any profile, not just the current one. */
+    public static String profileValue(String base, String profile) {
+        return p.getString(base + ":" + profile, "");
+    }
+
+    public static void putProfileValue(String base, String profile, String value) {
+        if (value == null) p.edit().remove(base + ":" + profile).apply();
+        else p.edit().putString(base + ":" + profile, value).apply();
+    }
+
     private static String key(String base) {
         return base + ":" + profile();
     }
@@ -209,6 +232,26 @@ public final class Store {
         return added;
     }
 
+    /** Adds without toggling (used by Trakt sync). */
+    public static synchronized void addToLibrary(JSONObject preview) {
+        JSONObject lib = object(key("library"));
+        String id = preview.optString("id");
+        if (id.isEmpty() || lib.has(id)) return;
+        try {
+            if (!preview.has("t")) preview.put("t", System.currentTimeMillis());
+            lib.put(id, preview);
+        } catch (JSONException ignored) { }
+        p.edit().putString(key("library"), lib.toString()).apply();
+        changes++;
+    }
+
+    public static synchronized void removeFromLibrary(String id) {
+        JSONObject lib = object(key("library"));
+        if (lib.remove(id) == null) return;
+        p.edit().putString(key("library"), lib.toString()).apply();
+        changes++;
+    }
+
     public static synchronized List<JSONObject> library() {
         return sortedValues(object(key("library")));
     }
@@ -223,14 +266,14 @@ public final class Store {
         putProgress(info, pos, dur, System.currentTimeMillis(), true);
     }
 
-    /** Copies progress reported by a media server, unless this TV already has its own. */
+    /** Copies progress reported by a media server or Trakt, unless this TV has something newer. */
     public static void importProgress(PlayInfo info, long pos, long dur, long when) {
         putProgress(info, pos, dur, when, false);
     }
 
     private static synchronized void putProgress(PlayInfo info, long pos, long dur, long when, boolean overwrite) {
         JSONObject all = object(key("progress"));
-        if (!overwrite && all.has(info.videoId)) return;
+        if (!overwrite && all.has(info.videoId) && all.optJSONObject(info.videoId).optLong("t") >= when) return;
         JSONObject e = new JSONObject();
         try {
             e.put("id", info.metaId);

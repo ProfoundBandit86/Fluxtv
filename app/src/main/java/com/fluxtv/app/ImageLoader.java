@@ -55,7 +55,19 @@ public final class ImageLoader {
 
     private static Bitmap fetch(String url, int targetWidth) {
         try {
-            byte[] data = Http.bytes(url);
+            byte[] data;
+            if (url.startsWith("content:") || url.startsWith("android.resource:") || url.startsWith("file:")) {
+                // Pictures other apps publish for their Home rows are often content:// links.
+                try (java.io.InputStream in = App.ctx.getContentResolver().openInputStream(android.net.Uri.parse(url))) {
+                    java.io.ByteArrayOutputStream b = new java.io.ByteArrayOutputStream();
+                    byte[] buf = new byte[16384];
+                    int n;
+                    while ((n = in.read(buf)) > 0) b.write(buf, 0, n);
+                    data = b.toByteArray();
+                }
+            } else {
+                data = Http.bytes(url);
+            }
             BitmapFactory.Options bounds = new BitmapFactory.Options();
             bounds.inJustDecodeBounds = true;
             BitmapFactory.decodeByteArray(data, 0, data.length, bounds);

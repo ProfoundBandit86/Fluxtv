@@ -56,6 +56,11 @@ DISCOVER_MOVIE = {"results": [{"id": 603, "title": "The Matrix", "release_date":
 DISCOVER_TV = {"results": [{"id": 1396, "name": "Breaking Bad", "first_air_date": "2008-01-20", "overview": "Chemistry.", "vote_average": 8.9, "poster_path": None, "backdrop_path": None}]}
 
 
+TRAKT_LOG = []
+TRAKT_POLLS = [0]
+SRT = "1\n00:00:00,500 --> 00:10:00,000\nFLUX ADDON SUBTITLE\n"
+
+
 class H(BaseHTTPRequestHandler):
     def send(self, code, body, ctype="application/json"):
         data = body.encode() if isinstance(body, str) else body
@@ -68,7 +73,19 @@ class H(BaseHTTPRequestHandler):
     def do_POST(self):
         u = urlparse(self.path)
         n = int(self.headers.get("Content-Length", 0) or 0)
-        self.rfile.read(n)
+        raw = self.rfile.read(n).decode("utf-8", "replace")
+        if u.path.startswith("/trakt/"):
+            tp = u.path[len("/trakt"):]
+            TRAKT_LOG.append({"path": tp, "body": raw, "key": self.headers.get("trakt-api-key"), "auth": self.headers.get("Authorization")})
+            if tp == "/oauth/device/code":
+                return self.send(200, json.dumps({"device_code": "dev123", "user_code": "FLUX1234", "verification_url": "https://trakt.tv/activate",
+                                                  "expires_in": 600, "interval": 1}))
+            if tp == "/oauth/device/token":
+                TRAKT_POLLS[0] += 1
+                if TRAKT_POLLS[0] < 3:
+                    return self.send(400, "{}")
+                return self.send(200, json.dumps({"access_token": "acc", "refresh_token": "ref", "expires_in": 86400, "created_at": int(time.time())}))
+            return self.send(201, json.dumps({"added": {}, "deleted": {}}))
         if u.path.endswith(":generateContent"):
             text = json.dumps([{"title": "The Matrix", "year": 1999, "type": "movie"},
                                {"title": "Breaking Bad", "year": 2008, "type": "series"}])
@@ -79,6 +96,30 @@ class H(BaseHTTPRequestHandler):
         u = urlparse(self.path)
         q = {k: v[0] for k, v in parse_qs(u.query).items()}
         p = u.path
+        if p.startswith("/trakt/"):
+            tp = p[len("/trakt"):]
+            if tp == "/_log":
+                return self.send(200, json.dumps(TRAKT_LOG, indent=1))
+            if tp == "/users/settings":
+                return self.send(200, json.dumps({"user": {"username": "fluxtester"}}))
+            if tp == "/sync/watchlist/movies":
+                return self.send(200, json.dumps([{"movie": {"title": "The Matrix", "year": 1999, "ids": {"imdb": "tt0133093", "tmdb": 603}}}]))
+            if tp == "/sync/watchlist/shows":
+                return self.send(200, json.dumps([{"show": {"title": "Breaking Bad", "year": 2008, "ids": {"imdb": "tt0903747", "tmdb": 1396}}}]))
+            if tp == "/sync/playback":
+                return self.send(200, json.dumps([{"progress": 42.5, "paused_at": time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime()),
+                                                   "type": "movie", "movie": {"title": "The Shawshank Redemption", "year": 1994, "runtime": 142,
+                                                                             "ids": {"imdb": "tt0111161"}}}]))
+            return self.send(404, "not found")
+        # A subtitles add-on
+        if p == "/subs/manifest.json":
+            return self.send(200, json.dumps({"id": "test.subs", "version": "1.0.0", "name": "Flux Subs", "resources": ["subtitles"],
+                                              "types": ["movie", "series"], "idPrefixes": ["tt"], "catalogs": []}))
+        if p.startswith("/subs/subtitles/"):
+            return self.send(200, json.dumps({"subtitles": [{"id": "1", "url": "http://10.0.2.2:8000/subs/test.srt", "lang": "eng"},
+                                                            {"id": "2", "url": "http://10.0.2.2:8000/subs/test.srt", "lang": "spa"}]}))
+        if p == "/subs/test.srt":
+            return self.send(200, SRT, "application/x-subrip")
         if p == "/gemini/models":
             return self.send(200, json.dumps({"models": [{"name": "models/gemini-9.9-flash", "supportedGenerationMethods": ["generateContent"]},
                                                          {"name": "models/gemini-9.9-flash-lite", "supportedGenerationMethods": ["generateContent"]}]}))

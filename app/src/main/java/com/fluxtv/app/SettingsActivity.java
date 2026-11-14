@@ -27,8 +27,44 @@ public class SettingsActivity extends Activity {
         render();
     }
 
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (!ConfigServer.running()) {
+            ConfigServer.start(() -> {
+                if (!isFinishing()) render();
+            });
+            render();
+        }
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        ConfigServer.stop();
+    }
+
     private void render() {
+        // Keep focus on the same control after rebuilding (e.g. after choosing a pill).
+        int keep = -1;
+        if (content != null && getCurrentFocus() != null) keep = content.getFocusables(View.FOCUS_DOWN).indexOf(getCurrentFocus());
         content = Ui.page(this, "Settings");
+        String addr = ConfigServer.running() ? ConfigServer.address() : null;
+        if (addr != null) {
+            TextView phone = Ui.text(this, "Every setting is also on your phone or computer: open " + addr
+                    + " (same Wi-Fi) while this screen is open.", 14, Ui.ACCENT);
+            phone.setPadding(0, 0, 0, Ui.dp(this, 6));
+            content.addView(phone);
+        }
+
+        content.addView(section("Profiles & sync"));
+        LinearLayout prof = Ui.horizontal(this);
+        String user = Trakt.user(Store.profile());
+        View profBtn = Ui.button(this, R.drawable.ic_account, "Profiles & Trakt · " + Store.profile()
+                + (Trakt.signedIn() ? " (Trakt: " + (user.isEmpty() ? "linked" : user) + ")" : ""),
+                v -> startActivity(new Intent(this, ProfilesActivity.class)));
+        prof.addView(profBtn);
+        content.addView(prof);
 
         content.addView(section("Appearance"));
         content.addView(label("Accent colour"));
@@ -64,6 +100,24 @@ public class SettingsActivity extends Activity {
             if (focusBg == i) firstFocus = b;
         }
         content.addView(bgs);
+
+        content.addView(section("Player"));
+        content.addView(label("Subtitles"));
+        LinearLayout subs = Ui.horizontal(this);
+        String mode = Store.get("player_subs");
+        String[][] modes = {{"", "When the video says so"}, {"off", "Always off"}, {"on", "Always on"}};
+        for (String[] m : modes) subs.addView(Ui.pill(this, m[1], m[0].equals(mode), v -> { Store.put("player_subs", m[0]); render(); }));
+        content.addView(subs);
+        content.addView(label("Subtitle size"));
+        content.addView(choices(PlayerActivity.SUB_SIZES, "player_sub_size", 1));
+        content.addView(label("Subtitle style"));
+        content.addView(choices(PlayerActivity.SUB_STYLES, "player_sub_style", 0));
+        content.addView(label("Picture size"));
+        content.addView(choices(PlayerActivity.ZOOMS, "player_zoom", 0));
+        String al = Store.get("player_audio_lang"), sl = Store.get("player_sub_lang");
+        content.addView(label("Preferred languages · audio: " + (al.isEmpty() ? "none" : PlayerActivity.languageName(al))
+                + " · subtitles: " + (sl.isEmpty() ? "none" : PlayerActivity.languageName(sl))
+                + ". Flux remembers the language you pick while watching; you can also set them from your phone."));
 
         content.addView(section("Sources"));
         LinearLayout src = Ui.horizontal(this);
@@ -108,7 +162,21 @@ public class SettingsActivity extends Activity {
         content.addView(sys);
 
         View f = firstFocus;
-        if (f != null) f.post(f::requestFocus);
+        java.util.ArrayList<View> all = content.getFocusables(View.FOCUS_DOWN);
+        if (keep >= 0 && keep < all.size()) f = all.get(keep);
+        else if (!all.isEmpty()) f = all.get(0);
+        View target = f;
+        if (target != null) target.post(target::requestFocus);
+    }
+
+    private View choices(String[] names, String key, int def) {
+        LinearLayout row = Ui.horizontal(this);
+        int cur = PlayerActivity.intPref(key, def);
+        for (int i = 0; i < names.length; i++) {
+            int idx = i;
+            row.addView(Ui.pill(this, names[i], i == cur, v -> { Store.put(key, String.valueOf(idx)); render(); }));
+        }
+        return row;
     }
 
     /** A key field that shows only the last characters of a saved key. */

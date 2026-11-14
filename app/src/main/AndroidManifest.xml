@@ -85,6 +85,8 @@
         <activity android:name=".CreditsActivity" android:exported="${testExported}" android:screenOrientation="landscape" />
         <activity android:name=".PersonActivity" android:exported="${testExported}" android:screenOrientation="landscape" />
         <activity android:name=".HomeRowsActivity" android:exported="${testExported}" android:screenOrientation="landscape" />
+        <activity android:name=".ProfilesActivity" android:exported="${testExported}" android:screenOrientation="landscape"
+            android:windowSoftInputMode="adjustPan" />
         <!-- Its own entry in the app list, so Button Mapper can put it on a remote button. -->
         <activity
             android:name=".QuickSettingsActivity"

@@ -22,7 +22,98 @@ public final class WatchNext {
     public static final String PERMISSION = "com.android.providers.tv.permission.READ_EPG_DATA";
     private static final Uri URI = Uri.parse("content://android.media.tv/watch_next_program");
 
+    /** Row type for rows other apps publish (Android TV "channels"). */
+    public static final String APP_ROW = "apps";
+    private static final Uri CHANNELS = Uri.parse("content://android.media.tv/channel");
+    private static final Uri PREVIEW = Uri.parse("content://android.media.tv/preview_program");
+
     private WatchNext() { }
+
+    /**
+     * The rows other apps publish for the Android TV home screen (e.g. YouTube "Recommended",
+     * Plex "On Deck"). Android lets launchers read them with the TV listings permission.
+     */
+    public static List<Addons.Row> channels(Context c) {
+        List<Addons.Row> out = new ArrayList<>();
+        if (Build.VERSION.SDK_INT < 26 || !allowed(c)) return out;
+        PackageManager pm = c.getPackageManager();
+        List<String[]> chans = new ArrayList<>();   // id, name, package
+        try (Cursor cur = c.getContentResolver().query(CHANNELS, null, null, null, null)) {
+            if (cur == null) return out;
+            while (cur.moveToNext()) {
+                String pkg = str(cur, "package_name");
+                if (pkg.isEmpty() || pkg.equals(c.getPackageName())) continue;
+                if (!"TYPE_PREVIEW".equals(str(cur, "type"))) continue;
+                chans.add(new String[]{str(cur, "_id"), str(cur, "display_name"), pkg});
+            }
+        } catch (Exception e) {
+            return out;
+        }
+        for (String[] ch : chans) {
+            if (out.size() >= 25) break;
+            String app = ch[2];
+            try {
+                app = pm.getApplicationLabel(pm.getApplicationInfo(ch[2], 0)).toString();
+            } catch (Exception ignored) { }
+            List<JSONObject> items = new ArrayList<>();
+            int wide = 0;
+            Uri u = PREVIEW.buildUpon().appendQueryParameter("channel", ch[0]).build();
+            try (Cursor cur = c.getContentResolver().query(u, null, null, null, null)) {
+                if (cur == null) continue;
+                while (cur.moveToNext() && items.size() < 30) {
+                    if ("0".equals(str(cur, "browsable"))) continue;
+                    String title = str(cur, "title");
+                    if (title.isEmpty()) continue;
+                    JSONObject p = new JSONObject();
+                    String poster = str(cur, "poster_art_uri"), thumb = str(cur, "thumbnail_uri");
+                    String aspect = str(cur, "poster_art_aspect_ratio");
+                    // 0 = 16:9, 1 = 3:2, 2 = 4:3 are landscape; 3 = 1:1, 4 = 2:3, 5 = movie poster
+                    if (aspect.isEmpty() || "0".equals(aspect) || "1".equals(aspect) || "2".equals(aspect)) wide++;
+                    String season = str(cur, "season_display_number"), ep = str(cur, "episode_display_number");
+                    String episode = str(cur, "episode_title");
+                    String sub = (!season.isEmpty() && !ep.isEmpty() ? "S" + season + " E" + ep : "")
+                            + (episode.isEmpty() ? "" : (season.isEmpty() ? "" : " · ") + episode);
+                    long pos = lng(cur, "last_playback_position_millis"), dur = lng(cur, "duration_millis");
+                    p.put("id", "pp:" + ch[2] + ":" + str(cur, "_id"));
+                    p.put("type", "external");
+                    p.put("name", title);
+                    p.put("poster", poster.isEmpty() ? thumb : poster);
+                    p.put("still", thumb.isEmpty() ? poster : thumb);
+                    p.put("background", poster.isEmpty() ? thumb : poster);
+                    p.put("description", str(cur, "short_description"));
+                    p.put("releaseInfo", str(cur, "release_date"));
+                    p.put("badge", app);
+                    p.put("package", ch[2]);
+                    p.put("intent", str(cur, "intent_uri"));
+                    p.put("sub", sub.isEmpty() ? app : sub);
+                    if (pos > 0 && dur > 0) p.put("progress", (double) pos / dur);
+                    items.add(p);
+                }
+            } catch (Exception ignored) {
+                continue;
+            }
+            if (items.isEmpty()) continue;
+            Addons.Row r = new Addons.Row(ch[1].isEmpty() ? app : ch[1], items);
+            r.note = app;
+            r.type = APP_ROW;
+            r.wide = wide * 2 >= items.size();
+            out.add(r);
+        }
+        return out;
+    }
+
+    /** True when two lists of app rows have the same rows and items (to skip needless redraws). */
+    public static boolean sameRows(List<Addons.Row> a, List<Addons.Row> b) {
+        if (a.size() != b.size()) return false;
+        for (int i = 0; i < a.size(); i++) {
+            Addons.Row x = a.get(i), y = b.get(i);
+            if (!x.title.equals(y.title) || x.items.size() != y.items.size()) return false;
+            for (int j = 0; j < x.items.size(); j++) {
+                if (!x.items.get(j).optString("id").equals(y.items.get(j).optString("id"))) return false;
+            }
+        }
+        return true;
+    }
 
     public static boolean allowed(Context c) {
         return Build.VERSION.SDK_INT < 23 || c.checkSelfPermission(PERMISSION) == PackageManager.PERMISSION_GRANTED;

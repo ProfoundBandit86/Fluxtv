@@ -308,7 +308,7 @@ public class DetailActivity extends Activity {
                 if (badge != null && !badge.isEmpty()) m.put("badge", badge);
                 if (serverId != null && !serverId.isEmpty()) m.put("serverId", serverId);
             } catch (Exception ignored) { }
-            Store.toggleLibrary(m);
+            Trakt.favoriteChanged(m, Store.toggleLibrary(m));
             renderButtons();
             View b = buttons.getChildAt(isSeries() && nextEpisode() == null ? 0 : 1);
             if (b != null) b.requestFocus();

@@ -13,12 +13,16 @@ public class App extends Application {
     public static final Handler MAIN = new Handler(Looper.getMainLooper());
     public static final ExecutorService IO = Executors.newFixedThreadPool(4);
 
+    /** Application context, for helpers without one (e.g. loading content:// pictures). */
+    public static android.content.Context ctx;
+
     public interface Ok<T> { void run(T value); }
     public interface Err { void run(Exception e); }
 
     @Override
     public void onCreate() {
         super.onCreate();
+        ctx = this;
         Store.init(this);
         Theme.apply();
         // Save any crash so the home screen can show it next time (TVs hide crash dialogs).

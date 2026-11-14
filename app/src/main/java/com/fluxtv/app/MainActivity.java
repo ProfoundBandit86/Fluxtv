@@ -58,6 +58,7 @@ public class MainActivity extends Activity {
     private String section = "home";
     private Blend.Home home;
     private List<JSONObject> external = new ArrayList<>();
+    private List<Addons.Row> appRows = new ArrayList<>();
     private List<Tmdb.Service> services = new ArrayList<>();
     private final Map<String, List<Addons.Row>> extraRows = new HashMap<>();
     private int loadedVersion = -1, themeVersion = -1, renderedChanges = -1, sectionGen = 0;
@@ -363,6 +364,7 @@ public class MainActivity extends Activity {
         }
         App.MAIN.removeCallbacks(clockTick);
         clockTick.run();
+        Trakt.syncIfDue(() -> { if (home != null) renderSection(); });
         Updater.check(this, false);
         showLastCrash();
         askWatchNextPermission();
@@ -413,12 +415,12 @@ public class MainActivity extends Activity {
         App.async(() -> {
             Blend.Home h = Blend.home();
             external = WatchNext.load(app);
+            appRows = WatchNext.channels(app);
             services = Tmdb.services();
             return h;
         }, h -> {
             home = h;
-            HomeLayout.available.clear();
-            HomeLayout.available.addAll(h.rows);
+            HomeLayout.setAvailable(allRows());
             renderSection();
             if (!drawerOpen) rows.post(this::focusContent);
         }, e -> {
@@ -429,9 +431,16 @@ public class MainActivity extends Activity {
 
     private void refreshExternal() {
         android.content.Context app = getApplicationContext();
-        App.async(() -> WatchNext.load(app), list -> {
-            boolean changed = list.size() != external.size();
+        App.async(() -> {
+            List<Addons.Row> ch = WatchNext.channels(app);
+            return new Object[]{WatchNext.load(app), ch};
+        }, r -> {
+            @SuppressWarnings("unchecked") List<JSONObject> list = (List<JSONObject>) r[0];
+            @SuppressWarnings("unchecked") List<Addons.Row> ch = (List<Addons.Row>) r[1];
+            boolean changed = list.size() != external.size() || !WatchNext.sameRows(ch, appRows);
             external = list;
+            appRows = ch;
+            if (home != null) HomeLayout.setAvailable(allRows());
             if (changed && section.equals("home") && home != null) renderSection();
         }, null);
     }
@@ -511,6 +520,30 @@ public class MainActivity extends Activity {
         }
     }
 
+    /** Every row Home can show: catalogs, media servers, IPTV, and other apps' own rows. */
+    private List<Addons.Row> allRows() {
+        List<Addons.Row> all = new ArrayList<>(home.rows);
+        all.addAll(appRows);
+        return all;
+    }
+
+    /** A row another app publishes for the Android TV home screen (YouTube, Netflix, Plex…). */
+    private void appRow(Addons.Row r) {
+        if (r.items.isEmpty()) return;
+        LinearLayout row = Ui.row(this, rows, r.title, r.note);
+        for (JSONObject p : r.items) {
+            View.OnClickListener open = v -> WatchNext.open(this, p);
+            Runnable focus = () -> feature(p, r.note);
+            if (r.wide) {
+                String img = !p.optString("still").isEmpty() ? p.optString("still") : p.optString("poster");
+                row.addView(Ui.landscape(this, img, p.optString("name"), p.optString("sub"), "",
+                        p.optDouble("progress", 0), 196, open, focus));
+            } else {
+                row.addView(Ui.poster(this, p, open, focus));
+            }
+        }
+    }
+
     private void posterRow(ViewGroup target, String title, String note, List<JSONObject> items) {
         if (items.isEmpty()) return;
         LinearLayout row = Ui.row(this, target, title, note);
@@ -531,7 +564,9 @@ public class MainActivity extends Activity {
         renderAppRow();
         renderServices();
         posterRow(rows, "Favorites", null, favorites(null));
-        for (Addons.Row r : HomeLayout.visible(home.rows)) posterRow(rows, r.title, r.note, r.items);
+        for (Addons.Row r : HomeLayout.visible(allRows())) {
+            if (WatchNext.APP_ROW.equals(r.type)) appRow(r); else posterRow(rows, r.title, r.note, r.items);
+        }
         LinearLayout tail = Ui.horizontal(this);
         tail.setPadding(0, Ui.dp(this, 22), 0, 0);
         tail.addView(Ui.button(this, R.drawable.ic_settings, "Customize Home", v -> startActivity(new Intent(this, HomeRowsActivity.class))));
@@ -829,14 +864,17 @@ public class MainActivity extends Activity {
 
     private void chooseProfile() {
         List<String> profiles = Store.profiles();
-        String[] items = new String[profiles.size() + 1];
-        for (int i = 0; i < profiles.size(); i++) items[i] = profiles.get(i);
+        String[] items = new String[profiles.size() + 2];
+        for (int i = 0; i < profiles.size(); i++) items[i] = profiles.get(i) + (Trakt.signedIn(profiles.get(i)) ? "   · Trakt" : "");
         items[profiles.size()] = "+ Add profile";
+        items[profiles.size() + 1] = "Manage profiles & Trakt";
         new AlertDialog.Builder(this)
                 .setTitle("Who's watching?")
                 .setItems(items, (d, which) -> {
                     if (which < profiles.size()) {
                         switchProfile(profiles.get(which));
+                    } else if (which == profiles.size() + 1) {
+                        startActivity(new Intent(this, ProfilesActivity.class));
                     } else {
                         EditText input = new EditText(this);
                         input.setSingleLine(true);
