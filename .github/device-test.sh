@@ -6,6 +6,7 @@ P=com.fluxtv.app
 shot() { adb exec-out screencap -p > "out/$1.png"; }
 top() { echo "== TOP ($1): $(adb shell dumpsys activity activities | grep -m1 -E 'topResumedActivity|mResumedActivity')"; }
 texts() { adb shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1; echo "== TEXT ($1): $(adb shell cat /sdcard/ui.xml | grep -o 'text="[^"]*"' | grep -v 'text=""' | head -${2:-25} | tr '\n' ' ')"; }
+focus() { adb shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1; echo "== FOCUSED ($1): $(adb shell cat /sdcard/ui.xml | grep -o "<node[^>]*focused=\"true\"[^>]*>" | head -2 | grep -o "text=\"[^\"]\{0,40\}" | tr "\n" " ")"; }
 key() { adb shell input keyevent "$1"; sleep "${2:-1}"; }
 nudge() { key DPAD_DOWN 1; key DPAD_UP 1; }
 crashes() { echo "== CRASHES ($1)"; adb logcat -d -b crash | tail -60; }
@@ -34,7 +35,10 @@ adb shell am force-stop $P
 adb shell am start -W -n $P/.LiveActivity
 sleep 12; nudge; top live; texts live 40; shot 11-live
 crashes live
-key DPAD_RIGHT 2; key DPAD_CENTER 20
+key DPAD_RIGHT 2; focus live-focus 2>/dev/null; key DPAD_CENTER 3; key BACK 2
+adb logcat -c
+adb shell am start -W -n $P/.PlayerActivity --ez live true --es live_source ca0e9097 --es live_category 1 --ei live_index 0 --es url "http://10.0.2.2:8000/live/test/test/1001.ts" --es pi_name "Flux News"
+sleep 20
 top live-player; texts live-player 10; shot 12-live-player
 key DPAD_DOWN 4; texts channel-down 10; shot 13-channel-down
 crashes live-player
