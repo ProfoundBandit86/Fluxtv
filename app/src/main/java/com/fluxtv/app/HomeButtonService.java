@@ -23,6 +23,10 @@ import java.util.Set;
 public class HomeButtonService extends AccessibilityService {
 
     private final Set<String> stockHomes = new HashSet<>();
+    private final Set<String> stockPackages = new HashSet<>();
+    /** Windows of the built-in home app that are panels on top of things, not its home screen. */
+    private static final String[] NOT_HOME = {"dashboard", "smarthome", "panel", "settings", "search", "profile", "account",
+            "notification", "assistant", "dialog", "popup", "toast", "menu", "picker", "input", "voice"};
     private long lastLaunch;
 
     @Override
@@ -42,6 +46,7 @@ public class HomeButtonService extends AccessibilityService {
             if (pkg.equals(getPackageName()) || pkg.equals("com.android.settings") || pkg.contains("fallbackhome")
                     || pkg.equals("com.android.tv.settings")) continue;
             stockHomes.add(pkg + "/" + ri.activityInfo.name);
+            stockPackages.add(pkg);
             android.util.Log.i("FluxHome", "Watching for " + pkg + "/" + ri.activityInfo.name);
             if (ri.activityInfo.targetActivity != null) stockHomes.add(pkg + "/" + ri.activityInfo.targetActivity);
         }
@@ -53,14 +58,15 @@ public class HomeButtonService extends AccessibilityService {
         if (!enabled(this)) return;
         CharSequence pkg = e.getPackageName(), cls = e.getClassName();
         if (pkg == null || cls == null || getPackageName().contentEquals(pkg)) return;
-        if (!stockHomes.contains(pkg + "/" + cls)) {
-            // Some launchers report a nested class; match on the package's home activity name prefix too.
-            boolean match = false;
-            for (String h : stockHomes) {
-                int slash = h.indexOf('/');
-                if (h.substring(0, slash).contentEquals(pkg) && cls.toString().startsWith(h.substring(slash + 1))) match = true;
-            }
-            if (!match) return;
+        if (!stockPackages.contains(pkg.toString())) return;
+        String c = cls.toString();
+        rememberWindow(pkg + "/" + c);
+        if (!stockHomes.contains(pkg + "/" + c)) {
+            // Google TV's home app shows its home screen in activities other than the one it registers for Home,
+            // so any of its activities counts, except panels (Google Home, the long-press dashboard, search…).
+            if (!c.contains(".") || c.startsWith("android.")) return;
+            String low = c.toLowerCase(java.util.Locale.ROOT);
+            for (String n : NOT_HOME) if (low.contains(n)) return;
         }
         android.util.Log.i("FluxHome", "Built-in home opened (" + pkg + "/" + cls + "), opening Flux");
         long now = SystemClock.elapsedRealtime();
@@ -163,6 +169,20 @@ public class HomeButtonService extends AccessibilityService {
                 c.startActivity(new Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
             } catch (Exception ignored) { }
         }
+    }
+
+    /** The last few windows the built-in home app opened (shown in Settings, for troubleshooting). */
+    private static void rememberWindow(String w) {
+        String old = Store.get("home_windows");
+        java.util.List<String> list = new java.util.ArrayList<>(java.util.Arrays.asList(old.isEmpty() ? new String[0] : old.split("\n")));
+        list.remove(w);
+        list.add(0, w);
+        while (list.size() > 4) list.remove(list.size() - 1);
+        Store.put("home_windows", android.text.TextUtils.join("\n", list));
+    }
+
+    public static String recentWindows() {
+        return Store.get("home_windows");
     }
 
     /** e.g. "Home button last caught 2 min ago" (helps tell whether the TV sends Home to Flux at all). */

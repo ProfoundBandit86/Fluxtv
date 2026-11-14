@@ -105,6 +105,12 @@ public class AddonsActivity extends FluxActivity {
                 if (i > 0) actions.addView(Ui.button(this, "Move up", v -> { Store.moveAddon(url, -1); render(); }));
                 if (i < urls.size() - 1) actions.addView(Ui.button(this, "Move down", v -> { Store.moveAddon(url, 1); render(); }));
                 actions.addView(Ui.button(this, "Remove", v -> { Addons.uninstall(url); render(); }));
+                Addon ca = Addons.load(url);
+                String conf = ca == null ? null : Addons.configureUrl(ca);
+                if (conf != null) {
+                    String addr = ConfigServer.address();
+                    actions.addView(Ui.text(this, "  Configure from your phone" + (addr != null ? " at " + addr : ""), 13, Ui.DIM));
+                }
                 item.addView(actions);
                 list.addView(item);
             }

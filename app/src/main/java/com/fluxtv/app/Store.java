@@ -72,6 +72,13 @@ public final class Store {
         saveAddons(urls);
     }
 
+    public static synchronized void replaceAddon(String oldUrl, String newUrl) {
+        List<String> urls = addonUrls();
+        int i = urls.indexOf(oldUrl);
+        if (i < 0) urls.add(newUrl); else urls.set(i, newUrl);
+        saveAddons(urls);
+    }
+
     public static synchronized void removeAddon(String url) {
         List<String> urls = addonUrls();
         urls.remove(url);

@@ -344,6 +344,7 @@ public final class ConfigServer {
           .append("button.g{background:#2a2a36;color:#eee}button.rm{background:#a33;color:#fff}button.s{padding:6px 11px;font-size:14px}")
           .append("details{background:#111118;border-radius:14px;margin:12px 0;padding:4px 16px}")
           .append("summary{font-size:19px;font-weight:700;padding:14px 0;cursor:pointer;list-style:none;display:flex;flex-direction:column}")
+          .append(".btn{display:inline-block;padding:9px 14px;border-radius:9px;background:#2a2a36;color:#eee;text-decoration:none;margin:6px 6px 0 0;font-size:14px}")
           .append("summary::-webkit-details-marker{display:none}.sub{font-size:13px;font-weight:400;color:#999;margin-top:2px}")
           .append("details[open] summary{border-bottom:1px solid #222;margin-bottom:8px}")
           .append("nav{position:sticky;top:0;background:#0b0b10;padding:10px 0;display:flex;gap:6px;overflow-x:auto;z-index:2}")
@@ -462,13 +463,18 @@ public final class ConfigServer {
 
         sb.append("<h2 class='grp' id='sources'>Sources</h2>");
         // ---------------- add-ons
-        sb.append("" + section("addons", "Add-ons", "Catalogs and streams") + "<form method='post' action='/install'>")
+        sb.append("" + section("addons", "Add-ons", "Catalogs and streams") + "<p class='u'>To stream through Real-Debrid inside "
+                + "Torrentio (like Stremio and WuPlay): press Configure on Torrentio below, add your Real-Debrid key, press Install, "
+                + "then copy the install link and paste it here. Flux swaps it in for the old Torrentio. Streams then show "
+                + "<b>Real-Debrid ✓ ready</b> or <b>not ready</b> in the stream list.</p><form method='post' action='/install'>")
           .append("<input name='url' placeholder='https://…/manifest.json' autocomplete='off'><button>Install</button></form>");
         List<String> urls = Store.addonUrls();
         for (String url : urls) {
             Addon a = Addons.load(url);
             String h = hidden("url", url);
+            String conf = a == null ? null : Addons.configureUrl(a);
             sb.append("<div class='a'><b>").append(esc(a != null ? a.name() : url)).append("</b><div class='u'>").append(esc(url)).append("</div>")
+              .append(conf == null ? "" : "<a class='btn' href='" + esc(conf) + "' target='_blank'>Configure</a> ")
               .append(form("/addon-move", h + hidden("dir", "up"), "▲", "g s in"))
               .append(form("/addon-move", h + hidden("dir", "down"), "▼", "g s in"))
               .append(form("/remove", h, "Remove", "rm s in")).append("</div>");

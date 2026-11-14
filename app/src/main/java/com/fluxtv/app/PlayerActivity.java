@@ -1184,6 +1184,7 @@ public class PlayerActivity extends Activity {
         if (!live && controls != null && !panelOpen()) {
             Boolean r = vodKey(e);
             if (r != null) return r;
+            return super.dispatchKeyEvent(e);   // controls showing: arrows move between the buttons
         }
         if (e.getAction() == KeyEvent.ACTION_DOWN) {
             if (panelOpen()) {

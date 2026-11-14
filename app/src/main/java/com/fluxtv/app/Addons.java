@@ -51,6 +51,13 @@ public final class Addons {
 
     private Addons() { }
 
+    /** The add-on's own settings page (Torrentio: debrid key, quality filters…), or null if it has none. */
+    public static String configureUrl(Addon a) {
+        org.json.JSONObject hints = a.manifest.optJSONObject("behaviorHints");
+        if (hints == null || !hints.optBoolean("configurable")) return null;
+        return a.base + "/configure";
+    }
+
     public static List<Addon> all() {
         List<Addon> out = new ArrayList<>();
         for (String url : Store.addonUrls()) {
@@ -89,7 +96,19 @@ public final class Addons {
         Addon a = new Addon(url, m);
         Store.cacheManifest(url, s);
         cache.put(url, a);
-        Store.addAddon(url);
+        // Same add-on with new settings (e.g. Torrentio after Configure): replace it in place.
+        String replaced = null;
+        for (String old : Store.addonUrls()) {
+            if (old.equals(url)) continue;
+            Addon o = load(old);
+            if (o != null && o.manifest.optString("id").equals(m.optString("id"))) { replaced = old; break; }
+        }
+        if (replaced != null) {
+            Store.replaceAddon(replaced, url);
+            cache.remove(replaced);
+        } else {
+            Store.addAddon(url);
+        }
         return a;
     }
 

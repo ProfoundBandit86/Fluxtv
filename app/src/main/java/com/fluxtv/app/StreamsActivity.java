@@ -304,6 +304,24 @@ public class StreamsActivity extends FluxActivity {
         return t;
     }
 
+    /**
+     * How a stream will play: [label, non-null when it's a ready Real-Debrid stream].
+     * Torrentio set up with a Real-Debrid key (its Configure page) marks streams [RD+] (ready) or [RD download].
+     */
+    private static String[] via(Item it) {
+        JSONObject j = it.s.json;
+        String name = (j.optString("name") + " " + j.optString("title")).toUpperCase(Locale.ROOT);
+        String url = j.optString("url").toLowerCase(Locale.ROOT);
+        if (it.library) return new String[]{"Your copy", "ok"};
+        if (name.contains("[RD+]")) return new String[]{"Real-Debrid ✓ ready", "ok"};
+        if (name.contains("[RD DOWNLOAD]") || name.contains("[RD ")) return new String[]{"Real-Debrid · not ready", null};
+        if (url.contains("/realdebrid/") || url.contains("real-debrid.com") || url.contains("rdeb.io")) return new String[]{"Real-Debrid", "ok"};
+        if (!j.optString("infoHash").isEmpty() && url.isEmpty()) {
+            return new String[]{RealDebrid.isSignedIn() ? "Real-Debrid (via Flux)" : "Needs Real-Debrid", null};
+        }
+        return new String[]{"Direct", null};
+    }
+
     private View row(Item it) {
         LinearLayout r = Ui.horizontal(this);
         r.setGravity(Gravity.CENTER_VERTICAL);
@@ -343,9 +361,8 @@ public class StreamsActivity extends FluxActivity {
         mid.addView(chips);
         r.addView(mid, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
-        boolean torrent = it.s.json.has("infoHash") && it.s.json.optString("url").isEmpty();
-        it.status = Ui.text(this, it.library ? "Your copy" : torrent ? "Real-Debrid" : "Direct", 12,
-                it.library ? Ui.GOOD : Ui.MUTED);
+        String[] via = via(it);
+        it.status = Ui.text(this, via[0], 12, it.library || via[1] != null ? Ui.GOOD : Ui.MUTED);
         r.addView(it.status);
 
         it.row = r;

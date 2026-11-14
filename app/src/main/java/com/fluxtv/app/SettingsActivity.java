@@ -225,6 +225,9 @@ public class SettingsActivity extends FluxActivity {
                     v -> HomeButtonService.openSettings(this)));
             if (running) content.addView(label(HomeButtonService.lastSeen()
                     + " Not working after an update? Switch Flux TV Home button off and on again in Accessibility."));
+            if (running && !HomeButtonService.recentWindows().isEmpty()) {
+                content.addView(label("Built-in home screens seen (for troubleshooting):\n" + HomeButtonService.recentWindows()));
+            }
             if (running) {
                 r.addView(Ui.pill(this, "Home opens Flux", HomeButtonService.enabled(this), v -> { HomeButtonService.setEnabled(true); render(); }));
                 r.addView(Ui.pill(this, "Off", !HomeButtonService.enabled(this), v -> { HomeButtonService.setEnabled(false); render(); }));
