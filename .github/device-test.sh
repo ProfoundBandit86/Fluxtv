@@ -8,6 +8,12 @@ top() { echo "== TOP ($1): $(adb shell dumpsys activity activities | grep -m1 -E
 texts() { adb shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1; echo "== TEXT ($1): $(adb shell cat /sdcard/ui.xml | grep -o 'text="[^"]*"' | grep -v 'text=""' | head -${2:-25} | tr '\n' ' ')"; }
 focus() { adb shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1; echo "== FOCUSED ($1): $(adb shell cat /sdcard/ui.xml | grep -o "<node[^>]*focused=\"true\"[^>]*>" | head -2 | grep -o "text=\"[^\"]\{0,40\}" | tr "\n" " ")"; }
 key() { adb shell input keyevent "$1"; sleep "${2:-1}"; }
+focused() { adb shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1; echo "== FOCUSED ($1): $(adb shell cat /sdcard/ui.xml | python3 -c "
+import sys, re
+x = sys.stdin.read()
+i = x.find('focused=\"true\"')
+s = x.rfind('<node', 0, i)
+print(' '.join(re.findall(r'text=\"([^\"]+)\"', x[s:s+3000])[:4]))")"; }
 nudge() { key DPAD_DOWN 1; key DPAD_UP 1; }
 crashes() { echo "== CRASHES ($1)"; adb logcat -d -b crash | tail -60; }
 
@@ -220,7 +226,8 @@ crashes home-button
 # ---------------- icons, Apps grid, Settings focus, age limits, TV-to-TV sync
 adb shell am start -W -n $P/.SettingsActivity --es category home; sleep 3
 curl -s -m 20 -X POST --data-urlencode "shape=square" http://127.0.0.1:8090/icon-shape | grep -o "<p class='m'>[^<]*"
-key DPAD_RIGHT 1; key DPAD_DOWN 1; key DPAD_DOWN 1; key DPAD_CENTER 2; top settings-after-click; shot 50-settings-after-click
+sleep 2; focused settings-start; key DPAD_RIGHT 2; focused settings-right; key DPAD_DOWN 1; key DPAD_DOWN 1; focused settings-before-click
+key DPAD_CENTER 3; focused settings-after-click; top settings-after-click; shot 50-settings-after-click
 texts settings-after-click 40
 adb shell am start -W -n $P/.AppsActivity; sleep 4; shot 51-apps-grid
 adb shell am start -W -n $P/.MainActivity; sleep 8; nudge
@@ -228,7 +235,7 @@ for i in 1 2 3 4 5 6; do key DPAD_DOWN 1; done; shot 52-home-square-icons
 adb forward tcp:8091 tcp:8091
 echo "== HELLO: $(curl -s -m 10 http://127.0.0.1:8091/sync/hello)"
 adb shell am start -W -n $P/.SettingsActivity --es category profiles; sleep 3
-CODE=$(curl -s -m 20 -X POST http://127.0.0.1:8090/sync-code | grep -o "[0-9]\{6\}" | head -1); echo "== CODE: $CODE"
+CODE=$(curl -s -m 20 -X POST http://127.0.0.1:8090/sync-code | grep -o "settings page): [0-9]*" | grep -o "[0-9]*$"); echo "== CODE: $CODE"
 PAIR=$(curl -s -m 20 -X POST -H 'Content-Type: application/json' -d "{\"code\":\"$CODE\",\"id\":\"faketv\",\"name\":\"Bedroom TV\",\"key\":\"\"}" http://127.0.0.1:8091/sync/pair); echo "== PAIR: $PAIR"
 KEY=$(echo "$PAIR" | python3 -c "import json,sys; print(json.load(sys.stdin).get('key',''))")
 echo "== STATE BEFORE: $(curl -s -m 20 -H "X-Flux-Key: $KEY" http://127.0.0.1:8091/sync/state | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['profiles'], {k: list(v['library'].keys()) for k,v in d['data'].items()})")"
