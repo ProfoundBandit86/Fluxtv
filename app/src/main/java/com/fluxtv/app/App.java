@@ -29,7 +29,7 @@ public class App extends Application {
         Dvr.rearm(this);
         // Every screen: draw edge to edge (no strip at the screen edges), no system bars, theme-coloured window.
         registerActivityLifecycleCallbacks(new ActivityLifecycleCallbacks() {
-            @Override public void onActivityCreated(android.app.Activity a, android.os.Bundle b) { fullScreen(a); }
+            @Override public void onActivityCreated(android.app.Activity a, android.os.Bundle b) { }
             @Override public void onActivityStarted(android.app.Activity a) { }
             @Override public void onActivityResumed(android.app.Activity a) { fullScreen(a); }
             @Override public void onActivityPaused(android.app.Activity a) { }
@@ -67,6 +67,7 @@ public class App extends Application {
                     : android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
             w.setAttributes(lp);
         }
+        if (w.peekDecorView() == null) return;   // too early: done again when the screen appears
         if (android.os.Build.VERSION.SDK_INT >= 30) {
             w.setDecorFitsSystemWindows(false);
             android.view.WindowInsetsController c = w.getInsetsController();
