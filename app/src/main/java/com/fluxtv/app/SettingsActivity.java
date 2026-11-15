@@ -20,6 +20,7 @@ import android.widget.Toast;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /** Settings, in two columns: categories on the left, the chosen category's settings on the right. */
@@ -38,12 +39,13 @@ public class SettingsActivity extends FluxActivity {
             {"player", "Player", "Subtitles, picture, size limits"},
             {"sources", "Sources", "Add-ons, servers, Real-Debrid, IPTV"},
             {"live", "Live TV & DVR", "TV guide, recordings, network share"},
+            {"smarthome", "Smart home", "Home Assistant, lights panel"},
             {"downloads", "Downloads", "Radarr, Sonarr, SABnzbd"},
             {"search", "Search", "Gemini and TMDB"},
             {"system", "System", "Updates, phone setup, TV settings"},
     };
     private static final int[] ICONS = {R.drawable.ic_account, R.drawable.ic_home, R.drawable.ic_display, R.drawable.ic_play,
-            R.drawable.ic_addons, R.drawable.ic_live, R.drawable.ic_download, R.drawable.ic_search, R.drawable.ic_settings};
+            R.drawable.ic_addons, R.drawable.ic_live, R.drawable.ic_bulb, R.drawable.ic_download, R.drawable.ic_search, R.drawable.ic_settings};
 
     private String cat = "profiles";
     private LinearLayout content;
@@ -188,6 +190,7 @@ public class SettingsActivity extends FluxActivity {
             case "sources": paneSources(); break;
             case "downloads": paneDownloads(); break;
             case "live": paneLive(); break;
+            case "smarthome": paneSmartHome(); break;
             case "search": paneSearch(); break;
             case "system": paneSystem(); break;
             default: paneProfiles(); break;
@@ -280,6 +283,90 @@ public class SettingsActivity extends FluxActivity {
                 Store.bumpSources();
                 render();
             }));
+        }
+    }
+
+    private List<SmartHome.Device> shDevices;
+    private String shError;
+
+    private void paneSmartHome() {
+        heading("Smart home", "A panel for your lights and devices that opens over anything you're watching.");
+        content.addView(section("Home Assistant"));
+        if (HomeAssistant.configured()) {
+            content.addView(label("Connected to " + HomeAssistant.url()));
+            LinearLayout b = buttonRow();
+            b.addView(Ui.button(this, R.drawable.ic_bulb, "Open the panel", v -> startActivity(new Intent(this, SmartPanelActivity.class))));
+            b.addView(Ui.button(this, "Disconnect", v -> { HomeAssistant.disconnect(); shDevices = null; render(); }));
+        } else {
+            content.addView(label("Your Home Assistant address (e.g. http://homeassistant.local:8123) and a long-lived access token: "
+                    + "in Home Assistant open your profile → Security → Long-lived access tokens → Create token. "
+                    + (ConfigServer.address() != null ? "Easier from your phone: " + ConfigServer.address() + " → Smart home." : "")));
+            android.widget.EditText url = new android.widget.EditText(this);
+            url.setSingleLine(true);
+            url.setHint("http://homeassistant.local:8123");
+            url.setText(Store.get("ha_url"));
+            url.setTextColor(Ui.TEXT);
+            url.setHintTextColor(Ui.DIM);
+            content.addView(url, new LinearLayout.LayoutParams(Ui.dp(this, 480), ViewGroup.LayoutParams.WRAP_CONTENT));
+            android.widget.EditText token = new android.widget.EditText(this);
+            token.setSingleLine(true);
+            token.setHint("Long-lived access token");
+            token.setTextColor(Ui.TEXT);
+            token.setHintTextColor(Ui.DIM);
+            content.addView(token, new LinearLayout.LayoutParams(Ui.dp(this, 480), ViewGroup.LayoutParams.WRAP_CONTENT));
+            buttonRow().addView(Ui.button(this, "Connect", v -> App.async(() -> HomeAssistant.connect(url.getText().toString(), token.getText().toString()),
+                    n -> { Toast.makeText(this, "Connected: " + n, Toast.LENGTH_LONG).show(); shDevices = null; render(); },
+                    e -> Toast.makeText(this, "Couldn't connect: " + App.message(e), Toast.LENGTH_LONG).show())));
+        }
+        content.addView(label("Google Home: Google doesn't let TV apps control Google Home devices yet. Most of those devices can be "
+                + "added to Home Assistant (Hue, TP-Link/Kasa, Nest, Matter…) and then show here."));
+
+        content.addView(section("Show over other apps"));
+        boolean acc = HomeButtonService.instance != null;
+        boolean perm = android.os.Build.VERSION.SDK_INT >= 23 && android.provider.Settings.canDrawOverlays(this);
+        content.addView(label(acc || perm ? "On: the panel slides in over whatever is playing."
+                : "Off: the panel opens as its own screen. To show it over videos, turn on Flux TV Home button in Accessibility "
+                + "(Settings → Home screen), or allow Flux to \"Display over other apps\"."));
+        if (!acc && !perm) {
+            buttonRow().addView(Ui.button(this, R.drawable.ic_access, "Display over other apps", v -> {
+                try {
+                    startActivity(new Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION, android.net.Uri.parse("package:" + getPackageName())));
+                } catch (Exception e) {
+                    Toast.makeText(this, "This TV has no such screen. Use the Accessibility option instead, or from a computer: "
+                            + "adb shell appops set " + getPackageName() + " SYSTEM_ALERT_WINDOW allow", Toast.LENGTH_LONG).show();
+                }
+            }));
+        }
+        content.addView(label("Open it with: Quick Settings (hold Home) → Smart home, the sidebar, the \"Flux Smart Home\" app "
+                + "(map it to a remote button with Button Mapper), or the link fluxtv://smarthome."));
+
+        if (!SmartHome.configured()) return;
+        content.addView(section("Devices on the panel"));
+        if (shDevices == null) {
+            content.addView(label(shError != null ? "Couldn't load devices: " + shError : "Loading devices…"));
+            if (shError == null) App.async(SmartHome::all, l -> { shDevices = l; shError = null; render(); }, e -> { shError = App.message(e); render(); });
+            else shError = null;
+            return;
+        }
+        LinearLayout all = buttonRow();
+        all.addView(Ui.pill(this, "Show all", false, v -> { SmartHome.setAllShown(shDevices, true); render(); }));
+        all.addView(Ui.pill(this, "Hide all", false, v -> { SmartHome.setAllShown(shDevices, false); render(); }));
+        all.addView(Ui.pill(this, "Reload", false, v -> { shDevices = null; render(); }));
+        String room = null;
+        LinearLayout row = null;
+        int n = 0;
+        for (SmartHome.Device d : shDevices) {
+            String r = d.room.isEmpty() ? "Other" : d.room;
+            if (!r.equals(room)) {
+                room = r;
+                TextView h = Ui.text(this, r, 13, Ui.DIM);
+                h.setPadding(0, Ui.dp(this, 10), 0, 0);
+                content.addView(h);
+                n = 0;
+            }
+            if (n++ % 3 == 0) row = buttonRow();
+            boolean on = SmartHome.shown(d);
+            row.addView(Ui.pill(this, (on ? "✓ " : "") + d.name, on, v -> { SmartHome.setShown(shDevices, d.id, !on); render(); }));
         }
     }
 

@@ -219,6 +219,18 @@ public final class ConfigServer {
                 smbBrowse = null;
                 return "Recordings will be saved to " + Dvr.targetLabel(App.ctx);
             }
+            case "/sh-connect":
+                return "Connected: " + HomeAssistant.connect(f(form, "url"), f(form, "token"));
+            case "/sh-disconnect":
+                HomeAssistant.disconnect();
+                return "Home Assistant disconnected";
+            case "/sh-devices": {
+                List<SmartHome.Device> all = SmartHome.all();
+                List<String> ids = new ArrayList<>();
+                for (SmartHome.Device d : all) if ("on".equals(form.get("d_" + d.id))) ids.add(d.id);
+                Store.put("sh_shown", new org.json.JSONArray(ids).toString());
+                return ids.size() + " devices on the panel";
+            }
             case "/iptv-remove":
                 Iptv.remove(f(form, "id"));
                 return "IPTV provider removed";
@@ -433,7 +445,7 @@ public final class ConfigServer {
           .append("<h1>Flux TV</h1><div class='u'>").append(esc(Updater.currentName(App.ctx)))
           .append(" · settings apply to the TV right away</div>")
           .append("<nav><a href='#profiles'>Profiles</a><a href='#sync'>TV sync</a><a href='#home'>Home</a><a href='#appearance'>Look</a><a href='#player'>Player</a>")
-          .append("<a href='#sources'>Sources</a><a href='#dvr'>DVR</a><a href='#downloads'>Downloads</a><a href='#search'>Search</a><a href='#system'>System</a></nav>");
+          .append("<a href='#sources'>Sources</a><a href='#dvr'>DVR</a><a href='#smarthome'>Smart home</a><a href='#downloads'>Downloads</a><a href='#search'>Search</a><a href='#system'>System</a></nav>");
         if (message != null) sb.append("<p class='m'>").append(esc(message)).append("</p>");
 
         // ---------------- profiles & Trakt
@@ -649,6 +661,36 @@ public final class ConfigServer {
           .append("<input name='epg' placeholder='Guide link (XMLTV), optional' autocomplete='off'>")
           .append("<button>Add playlist</button></form></details>");
 
+        // ---------------- Smart home
+        sb.append(section("smarthome", "Smart home", "Home Assistant · lights panel over any app"));
+        if (HomeAssistant.configured()) {
+            sb.append("<p class='u'>Connected to ").append(esc(HomeAssistant.url())).append("</p>")
+              .append(form("/sh-disconnect", "", "Disconnect", "rm s"));
+            try {
+                List<SmartHome.Device> all = SmartHome.all();
+                sb.append("<h3>Devices on the panel</h3><form method='post' action='/sh-devices'>");
+                String room = null;
+                for (SmartHome.Device d : all) {
+                    String r = d.room.isEmpty() ? "Other" : d.room;
+                    if (!r.equals(room)) { room = r; sb.append("<p class='u' style='margin:12px 0 4px'><b>").append(esc(r)).append("</b></p>"); }
+                    sb.append("<label style='display:block;padding:6px 0'><input type='checkbox' style='width:auto;margin-right:10px' name='d_")
+                      .append(esc(d.id)).append("' value='on'").append(SmartHome.shown(d) ? " checked" : "").append(">")
+                      .append(esc(d.name)).append(" <span class='u'>· ").append(esc(SmartHome.describe(d))).append("</span></label>");
+                }
+                sb.append("<button>Save</button></form>");
+            } catch (Exception e) {
+                sb.append("<p class='u' style='color:#f88'>Couldn't load devices: ").append(esc(App.message(e))).append("</p>");
+            }
+        } else {
+            sb.append("<p class='u'>In Home Assistant: your profile → Security → Long-lived access tokens → Create token, then paste it here.</p>")
+              .append("<form method='post' action='/sh-connect'><input name='url' value='").append(esc(Store.get("ha_url")))
+              .append("' placeholder='http://homeassistant.local:8123' autocomplete='off'>")
+              .append("<input name='token' placeholder='Long-lived access token' autocomplete='off'><button>Connect</button></form>");
+        }
+        sb.append("<p class='u'>Google Home: Google doesn't let TV apps control Google Home devices yet; add them to Home Assistant "
+                + "(Hue, TP-Link/Kasa, Nest, Matter…) and they show here. Open the panel from Quick Settings (hold Home), the sidebar, "
+                + "or the \"Flux Smart Home\" app (map it to a remote button with Button Mapper).</p></details>");
+
         // ---------------- Live TV & DVR
         sb.append(section("dvr", "Live TV guide &amp; DVR", "Guide, preview, where recordings are saved"));
         StringBuilder ga = new StringBuilder();
@@ -795,6 +837,7 @@ public final class ConfigServer {
         if (path.startsWith("/server") || path.startsWith("/plex")) return "servers";
         if (path.startsWith("/iptv")) return "iptv";
         if (path.startsWith("/dvr")) return "dvr";
+        if (path.startsWith("/sh-")) return "smarthome";
         if (path.startsWith("/rd")) return "rd";
         if (path.equals("/keys") || path.equals("/key-remove") || path.equals("/gemini-speed")) return "search";
         return null;

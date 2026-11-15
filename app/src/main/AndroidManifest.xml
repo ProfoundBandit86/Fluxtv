@@ -13,6 +13,7 @@
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
@@ -185,6 +186,24 @@
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>
         </receiver>
+        <activity android:name=".SmartPanelActivity" android:exported="false" android:launchMode="singleTask"
+            android:excludeFromRecents="true" android:taskAffinity=".smarthome"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar.Fullscreen" />
+        <!-- "Flux Smart Home" in the TV's app list (map it to a remote button); fluxtv://smarthome opens the panel. -->
+        <activity-alias android:name=".SmartHomeShortcut" android:targetActivity=".SmartPanelActivity" android:exported="true"
+            android:label="Flux Smart Home" android:icon="@drawable/icon" android:banner="@drawable/banner_home">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="fluxtv" android:host="smarthome" />
+            </intent-filter>
+        </activity-alias>
         <activity android:name=".RecordingsActivity" android:exported="${testExported}" android:screenOrientation="landscape" />
         <activity android:name=".SmbBrowseActivity" android:exported="${testExported}" android:screenOrientation="landscape" android:windowSoftInputMode="adjustPan" />
         <activity android:name=".LivePlayerActivity" android:exported="${testExported}" android:screenOrientation="landscape"

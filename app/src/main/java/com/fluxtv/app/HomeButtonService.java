@@ -52,6 +52,22 @@ public class HomeButtonService extends AccessibilityService {
         }
     }
 
+    /** The running service (lets the smart home panel draw over other apps without extra permissions). */
+    static HomeButtonService instance;
+
+    @Override
+    protected void onServiceConnected() {
+        super.onServiceConnected();
+        instance = this;
+    }
+
+    @Override
+    public void onDestroy() {
+        if (instance == this) instance = null;
+        SmartPanel.hide();
+        super.onDestroy();
+    }
+
     @Override
     public void onAccessibilityEvent(AccessibilityEvent e) {
         if (e == null || e.getEventType() != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return;
@@ -93,6 +109,7 @@ public class HomeButtonService extends AccessibilityService {
      */
     @Override
     protected boolean onKeyEvent(android.view.KeyEvent e) {
+        if (e.getKeyCode() == android.view.KeyEvent.KEYCODE_HOME && SmartPanel.showing()) handler.post(SmartPanel::hide);
         if (e.getKeyCode() != android.view.KeyEvent.KEYCODE_HOME || !enabled(this) || isDefaultHome(this)) return false;
         android.util.Log.i("FluxHome", "Home key " + (e.getAction() == android.view.KeyEvent.ACTION_DOWN ? "down" : "up"));
         if (e.getAction() == android.view.KeyEvent.ACTION_DOWN) {

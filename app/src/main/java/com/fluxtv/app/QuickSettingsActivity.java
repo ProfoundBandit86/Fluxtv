@@ -80,6 +80,7 @@ public class QuickSettingsActivity extends Activity {
         View first = null;
         LinearLayout grid = null;
         Object[][] tiles = {
+                {R.drawable.ic_bulb, "Smart home", new Intent(this, SmartPanelActivity.class)},
                 {R.drawable.ic_ghome, "Google Home", hasHome ? smartHome : null},
                 {R.drawable.ic_wifi, "Network & Internet", new Intent(Settings.ACTION_WIFI_SETTINGS)},
                 {R.drawable.ic_bt, "Remotes & Bluetooth", new Intent(Settings.ACTION_BLUETOOTH_SETTINGS)},

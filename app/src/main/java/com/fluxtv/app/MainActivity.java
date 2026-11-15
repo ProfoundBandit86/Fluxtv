@@ -198,6 +198,9 @@ public class MainActivity extends Activity {
         liveItem.setVisibility(Ratings.restricted() ? View.GONE : View.VISIBLE);
         drawerItem(R.drawable.ic_heart, "Favorites", "favorites", () -> showSection("favorites"));
         drawerItem(R.drawable.ic_apps, "Apps", null, () -> startActivity(new Intent(this, AppsActivity.class)));
+        drawerItem(R.drawable.ic_bulb, "Smart home", null, () -> startActivity(new Intent(this, SmartPanelActivity.class)));
+        smartItem = drawer.getChildAt(drawer.getChildCount() - 1);
+        smartItem.setVisibility(SmartHome.configured() ? View.VISIBLE : View.GONE);
         drawerHasDownloads = Arr.anyConfigured();
         if (drawerHasDownloads) {
             drawerItem(R.drawable.ic_download, "Downloads", null, () -> startActivity(new Intent(this, DownloadsActivity.class)));
@@ -382,6 +385,7 @@ public class MainActivity extends Activity {
         }
         String name = Store.profile();
         if (liveItem != null) liveItem.setVisibility(Ratings.restricted() ? View.GONE : View.VISIBLE);
+        if (smartItem != null) smartItem.setVisibility(SmartHome.configured() ? View.VISIBLE : View.GONE);
         avatarText.setText(name.isEmpty() ? "?" : name.substring(0, 1).toUpperCase());
         View pl = drawer.findViewWithTag("profileLabel");
         if (pl instanceof TextView) ((TextView) pl).setText(name);
@@ -994,7 +998,7 @@ public class MainActivity extends Activity {
         Ratings.switchProfile(this, name, () -> applyProfile(name));
     }
 
-    private View liveItem;
+    private View liveItem, smartItem;
 
     private void applyProfile(String name) {
         extraRows.clear();

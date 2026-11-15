@@ -58,7 +58,7 @@ public class App extends Application {
 
     static void fullScreen(android.app.Activity a) {
         android.view.Window w = a.getWindow();
-        if (w == null) return;
+        if (w == null || a instanceof SmartPanelActivity || a instanceof ServiceShortcutActivity) return;   // see-through screens
         w.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(
                 a instanceof PlayerActivity || a instanceof LivePlayerActivity ? android.graphics.Color.BLACK : Ui.BG));
         if (android.os.Build.VERSION.SDK_INT >= 28) {

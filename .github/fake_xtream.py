@@ -64,6 +64,17 @@ TRAKT_LOG = []
 ARR_LOG = []
 ADDED = {"radarr": False}
 GEMINI_LOG = []
+HA_LOG = []
+HA = {
+    "light.living_room": {"state": "on", "attributes": {"friendly_name": "Living room lamp", "brightness": 128, "supported_color_modes": ["brightness"]}},
+    "light.kitchen": {"state": "off", "attributes": {"friendly_name": "Kitchen lights", "supported_color_modes": ["color_temp"]}},
+    "light.porch": {"state": "off", "attributes": {"friendly_name": "Porch light", "supported_color_modes": ["onoff"]}},
+    "switch.tv_backlight": {"state": "on", "attributes": {"friendly_name": "TV backlight"}},
+    "fan.bedroom": {"state": "off", "attributes": {"friendly_name": "Bedroom fan", "percentage": 0, "percentage_step": 33.3}},
+    "climate.thermostat": {"state": "heat", "attributes": {"friendly_name": "Thermostat", "current_temperature": 69, "temperature": 70, "temperature_unit": "°F"}},
+    "sensor.outside": {"state": "41", "attributes": {"friendly_name": "Outside temperature"}},
+}
+HA_AREAS = {"light.living_room": "Living Room", "switch.tv_backlight": "Living Room", "light.kitchen": "Kitchen", "fan.bedroom": "Bedroom"}
 SOON = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() + 3 * 86400))
 
 
@@ -143,6 +154,29 @@ class H(BaseHTTPRequestHandler):
             if u.path == "/radarr/api/v3/movie":
                 ADDED["radarr"] = True
             return self.send(201, "{}")
+        if u.path.startswith("/ha/"):
+            if self.headers.get("Authorization") != "Bearer hatoken":
+                return self.send(401, '{"message":"Unauthorized"}')
+            if u.path == "/ha/api/template":
+                ids = list(HA.keys())
+                return self.send(200, json.dumps({"ids": ids, "areas": [HA_AREAS.get(i) for i in ids]}), "text/plain")
+            if u.path.startswith("/ha/api/services/"):
+                dom, svc = u.path.split("/")[-2:]
+                data = json.loads(raw or "{}")
+                HA_LOG.append({"service": dom + "." + svc, "data": data})
+                e = HA.get(data.get("entity_id"))
+                if e:
+                    if svc == "turn_on":
+                        e["state"] = "on"
+                        if "brightness_pct" in data: e["attributes"]["brightness"] = round(data["brightness_pct"] * 2.55)
+                    elif svc == "turn_off":
+                        e["state"] = "off"
+                    elif svc == "set_percentage":
+                        e["state"] = "on" if data["percentage"] > 0 else "off"; e["attributes"]["percentage"] = data["percentage"]
+                    elif svc == "set_temperature":
+                        e["attributes"]["temperature"] = data["temperature"]
+                return self.send(200, "[]")
+            return self.send(404, "{}")
         if u.path.endswith(":generateContent"):
             GEMINI_LOG.append({"path": u.path, "body": raw[:600]})
             text = json.dumps([{"title": "The Matrix", "year": 1999, "type": "movie"},
@@ -161,6 +195,16 @@ class H(BaseHTTPRequestHandler):
         u = urlparse(self.path)
         q = {k: v[0] for k, v in parse_qs(u.query).items()}
         p = u.path
+        if p.startswith("/ha/"):
+            if p == "/ha/_log":
+                return self.send(200, json.dumps({"log": HA_LOG, "states": HA}, indent=1))
+            if self.headers.get("Authorization") != "Bearer hatoken":
+                return self.send(401, '{"message":"Unauthorized"}')
+            if p == "/ha/api/config":
+                return self.send(200, json.dumps({"location_name": "Test Home", "version": "2026.11.1"}))
+            if p == "/ha/api/states":
+                return self.send(200, json.dumps([{"entity_id": k, "state": v["state"], "attributes": v["attributes"]} for k, v in HA.items()]))
+            return self.send(404, "{}")
         if p == "/arr/_log":
             return self.send(200, json.dumps({"arr": ARR_LOG, "gemini": GEMINI_LOG}, indent=1))
         for svc in ("radarr", "sonarr"):
