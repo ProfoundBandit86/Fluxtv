@@ -287,12 +287,10 @@ public class SettingsActivity extends FluxActivity {
     }
 
     private List<SmartHome.Device> shDevices;
-    private boolean shWasSignedIn;
     private String shError;
 
     private void paneSmartHome() {
         heading("Smart home", "A panel for your lights and devices that opens over anything you're watching.");
-        if (shWasSignedIn != GoogleHomeProvider.signedIn()) { shWasSignedIn = GoogleHomeProvider.signedIn(); shDevices = null; }
         content.addView(section("Home Assistant"));
         if (HomeAssistant.configured()) {
             content.addView(label("Connected to " + HomeAssistant.url()));
@@ -320,22 +318,50 @@ public class SettingsActivity extends FluxActivity {
                     n -> { Toast.makeText(this, "Connected: " + n, Toast.LENGTH_LONG).show(); shDevices = null; render(); },
                     e -> Toast.makeText(this, "Couldn't connect: " + App.message(e), Toast.LENGTH_LONG).show())));
         }
-        content.addView(section("Google Home"));
-        if (!GoogleHomeProvider.included()) {
-            content.addView(label("Not in this build. Google only gives its Home APIs SDK to signed-in developers: download it from the "
-                    + "Google Home Developer Console and put the files in the Flux repo under app/libs/google-home. The next build "
-                    + "includes Google Home here."));
-        } else if (GoogleHomeProvider.signedIn()) {
-            content.addView(label("Connected. Your Google Home lights and plugs can be added to the panel below."));
-            buttonRow().addView(Ui.button(this, "Disconnect Google Home", v -> { GoogleHomeProvider.signOut(); shDevices = null; render(); }));
-        } else {
-            String err = Store.get("gh_last_error");
-            content.addView(label("Sign in with the Google account that has your home, and allow Flux to see and control its devices."
-                    + (err.isEmpty() ? "" : "\nLast try: " + err)));
-            buttonRow().addView(Ui.button(this, R.drawable.ic_ghome, "Connect Google Home", v -> {
-                Store.put("gh_last_error", "");
-                startActivity(new Intent(this, GoogleHomeSignInActivity.class));
+        content.addView(section("Google Home (through the TV's Google Assistant)"));
+        content.addView(label("Add lights and switches by the exact names they have in the Google Home app. Flux sends the "
+                + "same words you'd say to the Assistant (\"turn off Kitchen light\", \"set Lamp to 40 percent\"). "
+                + "Try a command first to see if your TV carries it out."));
+        android.widget.EditText test = new android.widget.EditText(this);
+        test.setSingleLine(true);
+        test.setHint("A command, e.g. turn off kitchen light");
+        test.setTextColor(Ui.TEXT);
+        test.setHintTextColor(Ui.DIM);
+        content.addView(test, new LinearLayout.LayoutParams(Ui.dp(this, 480), ViewGroup.LayoutParams.WRAP_CONTENT));
+        LinearLayout tr = buttonRow();
+        String how = Store.get("gc_method");
+        tr.addView(Ui.button(this, R.drawable.ic_mic, "Test", v -> {
+            try { GoogleCommands.send(test.getText().toString().isEmpty() ? "what time is it" : test.getText().toString()); }
+            catch (Exception e) { Toast.makeText(this, App.message(e), Toast.LENGTH_LONG).show(); }
+        }));
+        tr.addView(Ui.pill(this, "Way 1", !"web".equals(how), v -> { Store.put("gc_method", "search"); render(); }));
+        tr.addView(Ui.pill(this, "Way 2", "web".equals(how), v -> { Store.put("gc_method", "web"); render(); }));
+        content.addView(label("If Test only shows search results, switch to Way 2 and test again."));
+        android.widget.EditText name = new android.widget.EditText(this);
+        name.setSingleLine(true);
+        name.setHint("Device name in Google Home, e.g. Living room lights");
+        name.setTextColor(Ui.TEXT);
+        name.setHintTextColor(Ui.DIM);
+        content.addView(name, new LinearLayout.LayoutParams(Ui.dp(this, 480), ViewGroup.LayoutParams.WRAP_CONTENT));
+        LinearLayout kinds = buttonRow();
+        for (int k = 0; k < GoogleCommands.KINDS.length; k++) {
+            String kind = GoogleCommands.KINDS[k];
+            kinds.addView(Ui.pill(this, "+ " + GoogleCommands.KIND_NAMES[k], false, v -> {
+                try {
+                    GoogleCommands.add(name.getText().toString(), kind);
+                    shDevices = null;
+                    render();
+                } catch (Exception e) { Toast.makeText(this, App.message(e), Toast.LENGTH_LONG).show(); }
             }));
+        }
+        for (org.json.JSONObject o : GoogleCommands.saved()) {
+            LinearLayout r = buttonRow();
+            r.setGravity(android.view.Gravity.CENTER_VERTICAL);
+            String n = o.optString("name");
+            String kn = "";
+            for (int k = 0; k < GoogleCommands.KINDS.length; k++) if (GoogleCommands.KINDS[k].equals(o.optString("kind"))) kn = GoogleCommands.KIND_NAMES[k];
+            r.addView(Ui.text(this, n + "  ·  " + kn, 15, Ui.TEXT));
+            r.addView(Ui.pill(this, "Remove", false, v -> { GoogleCommands.remove(n); shDevices = null; render(); }));
         }
 
         content.addView(section("Show over other apps"));

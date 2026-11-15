@@ -221,6 +221,15 @@ public final class ConfigServer {
             }
             case "/sh-connect":
                 return "Connected: " + HomeAssistant.connect(f(form, "url"), f(form, "token"));
+            case "/gc-add":
+                GoogleCommands.add(f(form, "name"), f(form, "kind"));
+                return "Added " + f(form, "name");
+            case "/gc-remove":
+                GoogleCommands.remove(f(form, "name"));
+                return "Removed";
+            case "/gc-test":
+                GoogleCommands.send(f(form, "cmd").isEmpty() ? "what time is it" : f(form, "cmd"));
+                return "Sent to the TV's Assistant: " + f(form, "cmd");
             case "/sh-disconnect":
                 HomeAssistant.disconnect();
                 return "Home Assistant disconnected";
@@ -687,10 +696,16 @@ public final class ConfigServer {
               .append("' placeholder='http://homeassistant.local:8123' autocomplete='off'>")
               .append("<input name='token' placeholder='Long-lived access token' autocomplete='off'><button>Connect</button></form>");
         }
-        sb.append("<h3>Google Home</h3><p class='u'>").append(!GoogleHomeProvider.included()
-                ? "Not in this build: put Google's Home APIs SDK files in the Flux repo under app/libs/google-home."
-                : GoogleHomeProvider.signedIn() ? "Connected." : "Connect it on the TV: Settings → Smart home → Connect Google Home (Google's sign-in shows on the TV).")
-          .append("</p><p class='u'>Open the panel from Quick Settings (hold Home), the sidebar, "
+        sb.append("<h3>Google Home (through the TV's Google Assistant)</h3><p class='u'>Names exactly as in the Google Home app.</p>");
+        for (org.json.JSONObject o : GoogleCommands.saved()) {
+            sb.append("<div class='row'><b>").append(esc(o.optString("name"))).append("</b> <span class='u'>").append(esc(o.optString("kind")))
+              .append("</span>").append(form("/gc-remove", hidden("name", o.optString("name")), "Remove", "rm s")).append("</div>");
+        }
+        String[] gk = GoogleCommands.KINDS, gn = GoogleCommands.KIND_NAMES;
+        sb.append("<form method='post' action='/gc-add' class='row'><input name='name' placeholder='Device name in Google Home' autocomplete='off'>")
+          .append(select("kind", gk, gn, "dimmable")).append("<button>Add</button></form>")
+          .append("<form method='post' action='/gc-test' class='row'><input name='cmd' placeholder='Test a command, e.g. turn off kitchen light' autocomplete='off'><button>Send to the TV</button></form>")
+          .append("<p class='u'>Open the panel from Quick Settings (hold Home), the sidebar, "
                 + "or the \"Flux Smart Home\" app (map it to a remote button with Button Mapper).</p></details>");
 
         // ---------------- Live TV & DVR
@@ -839,7 +854,7 @@ public final class ConfigServer {
         if (path.startsWith("/server") || path.startsWith("/plex")) return "servers";
         if (path.startsWith("/iptv")) return "iptv";
         if (path.startsWith("/dvr")) return "dvr";
-        if (path.startsWith("/sh-")) return "smarthome";
+        if (path.startsWith("/sh-") || path.startsWith("/gc-")) return "smarthome";
         if (path.startsWith("/rd")) return "rd";
         if (path.equals("/keys") || path.equals("/key-remove") || path.equals("/gemini-speed")) return "search";
         return null;

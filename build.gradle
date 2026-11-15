@@ -1,5 +1,3 @@
 plugins {
     id 'com.android.application' version '8.7.3' apply false
-    // Only used when Google's Home APIs SDK is in app/libs/google-home (see README / Settings → Smart home)
-    id 'org.jetbrains.kotlin.android' version '2.4.21' apply false
 }

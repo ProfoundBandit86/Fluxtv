@@ -10,8 +10,6 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
-        // Google Home APIs SDK, if you added it (see app/build.gradle)
-        maven { url "${rootDir}/app/libs/google-home" }
     }
 }
 rootProject.name = "FluxTV"

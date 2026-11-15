@@ -272,6 +272,8 @@ key DPAD_DOWN 1; key DPAD_CENTER 2; key DPAD_DOWN 1; key DPAD_CENTER 2; sleep 2;
 echo "== HA LOG: $(curl -s http://127.0.0.1:8000/ha/_log | python3 -c "import json,sys; d=json.load(sys.stdin); print([ (e['service'], e['data']) for e in d['log']])")"
 adb logcat -d | grep -A4 "FluxPanel" | head -12
 key BACK 2; top after-panel-back; shot 83b-after-panel-back
+curl -s -m 20 -X POST --data-urlencode "name=Living room lights" --data-urlencode "kind=dimmable" http://127.0.0.1:8090/gc-add | grep -o "<p class='m'>[^<]*"
+curl -s -m 20 -X POST --data-urlencode "cmd=turn off living room lights" http://127.0.0.1:8090/gc-test | grep -o "<p class='m'>[^<]*"; sleep 3; top after-gc-test; key BACK 2
 # Over a playing video (overlay through the accessibility service)
 adb shell am start -W -n $P/.LiveActivity; sleep 5; key DPAD_CENTER 6
 adb shell am start -W -a android.intent.action.VIEW -d "fluxtv://smarthome"; sleep 4; top panel-over-video

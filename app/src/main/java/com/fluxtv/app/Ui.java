@@ -445,13 +445,18 @@ public final class Ui {
             parent.addView(h);
         }
         HorizontalScrollView hs = new FocusScroll.Horizontal(c);
-        hs.setPadding(dp(c, 4), 0, dp(c, 48), 0);
+        // Room around the cards so a highlighted (slightly enlarged) card isn't cut off at the row's edges;
+        // the negative margin keeps the first card lined up with the row title.
+        hs.setPadding(dp(c, 18), 0, dp(c, 48), 0);
+        hs.setClipToPadding(false);
         LinearLayout items = new LinearLayout(c);
         items.setOrientation(LinearLayout.HORIZONTAL);
         items.setClipChildren(false);
-        items.setPadding(0, dp(c, 4), 0, dp(c, 4));
+        items.setPadding(0, dp(c, 10), 0, dp(c, 10));
         hs.addView(items);
-        parent.addView(hs);
+        LinearLayout.LayoutParams hlp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        hlp.setMargins(-dp(c, 14), -dp(c, 6), 0, -dp(c, 6));
+        parent.addView(hs, hlp);
         return items;
     }
 

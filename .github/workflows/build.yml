@@ -49,17 +49,6 @@ jobs:
             echo "Using signing/flux-release.jks from the repo"
           fi
 
-      - name: Google Home SDK (kept private, unlocked with the HOME_SDK_KEY secret)
-        env:
-          HOME_SDK_KEY: ${{ secrets.HOME_SDK_KEY }}
-        run: |
-          if [ -n "$HOME_SDK_KEY" ] && [ -f .github/google-home-sdk.tar.gz.enc ]; then
-            mkdir -p app/libs/google-home
-            openssl enc -d -aes-256-cbc -pbkdf2 -in .github/google-home-sdk.tar.gz.enc -pass env:HOME_SDK_KEY | tar -xz -C app/libs/google-home
-            echo "Google Home SDK unpacked: $(ls app/libs/google-home/com/google/android/gms)"
-          else
-            echo "No HOME_SDK_KEY secret: building without Google Home"
-          fi
       - name: Build
         run: gradle assembleRelease --no-daemon --stacktrace
 
