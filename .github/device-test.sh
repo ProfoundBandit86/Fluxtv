@@ -134,6 +134,11 @@ adb shell am start -W -n $P/.GenreActivity --es type movie --es genre Action
 sleep 12; nudge; texts genre 30; shot 32-genre-action
 crashes fallback
 echo "== ARR LOG 2"; curl -s http://127.0.0.1:8000/arr/_log | python3 -c "import json,sys; d=json.load(sys.stdin); [print(e['path'], e.get('body','')[:160]) for e in d['arr'] if 'body' in e]"
+# Play from the title page: a starting screen, not the stream list
+adb shell am start -W -n $P/.StreamsActivity --ez autoplay true --es pi_type movie --es pi_meta tt0133093 --es pi_video tt0133093 --es pi_name Matrix
+sleep 2; shot 40-play-starting; sleep 10; top play-auto; shot 41-play-after
+key BACK 2; key BACK 2
+
 # Sidebar on other screens
 adb shell am start -W -n $P/.DetailActivity --es type movie --es id tt0111161 --es name Test
 sleep 12; nudge; key DPAD_LEFT 1; key DPAD_LEFT 1; key DPAD_LEFT 1; key DPAD_LEFT 2; texts detail-sidebar 40; shot 33-detail-sidebar
