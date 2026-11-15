@@ -62,6 +62,9 @@ public final class SmartPanel {
                 WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN | WindowManager.LayoutParams.FLAG_DIM_BEHIND,
                 PixelFormat.TRANSLUCENT);
         lp.dimAmount = 0.35f;
+        // Through the accessibility service the remote's keys are handed to the panel directly, so the app
+        // underneath keeps focus (and keeps playing); the panel window itself doesn't need it.
+        if (type == WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY) lp.flags |= WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE;
         lp.gravity = Gravity.TOP | Gravity.START;
         View v = build(c, SmartPanel::hide);
         try {
@@ -78,8 +81,18 @@ public final class SmartPanel {
         return overlay != null;
     }
 
+    /** Keys from Flux's accessibility service while the panel is over another app (that app keeps the focus). */
+    public static boolean key(KeyEvent e) {
+        View v = overlay;
+        if (v == null || !(v.getTag() instanceof Panel)) return false;
+        Panel p = (Panel) v.getTag();
+        App.MAIN.post(() -> p.handle(e));
+        return true;
+    }
+
     public static void hide() {
         if (overlay == null) return;
+        android.util.Log.i("FluxPanel", "hide", new Throwable("hide called from"));
         View v = overlay;
         overlay = null;
         Object p = v.getTag();
@@ -111,11 +124,7 @@ public final class SmartPanel {
             root = new FrameLayout(c) {
                 @Override
                 public boolean dispatchKeyEvent(KeyEvent e) {
-                    if (e.getKeyCode() == KeyEvent.KEYCODE_BACK || e.getKeyCode() == KeyEvent.KEYCODE_ESCAPE) {
-                        if (e.getAction() == KeyEvent.ACTION_UP) close.run();
-                        return true;
-                    }
-                    return super.dispatchKeyEvent(e);
+                    return handle(e) || super.dispatchKeyEvent(e);
                 }
             };
             root.setFocusable(false);
@@ -158,6 +167,62 @@ public final class SmartPanel {
 
         void stop() {
             running = false;
+        }
+
+        // ------------------------------------------------------------ remote keys (moves the highlight itself)
+
+        int sel;
+
+        boolean handle(KeyEvent e) {
+            int k = e.getKeyCode();
+            boolean down = e.getAction() == KeyEvent.ACTION_DOWN;
+            if (k == KeyEvent.KEYCODE_BACK || k == KeyEvent.KEYCODE_ESCAPE) {
+                if (!down) close.run();
+                return true;
+            }
+            List<Row> order = new ArrayList<>();
+            for (int i = 0; i < list.getChildCount(); i++) {
+                View ch = list.getChildAt(i);
+                if (ch.getTag() instanceof String && rows.containsKey(ch.getTag())) order.add(rows.get(ch.getTag()));
+            }
+            if (order.isEmpty()) return k == KeyEvent.KEYCODE_DPAD_UP || k == KeyEvent.KEYCODE_DPAD_DOWN
+                    || k == KeyEvent.KEYCODE_DPAD_LEFT || k == KeyEvent.KEYCODE_DPAD_RIGHT || k == KeyEvent.KEYCODE_DPAD_CENTER;
+            for (int i = 0; i < order.size(); i++) if (order.get(i).view.isFocused()) sel = i;
+            sel = Math.max(0, Math.min(sel, order.size() - 1));
+            Row r = order.get(sel);
+            switch (k) {
+                case KeyEvent.KEYCODE_DPAD_UP:
+                case KeyEvent.KEYCODE_DPAD_DOWN:
+                    if (down) {
+                        sel = Math.max(0, Math.min(order.size() - 1, sel + (k == KeyEvent.KEYCODE_DPAD_UP ? -1 : 1)));
+                        focus(order.get(sel));
+                    }
+                    return true;
+                case KeyEvent.KEYCODE_DPAD_LEFT:
+                case KeyEvent.KEYCODE_DPAD_RIGHT:
+                    if (down) r.adjust(k == KeyEvent.KEYCODE_DPAD_RIGHT ? 1 : -1);
+                    focus(r);
+                    return true;
+                case KeyEvent.KEYCODE_DPAD_CENTER:
+                case KeyEvent.KEYCODE_ENTER:
+                case KeyEvent.KEYCODE_NUMPAD_ENTER:
+                    if (!down) r.press();
+                    focus(r);
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
+        void focus(Row r) {
+            r.view.setFocusableInTouchMode(true);
+            r.view.requestFocus();
+            r.view.setSelected(true);
+            for (Row o : rows.values()) if (o != r) o.view.setSelected(false);
+            android.graphics.Rect box = new android.graphics.Rect();
+            r.view.getDrawingRect(box);
+            list.offsetDescendantRectToMyCoords(r.view, box);
+            ((ScrollView) list.getParent()).requestChildRectangleOnScreen(list, box, false);
         }
 
         private final Runnable poll = () -> refresh(false);
@@ -212,8 +277,9 @@ public final class SmartPanel {
                 list.addView(row.view);
                 if (first == null) first = row.view;
             }
-            View target = focusId != null && rows.containsKey(focusId) ? rows.get(focusId).view : first;
-            if (target != null) target.post(target::requestFocus);
+            Row target = focusId != null && rows.containsKey(focusId) ? rows.get(focusId)
+                    : (first != null ? rows.get((String) first.getTag()) : null);
+            if (target != null) { Row t = target; t.view.post(() -> focus(t)); }
         }
     }
 
@@ -236,7 +302,12 @@ public final class SmartPanel {
             view.setTag(d.id);
             view.setFocusable(true);
             view.setClickable(true);
-            view.setBackground(Ui.focusable(c, Ui.alpha(Ui.TEXT, 0.05f), Ui.alpha(Ui.TEXT, 0.12f), Ui.ACCENT));
+            // Highlighted when focused or "selected" (the overlay may not have window focus).
+            android.graphics.drawable.StateListDrawable bg = new android.graphics.drawable.StateListDrawable();
+            bg.addState(new int[]{android.R.attr.state_selected}, selectedBg(c));
+            bg.addState(new int[]{android.R.attr.state_focused}, selectedBg(c));
+            bg.addState(new int[]{}, Ui.rounded(c, Ui.alpha(Ui.TEXT, 0.05f), 0, 14));
+            view.setBackground(bg);
             view.setPadding(Ui.dp(c, 14), Ui.dp(c, 10), Ui.dp(c, 14), Ui.dp(c, 10));
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
             lp.setMargins(0, Ui.dp(c, 3), 0, Ui.dp(c, 3));
@@ -343,6 +414,14 @@ public final class SmartPanel {
                 return true;
             }, ok -> { }, e -> state.setText("Didn't work: " + App.message(e)));
         }
+    }
+
+    private static android.graphics.drawable.Drawable selectedBg(Context c) {
+        GradientDrawable g = new GradientDrawable();
+        g.setColor(Ui.alpha(Ui.TEXT, 0.12f));
+        g.setCornerRadius(Ui.dp(c, 14));
+        g.setStroke(Ui.dp(c, 3), Ui.ACCENT);
+        return g;
     }
 
     private static int iconFor(String kind) {

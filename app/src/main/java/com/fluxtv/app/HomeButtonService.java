@@ -104,7 +104,10 @@ public class HomeButtonService extends AccessibilityService {
      */
     @Override
     protected boolean onKeyEvent(android.view.KeyEvent e) {
-        if (e.getKeyCode() == android.view.KeyEvent.KEYCODE_HOME && SmartPanel.showing()) handler.post(SmartPanel::hide);
+        if (SmartPanel.showing()) {
+            if (e.getKeyCode() == android.view.KeyEvent.KEYCODE_HOME) handler.post(SmartPanel::hide);
+            else if (SmartPanel.key(e)) return true;   // the panel is open over another app: its keys go to the panel
+        }
         if (e.getKeyCode() != android.view.KeyEvent.KEYCODE_HOME || !enabled(this) || isDefaultHome(this)) return false;
         android.util.Log.i("FluxHome", "Home key " + (e.getAction() == android.view.KeyEvent.ACTION_DOWN ? "down" : "up"));
         if (e.getAction() == android.view.KeyEvent.ACTION_DOWN) {
