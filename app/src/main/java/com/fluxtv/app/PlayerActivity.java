@@ -122,8 +122,18 @@ public class PlayerActivity extends Activity {
                 .setConnectTimeoutMs(15000)
                 .setReadTimeoutMs(20000);
         androidx.media3.datasource.DefaultDataSource.Factory data = new androidx.media3.datasource.DefaultDataSource.Factory(this, http);
-        player = new ExoPlayer.Builder(this)
-                .setMediaSourceFactory(new androidx.media3.exoplayer.source.DefaultMediaSourceFactory(this).setDataSourceFactory(data))
+        // Play as much as possible in-app:
+        //  - the box's own decoders first (hardware, and HDMI passthrough to the receiver for Dolby/DTS),
+        //  - FFmpeg software audio when the box can't decode or pass a format through (DTS, TrueHD, E-AC3…),
+        //  - if a hardware decoder fails to start, try the next one rather than giving up.
+        androidx.media3.exoplayer.DefaultRenderersFactory renderers = new androidx.media3.exoplayer.DefaultRenderersFactory(this)
+                .setExtensionRendererMode(androidx.media3.exoplayer.DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
+                .setEnableDecoderFallback(true);
+        androidx.media3.extractor.DefaultExtractorsFactory extractors = new androidx.media3.extractor.DefaultExtractorsFactory()
+                .setConstantBitrateSeekingEnabled(true)
+                .setTsExtractorFlags(androidx.media3.extractor.ts.DefaultTsPayloadReaderFactory.FLAG_ENABLE_HDMV_DTS_AUDIO_STREAMS);
+        player = new ExoPlayer.Builder(this, renderers)
+                .setMediaSourceFactory(new androidx.media3.exoplayer.source.DefaultMediaSourceFactory(data, extractors))
                 .build();
         view.setPlayer(player);
         applyTrackPreferences();
@@ -170,6 +180,24 @@ public class PlayerActivity extends Activity {
                     triedHls = true;
                     url = url.substring(0, url.length() - 3) + ".m3u8";
                     playUrl(url);
+                    return;
+                }
+                // A track the box can't handle (a codec, or audio passthrough the TV/receiver refused):
+                // pick only tracks that are known to play, carry on from the same spot, once.
+                if (!live && !safeRetry && codecProblem(error)) {
+                    safeRetry = true;
+                    long pos = player.getCurrentPosition();
+                    if (player.getTrackSelector() instanceof androidx.media3.exoplayer.trackselection.DefaultTrackSelector) {
+                        androidx.media3.exoplayer.trackselection.DefaultTrackSelector ts =
+                                (androidx.media3.exoplayer.trackselection.DefaultTrackSelector) player.getTrackSelector();
+                        ts.setParameters(ts.buildUponParameters()
+                                .setExceedAudioConstraintsIfNecessary(false)
+                                .setExceedVideoConstraintsIfNecessary(false)
+                                .setExceedRendererCapabilitiesIfNecessary(false));
+                    }
+                    player.prepare();
+                    player.seekTo(pos);
+                    player.play();
                     return;
                 }
                 showError(error);
@@ -1135,7 +1163,18 @@ public class PlayerActivity extends Activity {
 
     // ------------------------------------------------------------ live TV
 
-    private boolean live, triedHls;
+    private boolean live, triedHls, safeRetry;
+
+    private static boolean codecProblem(PlaybackException e) {
+        int c = e.errorCode;
+        return c == PlaybackException.ERROR_CODE_DECODER_INIT_FAILED
+                || c == PlaybackException.ERROR_CODE_DECODER_QUERY_FAILED
+                || c == PlaybackException.ERROR_CODE_DECODING_FAILED
+                || c == PlaybackException.ERROR_CODE_DECODING_FORMAT_EXCEEDS_CAPABILITIES
+                || c == PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED
+                || c == PlaybackException.ERROR_CODE_AUDIO_TRACK_INIT_FAILED
+                || c == PlaybackException.ERROR_CODE_AUDIO_TRACK_WRITE_FAILED;
+    }
     private Iptv.Source liveSource;
     private String liveCategory;
     private int liveIndex;

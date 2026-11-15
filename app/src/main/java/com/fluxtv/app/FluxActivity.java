@@ -77,10 +77,18 @@ public abstract class FluxActivity extends Activity {
         menu.setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);
         panel.addView(menu, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
-        TextView logo = Ui.heading(this, "Flux", 22);
-        logo.setTextColor(Ui.ACCENT);
-        logo.setPadding(Ui.dp(this, 14), 0, 0, Ui.dp(this, 18));
-        menu.addView(logo);
+        LinearLayout profile = row();
+        String name = Store.profile();
+        TextView avatar = Ui.heading(this, name.isEmpty() ? "?" : name.substring(0, 1).toUpperCase(), 13);
+        avatar.setGravity(Gravity.CENTER);
+        avatar.setBackground(Ui.rounded(this, Ui.ACCENT, 0, 999));
+        avatar.setTextColor(Ui.BG);
+        profile.addView(avatar, new LinearLayout.LayoutParams(Ui.dp(this, 26), Ui.dp(this, 26)));
+        profile.addView(label(name));
+        profile.setOnClickListener(v -> { close(false); go(new Intent(this, ProfilesActivity.class)); });
+        menu.addView(profile);
+        items.add(profile);
+        menu.addView(new View(this), new LinearLayout.LayoutParams(1, Ui.dp(this, 14)));
 
         item(R.drawable.ic_search, "Search", "search", () -> go(new Intent(this, SearchActivity.class).putExtra("voice", true)));
         item(R.drawable.ic_home, "Home", "home", () -> home("home"));
@@ -95,17 +103,6 @@ public abstract class FluxActivity extends Activity {
         menu.addView(new View(this), new LinearLayout.LayoutParams(1, 0, 1f));
         item(R.drawable.ic_settings, "Settings", "settings", () -> go(new Intent(this, SettingsActivity.class)));
 
-        LinearLayout profile = row();
-        String name = Store.profile();
-        TextView avatar = Ui.heading(this, name.isEmpty() ? "?" : name.substring(0, 1).toUpperCase(), 13);
-        avatar.setGravity(Gravity.CENTER);
-        avatar.setBackground(Ui.rounded(this, Ui.ACCENT, 0, 999));
-        avatar.setTextColor(Ui.BG);
-        profile.addView(avatar, new LinearLayout.LayoutParams(Ui.dp(this, 26), Ui.dp(this, 26)));
-        profile.addView(label(name));
-        profile.setOnClickListener(v -> { close(false); go(new Intent(this, ProfilesActivity.class)); });
-        menu.addView(profile);
-        items.add(profile);
     }
 
     private void item(int icon, String text, String key, Runnable action) {
@@ -183,7 +180,7 @@ public abstract class FluxActivity extends Activity {
         dim.setVisibility(View.VISIBLE);
         dim.animate().alpha(1f).setDuration(220).start();
         View target = sidebarKey() == null ? null : menu.findViewWithTag(sidebarKey());
-        (target != null ? target : items.get(0)).requestFocus();
+        (target != null ? target : items.get(Math.min(1, items.size() - 1))).requestFocus();   // Search, under the profile
     }
 
     protected void close(boolean restoreFocus) {

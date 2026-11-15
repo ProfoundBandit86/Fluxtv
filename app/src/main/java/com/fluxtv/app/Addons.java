@@ -256,7 +256,42 @@ public final class Addons {
         throw new Exception("No installed add-on has details for this title");
     }
 
+    // The title page looks up sources as soon as it opens (for "Best source"). Pressing Play reuses that
+    // lookup, even if it's still running, instead of asking every add-on again.
+    private static final java.util.Map<String, java.util.concurrent.FutureTask<List<Stream>>> RECENT = new java.util.concurrent.ConcurrentHashMap<>();
+    private static final java.util.Map<String, Long> RECENT_AT = new java.util.concurrent.ConcurrentHashMap<>();
+    private static final long RECENT_MS = 10 * 60 * 1000;
+
     public static List<Stream> streams(String type, String videoId) throws Exception {
+        String key = type + "|" + videoId + "|" + Store.profile();
+        Long at = RECENT_AT.get(key);
+        if (at != null && System.currentTimeMillis() - at > RECENT_MS) { RECENT.remove(key); RECENT_AT.remove(key); }
+        java.util.concurrent.FutureTask<List<Stream>> mine = new java.util.concurrent.FutureTask<>(() -> fetchStreams(type, videoId));
+        java.util.concurrent.FutureTask<List<Stream>> task = RECENT.putIfAbsent(key, mine);
+        if (task == null) {
+            task = mine;
+            RECENT_AT.put(key, System.currentTimeMillis());
+            task.run();
+        }
+        try {
+            List<Stream> got = task.get();
+            if (got.isEmpty()) { RECENT.remove(key, task); RECENT_AT.remove(key); }   // nothing found: ask again next time
+            return new ArrayList<>(got);
+        } catch (java.util.concurrent.ExecutionException e) {
+            RECENT.remove(key, task);   // don't keep failures
+            RECENT_AT.remove(key);
+            Throwable c = e.getCause();
+            throw c instanceof Exception ? (Exception) c : e;
+        }
+    }
+
+    /** Forget cached sources (e.g. Retry). */
+    public static void forgetStreams() {
+        RECENT.clear();
+        RECENT_AT.clear();
+    }
+
+    private static List<Stream> fetchStreams(String type, String videoId) throws Exception {
         if (Sources.isServerId(videoId)) return Sources.streams(videoId);
 
         // Same title on your Plex/Jellyfin/Emby servers (matched by IMDb id) is listed first.

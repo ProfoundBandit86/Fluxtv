@@ -176,10 +176,18 @@ public class MainActivity extends Activity {
         drawerPanel.addView(drawer, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         drawer.setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);
 
-        TextView logo = Ui.heading(this, "Flux", 22);
-        logo.setTextColor(Ui.ACCENT);
-        logo.setPadding(Ui.dp(this, 14), 0, 0, Ui.dp(this, 18));
-        drawer.addView(logo);
+        LinearLayout profile = drawerRow();
+        avatarText = Ui.heading(this, "", 13);
+        avatarText.setGravity(Gravity.CENTER);
+        avatarText.setBackground(Ui.rounded(this, Ui.ACCENT, 0, 999));
+        avatarText.setTextColor(Ui.BG);
+        profile.addView(avatarText, new LinearLayout.LayoutParams(Ui.dp(this, 26), Ui.dp(this, 26)));
+        TextView pl = label("Profile");
+        pl.setTag("profileLabel");
+        profile.addView(pl);
+        profile.setOnClickListener(v -> chooseProfile());
+        drawer.addView(profile);
+        drawer.addView(new View(this), new LinearLayout.LayoutParams(1, Ui.dp(this, 14)));
 
         drawerItem(R.drawable.ic_search, "Search", null, () -> startActivity(new Intent(this, SearchActivity.class).putExtra("voice", true)));
         drawerItem(R.drawable.ic_home, "Home", "home", () -> showSection("home"));
@@ -195,17 +203,6 @@ public class MainActivity extends Activity {
         drawer.addView(new View(this), new LinearLayout.LayoutParams(1, 0, 1f));
         drawerItem(R.drawable.ic_settings, "Settings", null, () -> startActivity(new Intent(this, SettingsActivity.class)));
 
-        LinearLayout profile = drawerRow();
-        avatarText = Ui.heading(this, "", 13);
-        avatarText.setGravity(Gravity.CENTER);
-        avatarText.setBackground(Ui.rounded(this, Ui.ACCENT, 0, 999));
-        avatarText.setTextColor(Ui.BG);
-        profile.addView(avatarText, new LinearLayout.LayoutParams(Ui.dp(this, 26), Ui.dp(this, 26)));
-        TextView pl = label("Profile");
-        pl.setTag("profileLabel");
-        profile.addView(pl);
-        profile.setOnClickListener(v -> chooseProfile());
-        drawer.addView(profile);
     }
 
     private LinearLayout drawerRow() {
@@ -268,7 +265,7 @@ public class MainActivity extends Activity {
         dim.setVisibility(View.VISIBLE);
         dim.animate().alpha(1f).setDuration(220).start();
         View target = drawerItems.get(section);
-        (target != null ? target : drawer.getChildAt(1)).requestFocus();
+        (target != null ? target : drawer.getChildAt(2)).requestFocus();   // Search (after the profile and its spacer)
     }
 
     private void closeDrawer(boolean restoreFocus) {

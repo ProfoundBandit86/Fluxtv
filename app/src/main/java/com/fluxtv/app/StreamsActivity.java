@@ -196,7 +196,7 @@ public class StreamsActivity extends FluxActivity {
         for (Addons.Stream s : streams) items.add(parse(s));
         if (items.isEmpty()) {
             status.setText("No streams found. Add a streaming add-on, or a Plex / Jellyfin / Emby server that has this title.");
-            View retry = Ui.button(this, "Retry", v -> load());
+            View retry = Ui.button(this, "Retry", v -> { Addons.forgetStreams(); load(); });
             list.addView(retry);
             retry.post(retry::requestFocus);
             if (autoRequest()) requestFromArr(true);
