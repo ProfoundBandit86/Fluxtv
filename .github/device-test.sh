@@ -226,7 +226,8 @@ crashes home-button
 # ---------------- icons, Apps grid, Settings focus, age limits, TV-to-TV sync
 adb shell am start -W -n $P/.SettingsActivity --es category home; sleep 3
 curl -s -m 20 -X POST --data-urlencode "shape=square" http://127.0.0.1:8090/icon-shape | grep -o "<p class='m'>[^<]*"
-sleep 2; focused settings-start; key DPAD_RIGHT 2; focused settings-right; key DPAD_DOWN 1; key DPAD_DOWN 1; focused settings-before-click
+sleep 2; focused settings-start; key DPAD_RIGHT 2; focused settings-right
+for i in 1 2 3 4 5 6 7 8 9 10; do key DPAD_DOWN 1; F=$(focused settings-down-$i); echo "$F"; case "$F" in *"): Round"*|*"): Square"*) break;; esac; done
 key DPAD_CENTER 3; focused settings-after-click; top settings-after-click; shot 50-settings-after-click
 texts settings-after-click 40
 adb shell am start -W -n $P/.AppsActivity; sleep 4; shot 51-apps-grid

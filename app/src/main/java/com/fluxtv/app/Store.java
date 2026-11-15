@@ -175,7 +175,7 @@ public final class Store {
         }
         return k.equals("device_id") || k.equals("profile") || k.equals("profiles") || k.equals("profiles_deleted")
                 || k.startsWith("sync_") || k.startsWith("home_") || k.startsWith("last_") || k.startsWith("update")
-                || k.equals("dock_apps") || k.startsWith("cw_hidden") || k.startsWith("watchnext");
+                || k.equals("dock_apps") || k.equals("recent_searches") || k.startsWith("test_") || k.startsWith("cw_hidden") || k.startsWith("watchnext");
     }
 
     public static synchronized JSONObject exportSettings() {

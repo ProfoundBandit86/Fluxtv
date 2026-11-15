@@ -105,6 +105,16 @@ public class SettingsActivity extends FluxActivity {
         if (first != null) first.post(first::requestFocus);
     }
 
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        // Make sure something is focused when Settings opens, so the remote works straight away.
+        if (hasFocus && built && getCurrentFocus() == null) {
+            View first = catRows.get(cat);
+            if (first != null) first.requestFocus();
+        }
+    }
+
     private void updatePhoneHint() {
         String addr = ConfigServer.running() ? ConfigServer.address() : null;
         if (phoneHint != null) phoneHint.setText(addr == null ? "" : "Also on your phone:\n" + addr);
