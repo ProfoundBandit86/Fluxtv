@@ -60,6 +60,28 @@ public final class Apps {
         }
     }
 
+    /**
+     * The app's icon as a full square for a round tile: adaptive icons use their full-bleed layers
+     * (what Google TV shows); older icons are placed on a matching backdrop.
+     */
+    public static Drawable roundIcon(Context c, String pkg) {
+        Drawable d = icon(c, pkg);
+        if (d == null) return null;
+        if (android.os.Build.VERSION.SDK_INT >= 26 && d instanceof android.graphics.drawable.AdaptiveIconDrawable) {
+            android.graphics.drawable.AdaptiveIconDrawable a = (android.graphics.drawable.AdaptiveIconDrawable) d;
+            Drawable bg = a.getBackground(), fg = a.getForeground();
+            if (bg != null && fg != null) return new android.graphics.drawable.LayerDrawable(new Drawable[]{bg, fg});
+            if (fg != null) return fg;
+        }
+        // Legacy icon: inset it on a neutral disc so it isn't cropped.
+        android.graphics.drawable.GradientDrawable disc = new android.graphics.drawable.GradientDrawable();
+        disc.setColor(0xFF2A2A36);
+        android.graphics.drawable.LayerDrawable l = new android.graphics.drawable.LayerDrawable(new Drawable[]{disc, d});
+        int inset = (int) (c.getResources().getDisplayMetrics().density * 14);
+        l.setLayerInset(1, inset, inset, inset, inset);
+        return l;
+    }
+
     public static void launch(Context c, String pkg) {
         PackageManager pm = c.getPackageManager();
         Intent i = pm.getLeanbackLaunchIntentForPackage(pkg);

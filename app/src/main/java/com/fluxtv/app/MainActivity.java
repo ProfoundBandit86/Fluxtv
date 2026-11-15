@@ -105,17 +105,13 @@ public class MainActivity extends Activity {
     private void buildContent() {
         heroImage = new ImageView(this);
         heroImage.setScaleType(ImageView.ScaleType.CENTER_CROP);
-        FrameLayout.LayoutParams hp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 340), Gravity.TOP | Gravity.END);
-        hp.setMargins(Ui.dp(this, 260), 0, 0, 0);
+        // Full-width backdrop, fading into the background on the left and at the bottom.
+        FrameLayout.LayoutParams hp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 340), Gravity.TOP);
         contentRoot.addView(heroImage, hp);
         View scrimLeft = new View(this);
-        scrimLeft.setBackground(Ui.scrim(GradientDrawable.Orientation.LEFT_RIGHT, Ui.BG, 1f));
-        FrameLayout.LayoutParams sl = new FrameLayout.LayoutParams(Ui.dp(this, 520), Ui.dp(this, 340));
-        sl.setMargins(Ui.dp(this, 260), 0, 0, 0);
-        contentRoot.addView(scrimLeft, sl);
-        View fillLeft = new View(this);
-        fillLeft.setBackgroundColor(Ui.BG);
-        contentRoot.addView(fillLeft, new FrameLayout.LayoutParams(Ui.dp(this, 261), Ui.dp(this, 340)));
+        scrimLeft.setBackground(new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
+                new int[]{Ui.BG, Ui.alpha(Ui.BG, 0.85f), Ui.alpha(Ui.BG, 0.35f), Color.TRANSPARENT}));
+        contentRoot.addView(scrimLeft, new FrameLayout.LayoutParams(Ui.dp(this, 720), Ui.dp(this, 340)));
         View scrimBottom = new View(this);
         scrimBottom.setBackground(Ui.scrim(GradientDrawable.Orientation.BOTTOM_TOP, Ui.BG, 1f));
         FrameLayout.LayoutParams sb = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 160), Gravity.TOP);
@@ -726,8 +722,8 @@ public class MainActivity extends Activity {
     private View circleShell(String name, View.OnClickListener click) {
         LinearLayout col = Ui.vertical(this);
         col.setGravity(Gravity.CENTER_HORIZONTAL);
-        LinearLayout.LayoutParams clp = new LinearLayout.LayoutParams(Ui.dp(this, 84), ViewGroup.LayoutParams.WRAP_CONTENT);
-        clp.setMargins(0, Ui.dp(this, 6), Ui.dp(this, 8), Ui.dp(this, 6));
+        LinearLayout.LayoutParams clp = new LinearLayout.LayoutParams(Ui.dp(this, 92), ViewGroup.LayoutParams.WRAP_CONTENT);
+        clp.setMargins(0, Ui.dp(this, 6), Ui.dp(this, 10), Ui.dp(this, 6));
         col.setLayoutParams(clp);
         FrameLayout circle = new FrameLayout(this);
         circle.setFocusable(true);
@@ -738,7 +734,7 @@ public class MainActivity extends Activity {
         bg.addState(new int[]{android.R.attr.state_focused}, oval(Ui.BUTTON, Ui.TEXT));
         bg.addState(new int[]{}, oval(Ui.alpha(Color.WHITE, 0.07f), 0));
         circle.setBackground(bg);
-        col.addView(circle, new LinearLayout.LayoutParams(Ui.dp(this, 66), Ui.dp(this, 66)));
+        col.addView(circle, new LinearLayout.LayoutParams(Ui.dp(this, 72), Ui.dp(this, 72)));
         TextView t = Ui.single(Ui.text(this, name, 11, Ui.DIM));
         t.setGravity(Gravity.CENTER);
         t.setPadding(0, Ui.dp(this, 6), 0, 0);
@@ -762,10 +758,24 @@ public class MainActivity extends Activity {
     private View appCircle(String pkg) {
         View col = circleShell(Apps.label(this, pkg), v -> Apps.launch(this, pkg));
         FrameLayout circle = (FrameLayout) col.getTag();
+        // Full-bleed round icon, like Google TV's app row: the icon fills the circle.
         ImageView img = new ImageView(this);
-        Drawable d = Apps.icon(this, pkg);
+        img.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        Drawable d = Apps.roundIcon(this, pkg);
         if (d != null) img.setImageDrawable(d);
-        circle.addView(img, new FrameLayout.LayoutParams(Ui.dp(this, 40), Ui.dp(this, 40), Gravity.CENTER));
+        circle.setClipToOutline(true);
+        circle.setOutlineProvider(new android.view.ViewOutlineProvider() {
+            @Override public void getOutline(View v, android.graphics.Outline o) { o.setOval(0, 0, v.getWidth(), v.getHeight()); }
+        });
+        circle.addView(img, new FrameLayout.LayoutParams(-1, -1));
+        View ring = new View(this);
+        StateListDrawable rs = new StateListDrawable();
+        rs.addState(new int[]{android.R.attr.state_selected}, oval(Color.TRANSPARENT, Ui.ACCENT));
+        rs.addState(new int[]{android.R.attr.state_focused}, oval(Color.TRANSPARENT, Ui.TEXT));
+        rs.addState(new int[]{}, oval(Color.TRANSPARENT, 0));
+        ring.setBackground(rs);
+        ring.setDuplicateParentStateEnabled(true);
+        circle.addView(ring, new FrameLayout.LayoutParams(-1, -1));
         circle.setContentDescription(Apps.label(this, pkg));
         circle.setSelected(pkg.equals(movingApp));
         circle.setOnLongClickListener(v -> {
@@ -866,7 +876,8 @@ public class MainActivity extends Activity {
         bg.addState(new int[]{android.R.attr.state_focused}, Ui.rounded(this, Ui.BUTTON, Ui.ACCENT, 14));
         bg.addState(new int[]{}, Ui.rounded(this, Ui.alpha(Color.WHITE, 0.07f), Ui.alpha(Color.WHITE, 0.08f), 14));
         tile.setBackground(bg);
-        TextView fallback = Ui.heading(this, s.name, 17);
+        TextView fallback = Ui.heading(this, s.name, 20);
+        fallback.setTypeface(android.graphics.Typeface.create("sans-serif-black", android.graphics.Typeface.BOLD));
         fallback.setGravity(Gravity.CENTER);
         tile.addView(fallback, new FrameLayout.LayoutParams(-1, -1));
         if (!s.wordmark.isEmpty()) {
@@ -877,11 +888,8 @@ public class MainActivity extends Activity {
             lp.setMargins(Ui.dp(this, 22), Ui.dp(this, 22), Ui.dp(this, 22), Ui.dp(this, 22));
             tile.addView(logo, lp);
             ImageLoader.load(logo, s.wordmark, Ui.dp(this, 140), () -> fallback.setVisibility(View.GONE));
-        } else if (!s.logo.isEmpty()) {
-            ImageView logo = Ui.image(this, Color.TRANSPARENT, 12);
-            tile.addView(logo, new FrameLayout.LayoutParams(Ui.dp(this, 54), Ui.dp(this, 54), Gravity.CENTER));
-            ImageLoader.load(logo, s.logo, Ui.dp(this, 54), () -> fallback.setVisibility(View.GONE));
         }
+        // No white wordmark: the name itself stands in (never the coloured app icon, so all tiles match).
         col.addView(tile, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 98)));
         TextView t = Ui.single(Ui.text(this, s.name, 12, Ui.DIM));
         t.setGravity(Gravity.CENTER);

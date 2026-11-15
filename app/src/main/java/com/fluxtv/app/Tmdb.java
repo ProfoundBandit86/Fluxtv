@@ -95,6 +95,33 @@ public final class Tmdb {
     // ------------------------------------------------------------ services
 
     /** The ten services, with TMDB provider ids and logos when a key is set. */
+    /**
+     * A service's wordmark from TMDB's companies (for services without a TMDB network, e.g. Shudder, Tubi).
+     * Cached, since it never changes.
+     */
+    static String companyLogo(String name) {
+        String key = "logo_company:" + name;
+        String cached = Store.get(key);
+        if (!cached.isEmpty()) return cached.equals("-") ? "" : cached;
+        String found = "";
+        try {
+            JSONArray r = get("/search/company", "query=" + Http.enc(name)).optJSONArray("results");
+            if (r != null) {
+                for (int i = 0; i < r.length() && found.isEmpty(); i++) {
+                    JSONObject c = r.optJSONObject(i);
+                    if (c.optString("name").equalsIgnoreCase(name) && !c.optString("logo_path").isEmpty()) found = IMG + "w500" + c.optString("logo_path");
+                }
+                for (int i = 0; i < r.length() && found.isEmpty(); i++) {
+                    JSONObject c = r.optJSONObject(i);
+                    if (c.optString("name").toLowerCase(Locale.ROOT).startsWith(name.toLowerCase(Locale.ROOT))
+                            && !c.optString("logo_path").isEmpty()) found = IMG + "w500" + c.optString("logo_path");
+                }
+            }
+            Store.put(key, found.isEmpty() ? "-" : found);
+        } catch (Exception ignored) { }
+        return found;
+    }
+
     public static List<Service> services() {
         List<Service> out = new ArrayList<>();
         Map<String, JSONObject> providers = new LinkedHashMap<>();
@@ -134,6 +161,7 @@ public final class Tmdb {
                     if (matches && !n.optString("logo_path").isEmpty()) s.wordmark = IMG + "w500" + n.optString("logo_path");
                 } catch (Exception ignored) { }
             }
+            if (s.wordmark.isEmpty() && enabled()) s.wordmark = companyLogo(s.name);
             out.add(s);
         }
         return out;
