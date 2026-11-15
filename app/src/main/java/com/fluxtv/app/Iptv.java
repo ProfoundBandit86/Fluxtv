@@ -24,6 +24,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.zip.GZIPInputStream;
+import java.util.zip.GZIPOutputStream;
 
 /**
  * IPTV: Xtream Codes logins (server + username + password) and M3U playlists with an
@@ -249,7 +250,18 @@ public final class Iptv {
     public static List<Category> liveCategories(Source s) throws Exception {
         List<Category> out = new ArrayList<>();
         if (s.xtream()) {
-            JSONArray a = apiArray(s, "get_live_categories", null);
+            JSONArray a;
+            java.io.File cf = file(s, "cats");
+            if (cf.exists() && System.currentTimeMillis() - cf.lastModified() < 24L * 3600 * 1000) {
+                try {
+                    byte[] d = new byte[(int) cf.length()];
+                    try (java.io.FileInputStream in = new java.io.FileInputStream(cf)) { int off = 0, n; while (off < d.length && (n = in.read(d, off, d.length - off)) > 0) off += n; }
+                    a = new JSONArray(new String(d, StandardCharsets.UTF_8));
+                } catch (Exception e) { a = apiArray(s, "get_live_categories", null); }
+            } else {
+                a = apiArray(s, "get_live_categories", null);
+                try (java.io.FileOutputStream out = new java.io.FileOutputStream(cf)) { out.write(a.toString().getBytes(StandardCharsets.UTF_8)); } catch (Exception ignored) { }
+            }
             for (int i = 0; i < a.length(); i++) {
                 JSONObject c = a.optJSONObject(i);
                 if (c != null) out.add(new Category(c.optString("category_id"), c.optString("category_name")));
@@ -267,6 +279,21 @@ public final class Iptv {
         Long t = channelTime.get(s.id);
         List<Channel> cached = channelCache.get(s.id);
         if (cached != null && t != null && System.currentTimeMillis() - t < CHANNEL_TTL) return cached;
+        // Saved copy from last time: show it straight away, refresh in the background when it's old.
+        if (cached == null) {
+            List<Channel> disk = loadChannels(s);
+            long age = System.currentTimeMillis() - diskTime(s, "channels");
+            if (disk != null && !disk.isEmpty() && age < 3L * 24 * 3600 * 1000) {
+                channelCache.put(s.id, disk);
+                channelTime.put(s.id, age > 3600 * 1000 ? 0L : System.currentTimeMillis() - age);
+                if (age > 3600 * 1000) App.IO.execute(() -> { try { fetchChannels(s); } catch (Exception ignored) { } });
+                return disk;
+            }
+        }
+        return fetchChannels(s);
+    }
+
+    private static synchronized List<Channel> fetchChannels(Source s) throws Exception {
         List<Channel> out = new ArrayList<>();
         if (s.xtream()) {
             JSONArray a = apiArray(s, "get_live_streams", null);
@@ -287,7 +314,58 @@ public final class Iptv {
         }
         channelCache.put(s.id, out);
         channelTime.put(s.id, System.currentTimeMillis());
+        saveChannels(s, out);
         return out;
+    }
+
+    // ------------------------------------------------------------ saved copies on disk (fast start)
+
+    private static java.io.File file(Source s, String what) {
+        java.io.File d = new java.io.File(App.ctx.getFilesDir(), "iptv");
+        d.mkdirs();
+        return new java.io.File(d, s.id.replaceAll("[^A-Za-z0-9_-]", "_") + "." + what);
+    }
+
+    private static long diskTime(Source s, String what) {
+        java.io.File f = file(s, what);
+        return f.exists() ? f.lastModified() : 0;
+    }
+
+    private static void saveChannels(Source s, List<Channel> list) {
+        try {
+            JSONArray a = new JSONArray();
+            for (Channel c : list) {
+                a.put(new JSONObject().put("i", c.id).put("n", c.name).put("l", c.logo).put("g", c.group)
+                        .put("e", c.epgId).put("u", c.url).put("c", c.num));
+            }
+            java.io.File f = file(s, "channels"), tmp = new java.io.File(f.getPath() + ".tmp");
+            try (java.io.FileOutputStream out = new java.io.FileOutputStream(tmp)) { out.write(a.toString().getBytes(StandardCharsets.UTF_8)); }
+            tmp.renameTo(f);
+        } catch (Exception ignored) { }
+    }
+
+    private static List<Channel> loadChannels(Source s) {
+        java.io.File f = file(s, "channels");
+        if (!f.exists()) return null;
+        try {
+            byte[] d = new byte[(int) f.length()];
+            try (java.io.FileInputStream in = new java.io.FileInputStream(f)) {
+                int off = 0, n;
+                while (off < d.length && (n = in.read(d, off, d.length - off)) > 0) off += n;
+            }
+            JSONArray a = new JSONArray(new String(d, StandardCharsets.UTF_8));
+            List<Channel> out = new ArrayList<>();
+            for (int i = 0; i < a.length(); i++) {
+                JSONObject o = a.getJSONObject(i);
+                Channel c = new Channel();
+                c.id = o.optString("i"); c.name = o.optString("n"); c.logo = o.optString("l"); c.group = o.optString("g");
+                c.epgId = o.optString("e"); c.url = o.optString("u"); c.num = o.optString("c");
+                out.add(c);
+            }
+            return out;
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     public static List<Channel> channelsIn(Source s, String categoryId) throws Exception {
@@ -353,6 +431,8 @@ public final class Iptv {
         List<Program> cached = epgCache.get(key);
         if (cached != null && t != null && System.currentTimeMillis() - t < EPG_TTL) return current(cached);
         List<Program> list = new ArrayList<>();
+        List<Program> full = programs(s, c);
+        if (!full.isEmpty()) return current(full);
         try {
             if (s.xtream()) {
                 String body = api(s, "get_short_epg", "stream_id=" + c.id + "&limit=4").trim();
@@ -369,9 +449,6 @@ public final class Iptv {
                     if (p.end == 0) p.end = xmlDate(o.optString("end").replaceAll("[-: ]", "") + " +0000");
                     list.add(p);
                 }
-            } else if (!s.epg.isEmpty() && !c.epgId.isEmpty()) {
-                List<Program> g = guide(s).get(c.epgId);
-                if (g != null) list.addAll(g);
             }
         } catch (Exception ignored) { }
         epgCache.put(key, list);
@@ -395,54 +472,190 @@ public final class Iptv {
         }
     }
 
-    /** Whole XMLTV guide for an M3U source: channel id → programmes in the next 24 hours. */
-    private static synchronized Map<String, List<Program>> guide(Source s) throws Exception {
-        Long t = guideTime.get(s.id);
+    // ------------------------------------------------------------ the full TV guide (XMLTV), kept on disk
+
+    /** Programmes for a channel from the saved guide, oldest first (empty until the guide has loaded). */
+    public static List<Program> programs(Source s, Channel c) {
         Map<String, List<Program>> g = guides.get(s.id);
-        if (g != null && t != null && System.currentTimeMillis() - t < GUIDE_TTL) return g;
-        g = new HashMap<>();
-        long now = System.currentTimeMillis(), until = now + 24 * 3600 * 1000L;
-        try (InputStream raw = Http.open(s.epg)) {
-            InputStream in = s.epg.endsWith(".gz") ? new GZIPInputStream(raw) : raw;
-            XmlPullParser x = Xml.newPullParser();
-            x.setInput(in, null);
-            Program cur = null;
-            String channel = null, field = null;
-            for (int ev = x.getEventType(); ev != XmlPullParser.END_DOCUMENT; ev = x.next()) {
-                if (ev == XmlPullParser.START_TAG) {
-                    String tag = x.getName();
-                    if ("programme".equals(tag)) {
-                        long st = xmlDate(x.getAttributeValue(null, "start"));
-                        long en = xmlDate(x.getAttributeValue(null, "stop"));
-                        if (en > now && st < until) {
-                            cur = new Program();
-                            cur.start = st;
-                            cur.end = en;
-                            channel = x.getAttributeValue(null, "channel");
-                        } else {
-                            cur = null;
-                        }
-                    } else if (cur != null && ("title".equals(tag) || "desc".equals(tag))) {
-                        field = tag;
-                    }
-                } else if (ev == XmlPullParser.TEXT && cur != null && field != null) {
-                    if (field.equals("title") && cur.title.isEmpty()) cur.title = x.getText().trim();
-                    if (field.equals("desc") && cur.desc.isEmpty()) cur.desc = x.getText().trim();
-                } else if (ev == XmlPullParser.END_TAG) {
-                    if ("programme".equals(x.getName()) && cur != null && channel != null) {
-                        List<Program> list = g.get(channel);
-                        if (list == null) g.put(channel, list = new ArrayList<>());
-                        list.add(cur);
-                        cur = null;
-                    }
-                    field = null;
+        if (g == null || c.epgId.isEmpty()) return new ArrayList<>();
+        List<Program> list = g.get(c.epgId);
+        if (list == null) list = g.get(c.epgId.toLowerCase(Locale.ROOT));
+        return list == null ? new ArrayList<>() : list;
+    }
+
+    /** True once a guide is in memory for the source. */
+    public static boolean guideReady(Source s) {
+        return guides.containsKey(s.id);
+    }
+
+    /** XMLTV address: your own EPG link if set, else the Xtream provider's xmltv.php. */
+    public static String epgUrl(Source s) {
+        if (!s.epg.isEmpty()) return s.epg;
+        if (s.xtream()) return s.url + "/xmltv.php?username=" + Http.enc(s.user) + "&password=" + Http.enc(s.pass);
+        return "";
+    }
+
+    public static long guideAge(Source s) {
+        Long t = guideTime.get(s.id);
+        long disk = diskTime(s, "epg");
+        long when = t != null ? t : disk;
+        return when == 0 ? Long.MAX_VALUE : System.currentTimeMillis() - when;
+    }
+
+    /**
+     * Loads the guide: memory, then the saved copy, then the provider. Blocking (worker threads).
+     * force = download even if the saved copy is recent.
+     */
+    public static Map<String, List<Program>> loadGuide(Source s, boolean force) throws Exception {
+        Map<String, List<Program>> g = guides.get(s.id);
+        if (g != null && !force && guideAge(s) < GUIDE_TTL) return g;
+        if (g == null && !force) {
+            Map<String, List<Program>> disk = readGuide(s);
+            if (disk != null) {
+                guides.put(s.id, disk);
+                guideTime.put(s.id, diskTime(s, "epg"));
+                if (guideAge(s) < 12L * 3600 * 1000) {
+                    if (guideAge(s) > GUIDE_TTL) App.IO.execute(() -> { try { downloadGuide(s); } catch (Exception ignored) { } });
+                    return disk;
                 }
             }
         }
-        for (List<Program> list : g.values()) Collections.sort(list, (a, b) -> Long.compare(a.start, b.start));
-        guides.put(s.id, g);
-        guideTime.put(s.id, System.currentTimeMillis());
-        return g;
+        return downloadGuide(s);
+    }
+
+    private static final Object GUIDE_LOCK = new Object();
+
+    private static Map<String, List<Program>> downloadGuide(Source s) throws Exception {
+        synchronized (GUIDE_LOCK) {
+            String url = epgUrl(s);
+            if (url.isEmpty()) return new HashMap<>();
+            // Only keep channels we actually have (providers' guides can be huge).
+            java.util.Set<String> wanted = new java.util.HashSet<>();
+            try { for (Channel c : channels(s)) if (!c.epgId.isEmpty()) { wanted.add(c.epgId); wanted.add(c.epgId.toLowerCase(Locale.ROOT)); } } catch (Exception ignored) { }
+            Map<String, List<Program>> g = new HashMap<>();
+            long now = System.currentTimeMillis(), from = now - 3 * 3600 * 1000L, until = now + 48 * 3600 * 1000L;
+            try (InputStream raw0 = Http.open(url)) {
+                java.io.BufferedInputStream raw = new java.io.BufferedInputStream(raw0, 65536);
+                raw.mark(4);
+                int b1 = raw.read(), b2 = raw.read();
+                raw.reset();
+                InputStream in = (b1 == 0x1f && b2 == 0x8b) ? new GZIPInputStream(raw, 65536) : raw;
+                XmlPullParser x = Xml.newPullParser();
+                x.setInput(in, null);
+                Program cur = null;
+                String channel = null, field = null;
+                for (int ev = x.getEventType(); ev != XmlPullParser.END_DOCUMENT; ev = x.next()) {
+                    if (ev == XmlPullParser.START_TAG) {
+                        String tag = x.getName();
+                        if ("programme".equals(tag)) {
+                            channel = x.getAttributeValue(null, "channel");
+                            long st = xmlDate(x.getAttributeValue(null, "start"));
+                            long en = xmlDate(x.getAttributeValue(null, "stop"));
+                            if (channel != null && en > from && st < until && (wanted.isEmpty() || wanted.contains(channel))) {
+                                cur = new Program();
+                                cur.start = st;
+                                cur.end = en;
+                            } else {
+                                cur = null;
+                            }
+                        } else if (cur != null && ("title".equals(tag) || "desc".equals(tag))) {
+                            field = tag;
+                        }
+                    } else if (ev == XmlPullParser.TEXT && cur != null && field != null) {
+                        if (field.equals("title") && cur.title.isEmpty()) cur.title = x.getText().trim();
+                        if (field.equals("desc") && cur.desc.isEmpty()) {
+                            String d = x.getText().trim();
+                            cur.desc = d.length() > 500 ? d.substring(0, 500) + "…" : d;
+                        }
+                    } else if (ev == XmlPullParser.END_TAG) {
+                        if ("programme".equals(x.getName()) && cur != null && channel != null) {
+                            List<Program> list = g.get(channel);
+                            if (list == null) g.put(channel, list = new ArrayList<>());
+                            list.add(cur);
+                            cur = null;
+                        }
+                        field = null;
+                    }
+                }
+            }
+            for (List<Program> list : g.values()) Collections.sort(list, (a, b) -> Long.compare(a.start, b.start));
+            guides.put(s.id, g);
+            guideTime.put(s.id, System.currentTimeMillis());
+            epgCache.clear();
+            writeGuide(s, g);
+            return g;
+        }
+    }
+
+    private static void writeGuide(Source s, Map<String, List<Program>> g) {
+        java.io.File f = file(s, "epg"), tmp = new java.io.File(f.getPath() + ".tmp");
+        try (java.io.DataOutputStream out = new java.io.DataOutputStream(new java.io.BufferedOutputStream(
+                new GZIPOutputStream(new java.io.FileOutputStream(tmp)), 65536))) {
+            out.writeInt(1);
+            out.writeInt(g.size());
+            for (Map.Entry<String, List<Program>> e : g.entrySet()) {
+                out.writeUTF(e.getKey());
+                out.writeInt(e.getValue().size());
+                for (Program p : e.getValue()) {
+                    out.writeLong(p.start);
+                    out.writeLong(p.end);
+                    out.writeUTF(p.title.length() > 300 ? p.title.substring(0, 300) : p.title);
+                    out.writeUTF(p.desc);
+                }
+            }
+        } catch (Exception e) {
+            tmp.delete();
+            return;
+        }
+        tmp.renameTo(f);
+    }
+
+    private static Map<String, List<Program>> readGuide(Source s) {
+        java.io.File f = file(s, "epg");
+        if (!f.exists()) return null;
+        long cutoff = System.currentTimeMillis() - 3 * 3600 * 1000L;
+        try (java.io.DataInputStream in = new java.io.DataInputStream(new java.io.BufferedInputStream(
+                new GZIPInputStream(new java.io.FileInputStream(f)), 65536))) {
+            if (in.readInt() != 1) return null;
+            int n = in.readInt();
+            Map<String, List<Program>> g = new HashMap<>(n * 2);
+            for (int i = 0; i < n; i++) {
+                String id = in.readUTF();
+                int m = in.readInt();
+                List<Program> list = new ArrayList<>(m);
+                for (int k = 0; k < m; k++) {
+                    Program p = new Program();
+                    p.start = in.readLong();
+                    p.end = in.readLong();
+                    p.title = in.readUTF();
+                    p.desc = in.readUTF();
+                    if (p.end > cutoff) list.add(p);
+                }
+                g.put(id, list);
+            }
+            return g;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /**
+     * Background pre-loading: channel lists, the full guide and channel logos for every provider,
+     * so Live TV opens instantly. Runs at start and every few hours.
+     */
+    public static void prefetchAll() {
+        for (Source s : sources()) {
+            try {
+                List<Channel> list = channels(s);
+                if (s.xtream()) liveCategories(s);
+                loadGuide(s, false);
+                int n = 0;
+                for (Channel c : list) {
+                    if (n++ > 3000) break;
+                    ImageLoader.prefetch(c.logo);
+                }
+            } catch (Exception ignored) { }
+        }
     }
 
     private static long xmlDate(String v) {

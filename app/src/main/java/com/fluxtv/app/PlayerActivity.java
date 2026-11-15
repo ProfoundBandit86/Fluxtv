@@ -115,26 +115,7 @@ public class PlayerActivity extends Activity {
         buildPanel();
         setContentView(root);
 
-        // Follow http→https and cross-host redirects (common with IPTV load balancers and debrid links).
-        androidx.media3.datasource.DefaultHttpDataSource.Factory http = new androidx.media3.datasource.DefaultHttpDataSource.Factory()
-                .setAllowCrossProtocolRedirects(true)
-                .setUserAgent("FluxTV/1.0 (Android TV)")
-                .setConnectTimeoutMs(15000)
-                .setReadTimeoutMs(20000);
-        androidx.media3.datasource.DefaultDataSource.Factory data = new androidx.media3.datasource.DefaultDataSource.Factory(this, http);
-        // Play as much as possible in-app:
-        //  - the box's own decoders first (hardware, and HDMI passthrough to the receiver for Dolby/DTS),
-        //  - FFmpeg software audio when the box can't decode or pass a format through (DTS, TrueHD, E-AC3…),
-        //  - if a hardware decoder fails to start, try the next one rather than giving up.
-        androidx.media3.exoplayer.DefaultRenderersFactory renderers = new androidx.media3.exoplayer.DefaultRenderersFactory(this)
-                .setExtensionRendererMode(androidx.media3.exoplayer.DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
-                .setEnableDecoderFallback(true);
-        androidx.media3.extractor.DefaultExtractorsFactory extractors = new androidx.media3.extractor.DefaultExtractorsFactory()
-                .setConstantBitrateSeekingEnabled(true)
-                .setTsExtractorFlags(androidx.media3.extractor.ts.DefaultTsPayloadReaderFactory.FLAG_ENABLE_HDMV_DTS_AUDIO_STREAMS);
-        player = new ExoPlayer.Builder(this, renderers)
-                .setMediaSourceFactory(new androidx.media3.exoplayer.source.DefaultMediaSourceFactory(data, extractors))
-                .build();
+        player = Players.create(this);
         view.setPlayer(player);
         applyTrackPreferences();
         applySubtitleStyle();

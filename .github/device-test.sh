@@ -223,6 +223,39 @@ curl -s -m 20 http://127.0.0.1:8090/ > /dev/null
 adb shell am start -W -n $P/.SettingsActivity; sleep 3
 curl -s -m 20 http://127.0.0.1:8090/ > out/settings-page-final.html; echo "== WEB SECTIONS: $(grep -o "<summary>[^<]*" out/settings-page-final.html | tr '\n' ' ')"
 crashes home-button
+# ---------------- Live TV guide (EPG), TiviMate-style player, DVR to local storage and to an SMB share
+(sudo apt-get install -y -q samba > /tmp/samba.log 2>&1 && sudo mkdir -p /srv/flux/Shows && sudo chmod -R 777 /srv/flux \
+  && printf '[global]\n  map to guest = Bad User\n  server min protocol = SMB2\n  guest account = nobody\n[flux]\n  path = /srv/flux\n  read only = no\n  guest ok = yes\n  force user = nobody\n' | sudo tee /etc/samba/smb.conf > /dev/null \
+  && (sudo systemctl restart smbd || sudo smbd -D) && echo "== SAMBA: up") || echo "== SAMBA: failed $(tail -3 /tmp/samba.log)"
+adb shell am start -W -n $P/.SettingsActivity --es category live; sleep 3
+curl -s -m 60 -X POST --data-urlencode "url=http://10.0.2.2:8000" --data-urlencode "user=test" --data-urlencode "pass=test" http://127.0.0.1:8090/iptv-xtream | grep -o "<p class='m'>[^<]*"
+curl -s -m 60 -X POST http://127.0.0.1:8090/dvr-guide | grep -o "<p class='m'>[^<]*"
+adb shell am start -W -n $P/.LiveActivity; sleep 8; shot 60-live-guide; texts live-guide 30
+key DPAD_DOWN 1; key DPAD_RIGHT 1; key DPAD_RIGHT 2; shot 61-live-guide-later
+key DPAD_CENTER 2; shot 62-live-record-dialog; texts record-dialog 12
+key DPAD_CENTER 2; sleep 1; shot 63-live-scheduled
+key DPAD_LEFT 1; key DPAD_LEFT 1; key DPAD_LEFT 1; key DPAD_LEFT 2; shot 64-live-groups; texts live-groups 20
+key BACK 1
+key DPAD_CENTER 8; top live-player; shot 65-live-player; texts live-player 20
+key DPAD_DOWN 6; shot 66-live-player-zap
+key DPAD_CENTER 3; shot 67-live-channel-list; key BACK 1
+key MENU 2; shot 68-live-options; texts live-options 12
+key DPAD_CENTER 3; echo "== recording locally for 20s"; sleep 20
+adb shell am start -W -n $P/.RecordingsActivity; sleep 3; shot 69-recordings; texts recordings 20
+adb shell "ls -la /sdcard/Android/data/$P/files/Movies/Recordings/ 2>&1 | tail -3"
+# SMB share: sign in, browse, choose a folder, record there
+adb shell am start -W -n $P/.SettingsActivity --es category live; sleep 3
+curl -s -m 60 -X POST --data-urlencode "host=10.0.2.2" http://127.0.0.1:8090/dvr-smb-login | grep -o "<p class='m'>[^<]*\|📁 [^<]*\|Couldn't open it[^<]*" | head -6
+curl -s -m 60 -X POST --data-urlencode "path=flux" http://127.0.0.1:8090/dvr-smb-open | grep -o "📁 [^<]*\|Use this folder" | head -4
+curl -s -m 60 -X POST --data-urlencode "path=flux/Shows" http://127.0.0.1:8090/dvr-smb-use | grep -o "<p class='m'>[^<]*"
+curl -s -m 30 http://127.0.0.1:8090/ > out/settings-page-dvr.html
+adb shell am start -W -n $P/.SmbBrowseActivity; sleep 5; shot 70-smb-browser; texts smb-browser 20; key BACK 1
+adb shell am start -W -n $P/.LiveActivity; sleep 5; key DPAD_CENTER 8; key MENU 2; key DPAD_CENTER 3
+echo "== recording to SMB for 20s"; sleep 20; key MENU 2; key DPAD_CENTER 3; sleep 3
+echo "== SMB FILES: $(ls -la /srv/flux/Shows 2>&1 | tail -4 | tr '\n' ' ')"
+adb shell am start -W -n $P/.RecordingsActivity; sleep 4; shot 71-recordings-smb; texts recordings-smb 24
+key DPAD_CENTER 8; top play-recording; shot 72-play-recording; key BACK 2
+crashes live
 # ---------------- icons, Apps grid, Settings focus, age limits, TV-to-TV sync
 adb shell am start -W -n $P/.SettingsActivity --es category home; sleep 3
 curl -s -m 20 -X POST --data-urlencode "shape=square" http://127.0.0.1:8090/icon-shape | grep -o "<p class='m'>[^<]*"

@@ -366,6 +366,7 @@ public final class Store {
     }
 
     private static synchronized void putProgress(PlayInfo info, long pos, long dur, long when, boolean overwrite) {
+        if (info.videoId.startsWith("dvr:")) return;   // recordings don't go in Continue watching
         JSONObject all = object(key("progress"));
         if (!overwrite && all.has(info.videoId) && all.optJSONObject(info.videoId).optLong("t") >= when) return;
         JSONObject e = new JSONObject();

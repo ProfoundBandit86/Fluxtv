@@ -26,6 +26,14 @@ public class App extends Application {
         Store.init(this);
         Theme.apply();
         ProfileSync.start(this);   // TV-to-TV sync of profiles (does nothing until TVs are linked)
+        Dvr.rearm(this);           // scheduled recordings survive restarts and updates
+        // Pre-load Live TV (channels, full guide, logos) shortly after start, then every 3 hours.
+        MAIN.postDelayed(new Runnable() {
+            @Override public void run() {
+                IO.execute(Iptv::prefetchAll);
+                MAIN.postDelayed(this, 3 * 3600 * 1000L);
+            }
+        }, 8000);
         // Save any crash so the home screen can show it next time (TVs hide crash dialogs).
         Thread.UncaughtExceptionHandler previous = Thread.getDefaultUncaughtExceptionHandler();
         Thread.setDefaultUncaughtExceptionHandler((thread, error) -> {

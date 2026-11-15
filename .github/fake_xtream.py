@@ -253,6 +253,24 @@ class H(BaseHTTPRequestHandler):
                 body += '#EXTINF:-1 tvg-id="%s" tvg-chno="%d" group-title="Playlist %s",%s\n%s\n' % (
                     c["epg_channel_id"], c["num"], "News" if c["category_id"] == "1" else "Sports", c["name"], HLS)
             return self.send(200, body, "audio/x-mpegurl")
+        if p == "/xmltv.php":
+            fmt = lambda t: time.strftime("%Y%m%d%H%M%S +0000", time.gmtime(t))
+            start = NOW - NOW % 1800 - 3600
+            body = '<?xml version="1.0" encoding="UTF-8"?><tv>'
+            for c in LIVE:
+                body += '<channel id="%s"><display-name>%s</display-name></channel>' % (c["epg_channel_id"], c["name"])
+            shows = ["Morning Brief", "Market Watch", "The Big Match", "Nature Hour", "Late Night Live", "Documentary: Oceans", "Evening News", "Comedy Club"]
+            for ci, c in enumerate(LIVE):
+                t = start
+                k = ci
+                while t < NOW + 8 * 3600:
+                    dur = 1800 if k % 3 else 3600
+                    body += '<programme start="%s" stop="%s" channel="%s"><title>%s</title><desc>%s on %s. A description of this programme for the guide.</desc></programme>' % (
+                        fmt(t), fmt(t + dur), c["epg_channel_id"], shows[k % len(shows)], shows[k % len(shows)], c["name"])
+                    t += dur
+                    k += 1
+            body += '</tv>'
+            return self.send(200, body, "application/xml")
         if p == "/epg.xml":
             fmt = lambda t: time.strftime("%Y%m%d%H%M%S +0000", time.gmtime(t))
             body = '<?xml version="1.0"?><tv>'

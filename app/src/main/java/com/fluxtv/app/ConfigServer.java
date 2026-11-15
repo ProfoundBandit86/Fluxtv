@@ -175,6 +175,50 @@ public final class ConfigServer {
                 Iptv.save(ms3);
                 return "Added " + ms3.name;
             }
+            case "/iptv-epg": {
+                Iptv.Source es = Iptv.source(f(form, "id"));
+                if (es == null) throw new Exception("Provider not found");
+                es.epg = f(form, "epg");
+                Iptv.save(es);
+                App.IO.execute(() -> { try { Iptv.loadGuide(es, true); } catch (Exception ignored) { } });
+                return "Guide link saved; loading the guide in the background";
+            }
+            case "/dvr-guide":
+                for (Iptv.Source gs : Iptv.sources()) Iptv.loadGuide(gs, true);
+                return "TV guide updated";
+            case "/dvr-preview":
+                Store.put("live_preview", f(form, "preview"));
+                return "Saved";
+            case "/dvr-target":
+                if ("smb".equals(f(form, "target")) && !Smb.configured()) throw new Exception("Set up the network share below first");
+                Dvr.setTarget(f(form, "target"));
+                return "Recordings will be saved to: " + Dvr.targetLabel(App.ctx);
+            case "/dvr-pad":
+                Store.put("dvr_pad_before", f(form, "before"));
+                Store.put("dvr_pad_after", f(form, "after"));
+                return "Saved";
+            case "/dvr-smb-login":
+                Smb.save(f(form, "host"), f(form, "user"), form.get("pass") == null || form.get("pass").isEmpty() ? null : form.get("pass"), f(form, "domain"));
+                smbBrowse = "";
+                Smb.folders("");
+                return "Connected to " + Smb.host() + ". Now choose a folder.";
+            case "/dvr-smb-open":
+                smbBrowse = f(form, "path");
+                return null;
+            case "/dvr-smb-mkdir": {
+                String np = f(form, "path") + "/" + f(form, "name").replaceAll("[\\\\/:*?\"<>|]", "_");
+                Smb.mkdir(np);
+                smbBrowse = np;
+                return "Folder created";
+            }
+            case "/dvr-smb-use": {
+                String old = Smb.path();
+                Smb.setPath(f(form, "path"));
+                try { Smb.test(); } catch (Exception e) { Smb.setPath(old); throw new Exception("Flux can't save there: " + App.message(e)); }
+                Dvr.setTarget("smb");
+                smbBrowse = null;
+                return "Recordings will be saved to " + Dvr.targetLabel(App.ctx);
+            }
             case "/iptv-remove":
                 Iptv.remove(f(form, "id"));
                 return "IPTV provider removed";
@@ -392,7 +436,7 @@ public final class ConfigServer {
           .append("<h1>Flux TV</h1><div class='u'>").append(esc(Updater.currentName(App.ctx)))
           .append(" · settings apply to the TV right away</div>")
           .append("<nav><a href='#profiles'>Profiles</a><a href='#sync'>TV sync</a><a href='#home'>Home</a><a href='#appearance'>Look</a><a href='#player'>Player</a>")
-          .append("<a href='#sources'>Sources</a><a href='#downloads'>Downloads</a><a href='#search'>Search</a><a href='#system'>System</a></nav>");
+          .append("<a href='#sources'>Sources</a><a href='#dvr'>DVR</a><a href='#downloads'>Downloads</a><a href='#search'>Search</a><a href='#system'>System</a></nav>");
         if (message != null) sb.append("<p class='m'>").append(esc(message)).append("</p>");
 
         // ---------------- profiles & Trakt
@@ -595,6 +639,9 @@ public final class ConfigServer {
         for (Iptv.Source is : Iptv.sources()) {
             sb.append("<div class='a'><b>").append(esc(is.name)).append("</b><div class='u'>")
               .append(esc(is.xtream() ? "Xtream Codes · " + is.url : "M3U playlist")).append("</div>")
+              .append("<form method='post' action='/iptv-epg' class='row'>").append(hidden("id", is.id))
+              .append("<input name='epg' value='").append(esc(is.epg)).append("' placeholder='")
+              .append(is.xtream() ? "Guide (XMLTV) link · empty = the provider's own guide" : "Guide (XMLTV) link").append("' autocomplete='off'><button>Save guide link</button></form>")
               .append(form("/iptv-remove", hidden("id", is.id), "Remove", "rm s")).append("</div>");
         }
         sb.append("<form method='post' action='/iptv-vod' class='row'><b>Provider movies &amp; series in Movies / TV Shows</b>")
@@ -608,6 +655,57 @@ public final class ConfigServer {
           .append("<input name='m3u' placeholder='Playlist link (.m3u / get.php)' autocomplete='off'>")
           .append("<input name='epg' placeholder='Guide link (XMLTV), optional' autocomplete='off'>")
           .append("<button>Add playlist</button></form></details>");
+
+        // ---------------- Live TV & DVR
+        sb.append(section("dvr", "Live TV guide &amp; DVR", "Guide, preview, where recordings are saved"));
+        StringBuilder ga = new StringBuilder();
+        for (Iptv.Source is : Iptv.sources()) {
+            long age = Iptv.guideAge(is);
+            ga.append(esc(is.name)).append(": ").append(age == Long.MAX_VALUE ? "guide not loaded yet" : "guide updated " + (age / 60000 < 60 ? age / 60000 + " min ago" : age / 3600000 + " h ago")).append("<br>");
+        }
+        sb.append("<p class='u'>").append(ga.length() == 0 ? "Add an IPTV provider first." : ga.toString()).append("</p>")
+          .append(form("/dvr-guide", "", "Update the TV guide now", "s"));
+        sb.append("<form method='post' action='/dvr-preview' class='row'><b>Preview while browsing the guide</b>")
+          .append(select("preview", new String[]{"on", "off"}, new String[]{"On", "Off (one-connection providers)"}, "off".equals(Store.get("live_preview")) ? "off" : "on"))
+          .append("<button>Save</button></form>");
+        List<String[]> lt = Dvr.localTargets(App.ctx);
+        String[] tv = new String[lt.size() + 1], tl = new String[lt.size() + 1];
+        for (int i = 0; i < lt.size(); i++) { tv[i] = lt.get(i)[0]; tl[i] = lt.get(i)[1]; }
+        tv[lt.size()] = "smb";
+        tl[lt.size()] = Smb.configured() ? "Network share \\\\" + Smb.host() + "\\" + Smb.path().replace('/', '\\') : "Network share (set up below)";
+        sb.append("<h3>Save recordings to</h3><form method='post' action='/dvr-target' class='row'>")
+          .append(select("target", tv, tl, Dvr.target())).append("<button>Save</button></form>");
+        sb.append("<form method='post' action='/dvr-pad' class='row'>Start")
+          .append(select("before", new String[]{"0", "1", "2", "5"}, new String[]{"on time", "1 min early", "2 min early", "5 min early"}, String.valueOf(Dvr.padBeforeMin())))
+          .append("end").append(select("after", new String[]{"0", "3", "5", "10", "15"}, new String[]{"on time", "3 min late", "5 min late", "10 min late", "15 min late"}, String.valueOf(Dvr.padAfterMin())))
+          .append("<button>Save</button></form>");
+        sb.append("<h3>Network share (SMB)</h3><p class='u'>A Windows PC or NAS folder. Sign in, then pick the folder below.</p>")
+          .append("<form method='post' action='/dvr-smb-login'>")
+          .append("<input name='host' value='").append(esc(Smb.host())).append("' placeholder='Computer or NAS, e.g. 192.168.1.10' autocomplete='off'>")
+          .append("<input name='user' value='").append(esc(Store.get("dvr_smb_user"))).append("' placeholder='User name (empty for guest)' autocomplete='off'>")
+          .append("<input name='pass' type='password' placeholder='").append(Store.get("dvr_smb_pass").isEmpty() ? "Password" : "Password (saved · type to change)").append("'>")
+          .append("<input name='domain' value='").append(esc(Store.get("dvr_smb_domain"))).append("' placeholder='Domain / workgroup (usually empty)' autocomplete='off'>")
+          .append("<button>Connect</button></form>");
+        if (!Smb.host().isEmpty()) {
+            String at = smbBrowse == null ? Smb.path() : smbBrowse;
+            sb.append("<div class='a'><b>\\\\").append(esc(Smb.host())).append(at.isEmpty() ? "" : "\\" + esc(at.replace('/', '\\'))).append("</b>");
+            try {
+                List<String> fs = Smb.folders(at);
+                if (!at.isEmpty()) {
+                    sb.append("<div class='row'>").append(form("/dvr-smb-use", hidden("path", at), "Use this folder", "s"));
+                    int cut = at.lastIndexOf('/');
+                    sb.append(form("/dvr-smb-open", hidden("path", cut < 0 ? "" : at.substring(0, cut)), "↑ Up", "g s")).append("</div>");
+                    sb.append("<form method='post' action='/dvr-smb-mkdir' class='row'>").append(hidden("path", at))
+                      .append("<input name='name' placeholder='New folder name' autocomplete='off'><button>Create</button></form>");
+                }
+                if (fs.isEmpty()) sb.append("<p class='u'>").append(at.isEmpty() ? "No shared folders found." : "No folders inside.").append("</p>");
+                for (String f : fs) sb.append(form("/dvr-smb-open", hidden("path", at.isEmpty() ? f : at + "/" + f), "📁 " + f, "g s"));
+            } catch (Exception e) {
+                sb.append("<p class='u' style='color:#f88'>Couldn't open it: ").append(esc(App.message(e))).append("</p>");
+            }
+            sb.append("</div>");
+        }
+        sb.append("</details>");
 
         // ---------------- downloads
         sb.append("" + section("downloads", "Downloads", "Radarr, Sonarr, SABnzbd") + "<p class='u'>API keys: in each app under Settings → General. "
@@ -683,6 +781,8 @@ public final class ConfigServer {
     }
 
     private static String openSection;
+    /** Folder being browsed on the network share in the web page (null = the chosen one). */
+    private static String smbBrowse;
 
     /** A collapsible card with an anchor, a title and a grey one-line summary. */
     private static String section(String id, String title, String sub) {
@@ -702,6 +802,7 @@ public final class ConfigServer {
         if (path.equals("/install") || path.equals("/remove") || path.equals("/addon-move")) return "addons";
         if (path.startsWith("/server") || path.startsWith("/plex")) return "servers";
         if (path.startsWith("/iptv")) return "iptv";
+        if (path.startsWith("/dvr")) return "dvr";
         if (path.startsWith("/rd")) return "rd";
         if (path.equals("/keys") || path.equals("/key-remove") || path.equals("/gemini-speed")) return "search";
         return null;

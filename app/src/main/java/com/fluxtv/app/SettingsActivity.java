@@ -37,12 +37,13 @@ public class SettingsActivity extends FluxActivity {
             {"appearance", "Appearance", "Themes and colours"},
             {"player", "Player", "Subtitles, picture, size limits"},
             {"sources", "Sources", "Add-ons, servers, Real-Debrid, IPTV"},
+            {"live", "Live TV & DVR", "TV guide, recordings, network share"},
             {"downloads", "Downloads", "Radarr, Sonarr, SABnzbd"},
             {"search", "Search", "Gemini and TMDB"},
             {"system", "System", "Updates, phone setup, TV settings"},
     };
     private static final int[] ICONS = {R.drawable.ic_account, R.drawable.ic_home, R.drawable.ic_display, R.drawable.ic_play,
-            R.drawable.ic_addons, R.drawable.ic_download, R.drawable.ic_search, R.drawable.ic_settings};
+            R.drawable.ic_addons, R.drawable.ic_live, R.drawable.ic_download, R.drawable.ic_search, R.drawable.ic_settings};
 
     private String cat = "profiles";
     private LinearLayout content;
@@ -186,6 +187,7 @@ public class SettingsActivity extends FluxActivity {
             case "player": panePlayer(); break;
             case "sources": paneSources(); break;
             case "downloads": paneDownloads(); break;
+            case "live": paneLive(); break;
             case "search": paneSearch(); break;
             case "system": paneSystem(); break;
             default: paneProfiles(); break;
@@ -282,6 +284,72 @@ public class SettingsActivity extends FluxActivity {
                 Store.put("region", r);
                 Store.bumpSources();
                 render();
+            }));
+        }
+    }
+
+    private void paneLive() {
+        heading("Live TV & DVR", "TV guide, preview and recordings.");
+        content.addView(section("Providers"));
+        LinearLayout pr = buttonRow();
+        pr.addView(Ui.button(this, R.drawable.ic_live, Iptv.sources().isEmpty() ? "Add an IPTV provider" : "IPTV providers ("
+                + Iptv.sources().size() + ")", v -> startActivity(new Intent(this, IptvActivity.class))));
+        pr.addView(Ui.button(this, R.drawable.ic_tv, "Open Live TV", v -> startActivity(new Intent(this, LiveActivity.class))));
+
+        content.addView(section("TV guide"));
+        StringBuilder g = new StringBuilder();
+        for (Iptv.Source s : Iptv.sources()) {
+            long age = Iptv.guideAge(s);
+            g.append(s.name).append(": ").append(age == Long.MAX_VALUE ? "not loaded yet" : "updated " + (age / 60000 < 60 ? age / 60000 + " min ago" : age / 3600000 + " h ago"))
+             .append(s.epg.isEmpty() ? (s.xtream() ? " (from the provider)" : " (no EPG link)") : " (your EPG link)").append("\n");
+        }
+        content.addView(label(g.length() == 0 ? "Add a provider first." : g.toString().trim()
+                + "\nChannels, the guide and logos are saved on this TV and refreshed in the background every few hours, so Live TV opens instantly."));
+        LinearLayout gr = buttonRow();
+        gr.addView(Ui.button(this, R.drawable.ic_update, "Update the guide now", v -> {
+            Toast.makeText(this, "Updating the TV guide…", Toast.LENGTH_SHORT).show();
+            App.async(() -> { for (Iptv.Source s : Iptv.sources()) Iptv.loadGuide(s, true); return true; },
+                    ok -> { Toast.makeText(this, "TV guide updated", Toast.LENGTH_SHORT).show(); render(); },
+                    e -> Toast.makeText(this, "Guide: " + App.message(e), Toast.LENGTH_LONG).show());
+        }));
+        content.addView(section("Preview while browsing the guide"));
+        boolean prev = !"off".equals(Store.get("live_preview"));
+        LinearLayout pv = buttonRow();
+        pv.addView(Ui.pill(this, "On", prev, v -> { Store.put("live_preview", "on"); render(); }));
+        pv.addView(Ui.pill(this, "Off", !prev, v -> { Store.put("live_preview", "off"); render(); }));
+        content.addView(label("Turn off if your provider allows only one connection at a time."));
+
+        content.addView(section("Save recordings to"));
+        LinearLayout tg = buttonRow();
+        String target = Dvr.target();
+        for (String[] t : Dvr.localTargets(this)) {
+            tg.addView(Ui.pill(this, t[1], t[0].equals(target), v -> { Dvr.setTarget(t[0]); render(); }));
+        }
+        tg.addView(Ui.pill(this, "Network share", "smb".equals(target), v -> {
+            if (Smb.configured()) { Dvr.setTarget("smb"); render(); }
+            else startActivity(new Intent(this, SmbBrowseActivity.class));
+        }));
+        content.addView(label("Now: " + Dvr.targetLabel(this)));
+        LinearLayout sm = buttonRow();
+        sm.addView(Ui.button(this, R.drawable.ic_folder, Smb.configured() ? "Change network folder" : "Choose a network folder",
+                v -> startActivity(new Intent(this, SmbBrowseActivity.class))));
+        sm.addView(Ui.button(this, R.drawable.ic_record, "Recordings", v -> startActivity(new Intent(this, RecordingsActivity.class))));
+
+        content.addView(section("Start early / end late"));
+        LinearLayout pad = buttonRow();
+        int before = Dvr.padBeforeMin(), after = Dvr.padAfterMin();
+        for (int m : new int[]{0, 1, 2, 5}) pad.addView(Ui.pill(this, m + " min early", m == before, v -> { Store.put("dvr_pad_before", String.valueOf(m)); render(); }));
+        LinearLayout pad2 = buttonRow();
+        for (int m : new int[]{0, 3, 5, 10, 15}) pad2.addView(Ui.pill(this, m + " min late", m == after, v -> { Store.put("dvr_pad_after", String.valueOf(m)); render(); }));
+        if (!Dvr.exactAlarmsAllowed(this)) {
+            content.addView(label("Android may start scheduled recordings a little late. Allow \"Alarms & reminders\" for Flux so they start on time."));
+            buttonRow().addView(Ui.button(this, R.drawable.ic_clock, "Allow alarms", v -> {
+                try {
+                    startActivity(new Intent(android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
+                            android.net.Uri.parse("package:" + getPackageName())));
+                } catch (Exception e) {
+                    Toast.makeText(this, "This TV has no such setting; recordings may start up to a minute late.", Toast.LENGTH_LONG).show();
+                }
             }));
         }
     }

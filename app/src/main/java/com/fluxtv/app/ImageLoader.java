@@ -53,7 +53,87 @@ public final class ImageLoader {
         });
     }
 
+    public interface Got { void run(Bitmap b); }
+
+    /** A bitmap with transparency kept (channel logos). Calls back on the main thread; null if it failed. */
+    public static Bitmap cached(String url) {
+        return url == null || url.isEmpty() ? null : CACHE.get("a|" + url);
+    }
+
+    public static void bitmap(String url, int targetWidthPx, Got got) {
+        if (url == null || url.isEmpty()) return;
+        Bitmap c = CACHE.get("a|" + url);
+        if (c != null) { got.run(c); return; }
+        POOL.execute(() -> {
+            Bitmap b = fetch(url, targetWidthPx, true);
+            if (b == null) return;
+            CACHE.put("a|" + url, b);
+            App.MAIN.post(() -> got.run(b));
+        });
+    }
+
+    /** Downloads into the disk cache only (pre-loading channel logos in the background). */
+    public static void prefetch(String url) {
+        if (url == null || url.isEmpty() || !url.startsWith("http") || diskFile(url).exists()) return;
+        try { bytes(url); } catch (Exception ignored) { }
+    }
+
+    // ------------------------------------------------------------ disk cache (pictures survive restarts)
+
+    private static java.io.File dir;
+
+    private static java.io.File diskFile(String url) {
+        if (dir == null) {
+            dir = new java.io.File(App.ctx.getCacheDir(), "img");
+            dir.mkdirs();
+        }
+        return new java.io.File(dir, Integer.toHexString(url.hashCode()) + "_" + url.length());
+    }
+
+    private static byte[] bytes(String url) throws Exception {
+        java.io.File f = diskFile(url);
+        if (f.exists() && f.length() > 0) {
+            byte[] d = new byte[(int) f.length()];
+            try (java.io.FileInputStream in = new java.io.FileInputStream(f)) {
+                int off = 0, n;
+                while (off < d.length && (n = in.read(d, off, d.length - off)) > 0) off += n;
+            }
+            return d;
+        }
+        byte[] d = Http.bytes(url);
+        if (d != null && d.length > 0 && d.length < 3 * 1024 * 1024) {
+            java.io.File tmp = new java.io.File(f.getPath() + ".tmp");
+            try (java.io.FileOutputStream out = new java.io.FileOutputStream(tmp)) { out.write(d); }
+            tmp.renameTo(f);
+            trimDisk();
+        }
+        return d;
+    }
+
+    private static long lastTrim;
+
+    /** Keeps the picture cache under ~150 MB, oldest first. */
+    private static void trimDisk() {
+        if (System.currentTimeMillis() - lastTrim < 10 * 60 * 1000) return;
+        lastTrim = System.currentTimeMillis();
+        java.io.File[] all = dir.listFiles();
+        if (all == null) return;
+        long total = 0;
+        for (java.io.File f : all) total += f.length();
+        if (total < 150L * 1024 * 1024) return;
+        java.util.Arrays.sort(all, (a, b) -> Long.compare(a.lastModified(), b.lastModified()));
+        for (java.io.File f : all) {
+            if (total < 100L * 1024 * 1024) break;
+            total -= f.length();
+            f.delete();
+        }
+    }
+
     private static Bitmap fetch(String url, int targetWidth) {
+        return fetch(url, targetWidth, false);
+    }
+
+    private static Bitmap fetch(String url, int targetWidth, boolean alpha) {
         try {
             byte[] data;
             if (url.startsWith("content:") || url.startsWith("android.resource:") || url.startsWith("file:")) {
@@ -66,7 +146,7 @@ public final class ImageLoader {
                     data = b.toByteArray();
                 }
             } else {
-                data = Http.bytes(url);
+                data = bytes(url);
             }
             BitmapFactory.Options bounds = new BitmapFactory.Options();
             bounds.inJustDecodeBounds = true;
@@ -75,7 +155,7 @@ public final class ImageLoader {
             while (targetWidth > 0 && bounds.outWidth / (sample * 2) >= targetWidth) sample *= 2;
             BitmapFactory.Options o = new BitmapFactory.Options();
             o.inSampleSize = sample;
-            o.inPreferredConfig = Bitmap.Config.RGB_565;
+            o.inPreferredConfig = alpha ? Bitmap.Config.ARGB_8888 : Bitmap.Config.RGB_565;
             return BitmapFactory.decodeByteArray(data, 0, data.length, o);
         } catch (Exception | OutOfMemoryError e) {
             return null;
