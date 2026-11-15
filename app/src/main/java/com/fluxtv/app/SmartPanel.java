@@ -62,9 +62,8 @@ public final class SmartPanel {
                 WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN | WindowManager.LayoutParams.FLAG_DIM_BEHIND,
                 PixelFormat.TRANSLUCENT);
         lp.dimAmount = 0.35f;
-        // Through the accessibility service the remote's keys are handed to the panel directly, so the app
-        // underneath keeps focus (and keeps playing); the panel window itself doesn't need it.
-        if (type == WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY) lp.flags |= WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE;
+        // The panel window takes the remote's keys; Flux's accessibility service also hands them over if a TV
+        // keeps them for the app underneath. The app underneath keeps playing either way.
         lp.gravity = Gravity.TOP | Gravity.START;
         View v = build(c, SmartPanel::hide);
         try {
@@ -74,6 +73,7 @@ public final class SmartPanel {
         }
         overlay = v;
         overlayWm = wm;
+        v.post(v::requestFocus);
         return true;
     }
 
