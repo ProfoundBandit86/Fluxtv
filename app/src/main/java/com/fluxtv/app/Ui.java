@@ -378,6 +378,7 @@ public final class Ui {
             t.setTextColor(has ? TEXT : DIM);
             if (has && onFocus != null) onFocus.run();
         });
+        Ratings.gate(col, item);   // age-restricted profiles
         return col;
     }
 

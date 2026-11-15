@@ -280,6 +280,38 @@ public final class Tmdb {
         return a.optJSONObject(0).optInt("id");
     }
 
+    /** US certificate (e.g. "PG-13", "TV-14"), "ADULT" for adult titles, or null when there isn't one. */
+    public static String certification(String id, String type) throws Exception {
+        if (!enabled()) return null;
+        boolean tv = "series".equals(type) || id.startsWith("tmdb:tv");
+        int n = tmdbNumber(id, tv ? "series" : "movie");
+        if (tv) {
+            JSONObject r = get("/tv/" + n, "append_to_response=content_ratings");
+            if (r.optBoolean("adult")) return "ADULT";
+            JSONObject cr = r.optJSONObject("content_ratings");
+            JSONArray a = cr == null ? null : cr.optJSONArray("results");
+            if (a != null) for (int i = 0; i < a.length(); i++) {
+                JSONObject o = a.optJSONObject(i);
+                if ("US".equals(o.optString("iso_3166_1")) && !o.optString("rating").isEmpty()) return o.optString("rating");
+            }
+            return null;
+        }
+        JSONObject r = get("/movie/" + n, "append_to_response=release_dates");
+        if (r.optBoolean("adult")) return "ADULT";
+        JSONObject rd = r.optJSONObject("release_dates");
+        JSONArray a = rd == null ? null : rd.optJSONArray("results");
+        if (a != null) for (int i = 0; i < a.length(); i++) {
+            JSONObject o = a.optJSONObject(i);
+            if (!"US".equals(o.optString("iso_3166_1"))) continue;
+            JSONArray d = o.optJSONArray("release_dates");
+            if (d != null) for (int j = 0; j < d.length(); j++) {
+                String c = d.optJSONObject(j).optString("certification");
+                if (!c.isEmpty()) return c;
+            }
+        }
+        return null;
+    }
+
     public static boolean canCredit(String id) {
         return enabled() && id != null && (id.startsWith("tt") || id.startsWith("tmdb:"));
     }

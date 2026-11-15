@@ -220,6 +220,36 @@ public final class ConfigServer {
                 if (f(form, "name").isEmpty()) throw new Exception("Type a name");
                 Store.addProfile(f(form, "name"));
                 return "Added profile " + f(form, "name");
+            case "/profile-limit": {
+                String n = f(form, "name"), lim = f(form, "limit"), pin = f(form, "pin");
+                if (!pin.isEmpty() && !pin.matches("\\d{4,8}")) throw new Exception("The PIN should be 4–8 digits");
+                Ratings.setLimit(n, lim);
+                if (lim.isEmpty()) Ratings.setPin(n, "");
+                else if (!pin.isEmpty() || "1".equals(f(form, "clearpin"))) Ratings.setPin(n, pin);
+                ProfileSync.syncNow(null);
+                return lim.isEmpty() ? n + ": no age limit" : n + ": " + lim + " and under" + (Ratings.pin(n).isEmpty() ? "" : ", PIN set");
+            }
+            case "/sync-code":
+                ProfileSync.newPairCode();
+                return "Type this TV's code on the other TV (or in its settings page): " + ProfileSync.currentPairCode();
+            case "/sync-link": {
+                String tv = ProfileSync.link(f(form, "host"), f(form, "code"));
+                return "Linked with " + tv + ". " + ProfileSync.status();
+            }
+            case "/sync-now":
+                ProfileSync.syncForced(null);
+                Thread.sleep(2500);
+                return ProfileSync.status();
+            case "/sync-unlink":
+                ProfileSync.unlink(f(form, "id"));
+                return "Unlinked";
+            case "/sync-copy": {
+                int n = ProfileSync.copySettingsFrom(f(form, "id"));
+                return "Copied " + n + " settings to this TV";
+            }
+            case "/icon-shape":
+                Store.put("app_icon_shape", "square".equals(f(form, "shape")) ? "square" : "round");
+                return "App icon shape saved";
             case "/profile-use":
                 Store.setProfile(f(form, "name"));
                 return "Now watching as " + f(form, "name");
@@ -361,7 +391,7 @@ public final class ConfigServer {
           .append(".in{display:inline}</style></head><body>")
           .append("<h1>Flux TV</h1><div class='u'>").append(esc(Updater.currentName(App.ctx)))
           .append(" · settings apply to the TV right away</div>")
-          .append("<nav><a href='#profiles'>Profiles</a><a href='#home'>Home</a><a href='#appearance'>Look</a><a href='#player'>Player</a>")
+          .append("<nav><a href='#profiles'>Profiles</a><a href='#sync'>TV sync</a><a href='#home'>Home</a><a href='#appearance'>Look</a><a href='#player'>Player</a>")
           .append("<a href='#sources'>Sources</a><a href='#downloads'>Downloads</a><a href='#search'>Search</a><a href='#system'>System</a></nav>");
         if (message != null) sb.append("<p class='m'>").append(esc(message)).append("</p>");
 
@@ -388,6 +418,13 @@ public final class ConfigServer {
                 sb.append(form("/trakt-link", h, "Link Trakt", "s"));
             }
             if (Store.profiles().size() > 1) sb.append(form("/profile-remove", h, "Remove", "rm s"));
+            String[] lv = new String[Ratings.LIMITS.length + 1], ll = new String[Ratings.LIMITS.length + 1];
+            lv[0] = ""; ll[0] = "No age limit";
+            for (int i = 0; i < Ratings.LIMITS.length; i++) { lv[i + 1] = Ratings.LIMITS[i]; ll[i + 1] = Ratings.LIMIT_NAMES[i] + " and under"; }
+            sb.append("<form method='post' action='/profile-limit' class='row'>").append(h)
+              .append(select("limit", lv, ll, Ratings.limit(name)))
+              .append("<input name='pin' inputmode='numeric' placeholder='").append(Ratings.pin(name).isEmpty() ? "PIN (optional)" : "PIN set · type to change")
+              .append("' autocomplete='off'><button>Save</button></form>");
             sb.append("</div>");
         }
         sb.append("<form method='post' action='/profile-add' class='row'><input name='name' placeholder='New profile name' autocomplete='off'>")
@@ -397,6 +434,43 @@ public final class ConfigServer {
           .append("</p><form method='post' action='/trakt-app'><input name='id' placeholder='Client ID' autocomplete='off'>")
           .append("<input name='secret' placeholder='Client Secret (only older apps have one; leave empty)' autocomplete='off'><button>Save Trakt app</button></form>")
           .append("<p class='u'>Synced per profile: Favorites ⇄ Trakt watchlist, resume points, and watch history (scrobbling).</p>");
+        sb.append("<p class='u'>Age limit: titles above it, and titles without a rating, are hidden for that profile, and Live TV is off. "
+                + "With a PIN, leaving the profile and opening Settings need the PIN.</p>");
+        sb.append("</details>");
+
+        // ---------------- TV to TV sync
+        sb.append(section("sync", "Sync between TVs", "Share profiles and copy settings to your other Flux TVs"))
+          .append("<p class='u'>Linked Flux TVs on your home network share profiles, age limits, Favorites and watch history. "
+                + "No account or internet needed. This TV: <b>").append(esc(ProfileSync.deviceName())).append("</b>. ")
+          .append(esc(ProfileSync.status())).append("</p>");
+        for (org.json.JSONObject peer : ProfileSync.peers()) {
+            String hid = hidden("id", peer.optString("id"));
+            sb.append("<div class='a'><div class='row'><b>").append(esc(peer.optString("name"))).append("</b> <span class='u'>")
+              .append(esc(peer.optString("host"))).append("</span></div>")
+              .append(form("/sync-copy", hid, "Copy its settings to this TV", "s"))
+              .append(form("/sync-unlink", hid, "Unlink", "rm s")).append("</div>");
+        }
+        if (!ProfileSync.peers().isEmpty()) sb.append(form("/sync-now", "", "Sync now", "s"));
+        sb.append("<h3>Link another TV</h3>");
+        String code = ProfileSync.currentPairCode();
+        sb.append("<p class='u'>Option 1: show a code here and type it on the other TV (Settings → Profiles → Link another TV).</p>")
+          .append(code == null ? form("/sync-code", "", "Show this TV's code", "s")
+                : "<p style='font-size:34px;letter-spacing:4px;color:var(--a)'><b>" + code + "</b></p>");
+        sb.append("<p class='u'>Option 2: link to the other TV using the code it shows.</p><form method='post' action='/sync-link'>");
+        List<org.json.JSONObject> near = ProfileSync.nearby();
+        if (near.isEmpty()) {
+            sb.append("<input name='host' placeholder='Other TV address, e.g. 192.168.1.20' autocomplete='off'>");
+        } else {
+            String[] hv = new String[near.size()], hl = new String[near.size()];
+            for (int i = 0; i < near.size(); i++) {
+                hv[i] = near.get(i).optString("host") + ":" + near.get(i).optInt("port");
+                hl[i] = near.get(i).optString("name") + " (" + near.get(i).optString("host") + ")";
+            }
+            sb.append(select("host", hv, hl, hv[0]));
+        }
+        sb.append("<input name='code' inputmode='numeric' placeholder='6-digit code from the other TV' autocomplete='off'><button>Link</button></form>")
+          .append("<p class='u'>After linking, use <b>Copy its settings to this TV</b> so add-ons, Real-Debrid, servers, IPTV and API keys "
+                + "don't have to be entered again. Profiles, Favorites and history sync by themselves.</p>");
         sb.append("</details>");
 
         // ---------------- home
@@ -440,6 +514,10 @@ public final class ConfigServer {
             sb.append("<option value='").append(esc(pkg)).append("'>").append(esc(Apps.label(App.ctx, pkg))).append("</option>");
         }
         sb.append("</select><button>Add</button></form>");
+        boolean sq = "square".equals(Store.get("app_icon_shape"));
+        sb.append("<h3>App icons on Home</h3><form method='post' action='/icon-shape' class='row'>")
+          .append(select("shape", new String[]{"round", "square"}, new String[]{"Round", "Square"}, sq ? "square" : "round"))
+          .append("<button>Save</button></form>");
         sb.append("<h3>Region for streaming services</h3><form method='post' action='/region' class='row'><select name='region'>");
         for (String rg : new String[]{"US", "CA", "GB", "AU", "IE", "DE", "FR", "NL", "ES", "IT", "SE", "NO", "DK", "BR", "MX", "IN", "JP"}) {
             sb.append("<option").append(rg.equals(Tmdb.region()) ? " selected" : "").append(">").append(rg).append("</option>");
@@ -615,6 +693,8 @@ public final class ConfigServer {
     /** Which section a form belongs to, so the page reopens there after saving. */
     private static String sectionFor(String path) {
         if (path.startsWith("/profile") || path.startsWith("/trakt")) return "profiles";
+        if (path.startsWith("/sync")) return "sync";
+        if (path.equals("/icon-shape")) return "home";
         if (path.equals("/appearance")) return "appearance";
         if (path.equals("/home-row") || path.equals("/cw") || path.equals("/dock") || path.equals("/region")) return "home";
         if (path.equals("/player") || path.equals("/size-limits")) return "player";

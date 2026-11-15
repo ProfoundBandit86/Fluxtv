@@ -8,7 +8,9 @@ import android.graphics.drawable.Drawable;
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.view.Gravity;
+import android.view.View;
 import android.view.ViewGroup;
+import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -39,9 +41,11 @@ public class AppsActivity extends FluxActivity {
         scroll.setBackgroundColor(Ui.BG);
         scroll.setClipChildren(false);
         LinearLayout content = Ui.vertical(this);
+        content.setLayoutParams(new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         int pad = Ui.dp(this, 48);
         content.setPadding(pad, Ui.dp(this, 32), pad, pad);
         content.setClipChildren(false);
+        scroll.setFillViewport(true);
         scroll.addView(content);
         setContentView(scroll);
         content.addView(Ui.heading(this, "Apps", 30));
@@ -53,9 +57,16 @@ public class AppsActivity extends FluxActivity {
             if (i % PER_ROW == 0) {
                 row = Ui.horizontal(this);
                 row.setClipChildren(false);
+                row.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
                 content.addView(row);
             }
             row.addView(tile(pm, apps.get(i)));
+        }
+        // Keep the last row's tiles the same size as the others.
+        if (row != null) for (int k = row.getChildCount(); k < PER_ROW; k++) {
+            LinearLayout.LayoutParams fp = new LinearLayout.LayoutParams(0, 1, 1f);
+            fp.setMargins(Ui.dp(this, 8), 0, Ui.dp(this, 8), 0);
+            row.addView(new View(this), fp);
         }
         if (content.getChildCount() > 1) {
             LinearLayout first = (LinearLayout) content.getChildAt(1);
@@ -72,7 +83,8 @@ public class AppsActivity extends FluxActivity {
         int p = Ui.dp(this, 8);
         t.setPadding(p, p, p, p);
         t.setBackground(Ui.focusable(this, Ui.PANEL, Ui.BUTTON, Ui.ACCENT));
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(Ui.dp(this, 190), ViewGroup.LayoutParams.WRAP_CONTENT);
+        // Columns share the screen width, so the grid always fits whatever the TV's resolution/zoom.
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
         lp.setMargins(Ui.dp(this, 8), Ui.dp(this, 8), Ui.dp(this, 8), Ui.dp(this, 8));
         t.setLayoutParams(lp);
 

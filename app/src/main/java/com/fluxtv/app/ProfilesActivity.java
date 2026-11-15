@@ -24,6 +24,7 @@ public class ProfilesActivity extends FluxActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         content = Ui.page(this, "Profiles & Trakt");
+        Ratings.guard(this);
     }
 
     @Override
@@ -89,13 +90,18 @@ public class ProfilesActivity extends FluxActivity {
             String user = Trakt.user(name);
             names.addView(Ui.text(this, Trakt.signedIn(name) ? "Trakt: " + (user.isEmpty() ? "linked" : user)
                     : "Trakt: not linked", 13, Trakt.signedIn(name) ? Ui.GOOD : Ui.DIM));
+            String lim = Ratings.limit(name);
+            names.addView(Ui.text(this, lim.isEmpty() ? "No age limit" : "Age limit: " + lim + " and under"
+                    + (Ratings.pin(name).isEmpty() ? "" : " · PIN set"), 13, lim.isEmpty() ? Ui.DIM : Ui.WARN));
             card.addView(names, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+            card.addView(Ui.button(this, "Age limit", v -> chooseLimit(name)));
 
             if (!name.equals(current)) {
                 View use = Ui.button(this, "Switch to", v -> {
-                    Store.setProfile(name);
-                    Toast.makeText(this, "Now watching as " + name, Toast.LENGTH_SHORT).show();
-                    render();
+                    Ratings.switchProfile(this, name, () -> {
+                        Toast.makeText(this, "Now watching as " + name, Toast.LENGTH_SHORT).show();
+                        render();
+                    });
                 });
                 card.addView(use);
             }
@@ -124,6 +130,8 @@ public class ProfilesActivity extends FluxActivity {
         content.addView(add);
         if (first == null) first = addBtn;
 
+        renderTvSync();
+
         if (Trakt.configured()) {
             content.addView(section("What syncs"));
             content.addView(para("Favorites ⇄ your Trakt watchlist (adding or removing on either side carries over). "
@@ -141,6 +149,161 @@ public class ProfilesActivity extends FluxActivity {
         View f = focusAfter != null && focusAfter.isAttachedToWindow() ? focusAfter : first;
         focusAfter = null;
         if (f != null) f.post(f::requestFocus);
+    }
+
+    // ------------------------------------------------------------ age limits
+
+    private void chooseLimit(String name) {
+        String[] items = new String[Ratings.LIMITS.length + 1];
+        items[0] = "No limit";
+        for (int i = 0; i < Ratings.LIMITS.length; i++) items[i + 1] = Ratings.LIMIT_NAMES[i] + " and under";
+        new AlertDialog.Builder(this)
+                .setTitle("Age limit for " + name)
+                .setItems(items, (d, which) -> {
+                    String lim = which == 0 ? "" : Ratings.LIMITS[which - 1];
+                    Ratings.setLimit(name, lim);
+                    if (!lim.isEmpty()) askPin(name);
+                    else { Ratings.setPin(name, ""); render(); }
+                    ProfileSync.syncNow(null);
+                })
+                .show();
+    }
+
+    private void askPin(String name) {
+        EditText input = field("4-digit PIN (leave empty for none)");
+        input.setInputType(android.text.InputType.TYPE_CLASS_NUMBER | android.text.InputType.TYPE_NUMBER_VARIATION_PASSWORD);
+        new AlertDialog.Builder(this)
+                .setTitle("PIN for " + name)
+                .setMessage("With a PIN, leaving this profile and opening Settings need the PIN. Titles above the limit, and "
+                        + "titles without a rating, are hidden. Live TV is hidden too.")
+                .setView(input)
+                .setPositiveButton("Save", (d, w) -> {
+                    Ratings.setPin(name, input.getText().toString().trim());
+                    render();
+                    ProfileSync.syncNow(null);
+                })
+                .setNegativeButton("No PIN", (d, w) -> { Ratings.setPin(name, ""); render(); })
+                .show();
+    }
+
+    // ------------------------------------------------------------ TV to TV sync
+
+    private void renderTvSync() {
+        content.addView(section("Sync between TVs"));
+        content.addView(para("Link your Flux TVs on the same home network and they share profiles, age limits, Favorites "
+                + "and watch history. No account or internet needed."));
+        TextView st = Ui.text(this, ProfileSync.status(), 14, ProfileSync.peers().isEmpty() ? Ui.DIM : Ui.GOOD);
+        content.addView(st);
+        for (org.json.JSONObject p : ProfileSync.peers()) {
+            LinearLayout r = Ui.horizontal(this);
+            r.setGravity(Gravity.CENTER_VERTICAL);
+            r.setPadding(0, Ui.dp(this, 4), 0, Ui.dp(this, 4));
+            r.addView(Ui.text(this, "Linked: " + p.optString("name") + "  (" + p.optString("host") + ")", 15, Ui.TEXT),
+                    new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+            r.addView(Ui.button(this, "Copy its settings here", v -> confirmCopy(p)));
+            r.addView(Ui.button(this, "Unlink", v -> { ProfileSync.unlink(p.optString("id")); render(); }));
+            content.addView(r);
+        }
+        LinearLayout b = Ui.horizontal(this);
+        b.setPadding(0, Ui.dp(this, 6), 0, 0);
+        b.addView(Ui.button(this, R.drawable.ic_plus, "Link another TV", v -> showLink()));
+        if (!ProfileSync.peers().isEmpty()) {
+            b.addView(Ui.button(this, R.drawable.ic_update, "Sync now", v -> {
+                Toast.makeText(this, "Syncing…", Toast.LENGTH_SHORT).show();
+                ProfileSync.syncForced(() -> { Toast.makeText(this, ProfileSync.status(), Toast.LENGTH_LONG).show(); render(); });
+            }));
+        }
+        content.addView(b);
+    }
+
+    private void confirmCopy(org.json.JSONObject p) {
+        new AlertDialog.Builder(this)
+                .setTitle("Copy settings from " + p.optString("name") + "?")
+                .setMessage("Add-ons, Real-Debrid, Plex/Jellyfin/Emby, IPTV, API keys (TMDB, Gemini, Trakt app), Radarr/Sonarr/"
+                        + "SABnzbd, theme and player options are copied to this TV, replacing what's set here. "
+                        + "Your Home app row and Home button setup stay as they are.")
+                .setPositiveButton("Copy", (d, w) -> App.async(() -> ProfileSync.copySettingsFrom(p.optString("id")), n -> {
+                    Toast.makeText(this, "Copied " + n + " settings from " + p.optString("name"), Toast.LENGTH_LONG).show();
+                    render();
+                }, e -> Toast.makeText(this, "Couldn't copy: " + App.message(e), Toast.LENGTH_LONG).show()))
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+    private void showLink() {
+        int my = ++session;
+        while (content.getChildCount() > 1) content.removeViewAt(1);
+        content.addView(section("Link another TV"));
+        content.addView(para("Either type this TV's code on the other TV, or pick the other TV below and type the code it shows."));
+        TextView name = Ui.text(this, "This TV: " + ProfileSync.deviceName(), 15, Ui.TEXT);
+        content.addView(name);
+        TextView code = Ui.heading(this, ProfileSync.newPairCode(), 56);
+        code.setTextColor(Ui.ACCENT);
+        code.setPadding(0, Ui.dp(this, 6), 0, Ui.dp(this, 6));
+        content.addView(code);
+        content.addView(section("Flux TVs on your network"));
+        LinearLayout list = Ui.vertical(this);
+        content.addView(list);
+        LinearLayout b = Ui.horizontal(this);
+        b.setPadding(0, Ui.dp(this, 8), 0, 0);
+        View manual = Ui.button(this, "Enter address instead", v -> askCode(null, null));
+        b.addView(manual);
+        View done = Ui.button(this, "Done", v -> render());
+        b.addView(done);
+        content.addView(b);
+        done.post(done::requestFocus);
+        ProfileSync.onPaired = () -> {
+            if (my != session) return;
+            Toast.makeText(this, "Linked. Syncing…", Toast.LENGTH_LONG).show();
+            ProfileSync.syncForced(this::render);
+        };
+        fillNearby(list, my, "");
+    }
+
+    private void fillNearby(LinearLayout list, int my, String shown) {
+        if (my != session) return;
+        StringBuilder sig = new StringBuilder();
+        List<org.json.JSONObject> tvs = ProfileSync.nearby();
+        for (org.json.JSONObject t : tvs) sig.append(t.optString("id")).append(t.optString("host"));
+        if (!sig.toString().equals(shown) || list.getChildCount() == 0) {
+            list.removeAllViews();
+            if (tvs.isEmpty()) list.addView(para("Looking… Open Flux on the other TV (it must be on the same Wi-Fi or network)."));
+            for (org.json.JSONObject t : tvs) {
+                LinearLayout r = Ui.horizontal(this);
+                r.setGravity(Gravity.CENTER_VERTICAL);
+                r.addView(Ui.text(this, t.optString("name") + "  (" + t.optString("host") + ")", 15, Ui.TEXT),
+                        new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+                r.addView(Ui.button(this, "Link", v -> askCode(t.optString("host") + ":" + t.optInt("port"), t.optString("name"))));
+                list.addView(r);
+            }
+        }
+        String now = sig.toString();
+        App.MAIN.postDelayed(() -> fillNearby(list, my, now), 2000);
+    }
+
+    private void askCode(String host, String tvName) {
+        LinearLayout box = Ui.vertical(this);
+        box.setPadding(Ui.dp(this, 20), 0, Ui.dp(this, 20), 0);
+        EditText addr = field("Other TV's address, e.g. 192.168.1.20");
+        if (host == null) box.addView(addr);
+        EditText code = field("6-digit code shown on the other TV");
+        code.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+        box.addView(code);
+        new AlertDialog.Builder(this)
+                .setTitle(tvName == null ? "Link another TV" : "Link with " + tvName)
+                .setMessage("On the other TV open Settings → Profiles → Link another TV to see its code.")
+                .setView(box)
+                .setPositiveButton("Link", (d, w) -> {
+                    String h = host != null ? host : addr.getText().toString().trim();
+                    String c = code.getText().toString().trim();
+                    if (h.isEmpty() || c.isEmpty()) return;
+                    App.async(() -> ProfileSync.link(h, c), n -> {
+                        Toast.makeText(this, "Linked with " + n + ". " + ProfileSync.status(), Toast.LENGTH_LONG).show();
+                        render();
+                    }, e -> Toast.makeText(this, "Couldn't link: " + App.message(e), Toast.LENGTH_LONG).show());
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
     }
 
     private void syncNow() {
@@ -200,6 +363,7 @@ public class ProfilesActivity extends FluxActivity {
                     if (name.isEmpty()) return;
                     Store.addProfile(name);
                     render();
+                    ProfileSync.syncNow(null);
                 })
                 .setNegativeButton("Cancel", null)
                 .show();
@@ -208,10 +372,11 @@ public class ProfilesActivity extends FluxActivity {
     private void confirmRemove(String name) {
         new AlertDialog.Builder(this)
                 .setTitle("Remove " + name + "?")
-                .setMessage("Its Favorites and Continue watching on this TV are deleted. Nothing is removed from Trakt.")
+                .setMessage("Its Favorites and Continue watching are deleted (on linked TVs too). Nothing is removed from Trakt.")
                 .setPositiveButton("Remove", (d, w) -> {
                     Store.removeProfile(name);
                     render();
+                    ProfileSync.syncForced(null);
                 })
                 .setNegativeButton("Cancel", null)
                 .show();

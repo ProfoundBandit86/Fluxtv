@@ -194,6 +194,8 @@ public class MainActivity extends Activity {
         drawerItem(R.drawable.ic_movie, "Movies", "movie", () -> showSection("movie"));
         drawerItem(R.drawable.ic_tv, "TV Shows", "series", () -> showSection("series"));
         drawerItem(R.drawable.ic_live, "Live TV", null, () -> startActivity(new Intent(this, LiveActivity.class)));
+        liveItem = drawer.getChildAt(drawer.getChildCount() - 1);
+        liveItem.setVisibility(Ratings.restricted() ? View.GONE : View.VISIBLE);
         drawerItem(R.drawable.ic_heart, "Favorites", "favorites", () -> showSection("favorites"));
         drawerItem(R.drawable.ic_apps, "Apps", null, () -> startActivity(new Intent(this, AppsActivity.class)));
         drawerHasDownloads = Arr.anyConfigured();
@@ -307,7 +309,7 @@ public class MainActivity extends Activity {
             }
             if (drawerOpen && (k == KeyEvent.KEYCODE_DPAD_UP || k == KeyEvent.KEYCODE_DPAD_DOWN)) {
                 List<View> items = new ArrayList<>();
-                for (int i = 0; i < drawer.getChildCount(); i++) if (drawer.getChildAt(i).isFocusable()) items.add(drawer.getChildAt(i));
+                for (int i = 0; i < drawer.getChildCount(); i++) if (drawer.getChildAt(i).isFocusable() && drawer.getChildAt(i).getVisibility() == View.VISIBLE) items.add(drawer.getChildAt(i));
                 int at = items.indexOf(getCurrentFocus());
                 int next = Math.max(0, Math.min(items.size() - 1, at + (k == KeyEvent.KEYCODE_DPAD_UP ? -1 : 1)));
                 if (!items.isEmpty()) items.get(at < 0 ? 0 : next).requestFocus();
@@ -379,6 +381,7 @@ public class MainActivity extends Activity {
             return;
         }
         String name = Store.profile();
+        if (liveItem != null) liveItem.setVisibility(Ratings.restricted() ? View.GONE : View.VISIBLE);
         avatarText.setText(name.isEmpty() ? "?" : name.substring(0, 1).toUpperCase());
         View pl = drawer.findViewWithTag("profileLabel");
         if (pl instanceof TextView) ((TextView) pl).setText(name);
@@ -394,6 +397,16 @@ public class MainActivity extends Activity {
         App.MAIN.removeCallbacks(clockTick);
         clockTick.run();
         Trakt.syncIfDue(() -> { if (home != null) renderSection(); });
+        ProfileSync.setOnMerged(() -> {
+            if (isFinishing() || !hasWindowFocus()) return;   // picked up in onResume otherwise
+            if (!Store.profiles().contains(loadedProfile)) { recreate(); return; }
+            if (home != null && Store.changes() != renderedChanges) {
+                boolean hadFocus = !drawerOpen && getCurrentFocus() != null;
+                renderSection();
+                if (hadFocus) rows.post(this::focusContent);
+            }
+        });
+        ProfileSync.syncNow(null);
         Updater.check(this, false);
         showLastCrash();
         askWatchNextPermission();
@@ -526,7 +539,7 @@ public class MainActivity extends Activity {
     // ------------------------------------------------------------ rows
 
     private void note(JSONObject p, String eyebrow) {
-        if (firstItem == null) {
+        if (firstItem == null && !Boolean.FALSE.equals(Ratings.allowedNow(p)) && Ratings.allowedNow(p) != null) {
             firstItem = p;
             firstEyebrow = eyebrow;
         }
@@ -538,7 +551,7 @@ public class MainActivity extends Activity {
         if (!hiddenApps.contains(ContinueWatching.FLUX)) {
             for (JSONObject p : home.continueWatching) if (type == null || type.equals(p.optString("type"))) list.add(p);
         }
-        if (type == null) {
+        if (type == null && !Ratings.restricted()) {   // other apps' items have no rating to check
             for (JSONObject p : external) if (!hiddenApps.contains(p.optString("package"))) list.add(p);
             Collections.sort(list, (a, b) -> Long.compare(b.optLong("t"), a.optLong("t")));
         }
@@ -553,6 +566,7 @@ public class MainActivity extends Activity {
                     v -> { if (ext) WatchNext.open(this, p); else DetailActivity.open(this, p); },
                     () -> feature(p, ext ? "Continue in " + p.optString("badge") : "Continue watching"));
             row.addView(card);
+            if (!ext) Ratings.gate(card, p);
             note(p, "Continue watching");
         }
     }
@@ -566,7 +580,7 @@ public class MainActivity extends Activity {
 
     /** A row another app publishes for the Android TV home screen (YouTube, Netflix, Plex…). */
     private void appRow(Addons.Row r) {
-        if (r.items.isEmpty()) return;
+        if (r.items.isEmpty() || Ratings.restricted()) return;
         LinearLayout row = Ui.row(this, rows, r.title, r.note);
         for (JSONObject p : r.items) {
             View.OnClickListener open = v -> WatchNext.open(this, p);
@@ -727,9 +741,19 @@ public class MainActivity extends Activity {
         return col;
     }
 
+    /** Home app row icon shape: "round" (Google TV style) or "square" (rounded square). */
+    private boolean squareIcons() {
+        return "square".equals(Store.get("app_icon_shape"));
+    }
+
     private GradientDrawable oval(int fill, int stroke) {
         GradientDrawable d = new GradientDrawable();
-        d.setShape(GradientDrawable.OVAL);
+        if (squareIcons()) {
+            d.setShape(GradientDrawable.RECTANGLE);
+            d.setCornerRadius(Ui.dp(this, 18));
+        } else {
+            d.setShape(GradientDrawable.OVAL);
+        }
         d.setColor(fill);
         if (stroke != 0) d.setStroke(Ui.dp(this, 3), stroke);
         return d;
@@ -738,14 +762,26 @@ public class MainActivity extends Activity {
     private View appCircle(String pkg) {
         View col = circleShell(Apps.label(this, pkg), v -> Apps.launch(this, pkg));
         FrameLayout circle = (FrameLayout) col.getTag();
-        // Full-bleed round icon, like Google TV's app row: the icon fills the circle.
+        // Adaptive icons: their full-bleed layers, zoomed to the visible area (what the system shows).
+        // Older icons: the whole icon, inset on a backdrop so nothing is cut off.
         ImageView img = new ImageView(this);
-        img.setScaleType(ImageView.ScaleType.CENTER_CROP);
         Drawable d = Apps.roundIcon(this, pkg);
         if (d != null) img.setImageDrawable(d);
+        if (Apps.isAdaptive(this, pkg)) {
+            img.setScaleType(ImageView.ScaleType.FIT_XY);
+            img.setScaleX(1.5f);   // adaptive layers are 108dp; the visible icon is the middle 72dp
+            img.setScaleY(1.5f);
+        } else {
+            img.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        }
+        boolean square = squareIcons();
+        int radius = Ui.dp(this, 18);
         circle.setClipToOutline(true);
         circle.setOutlineProvider(new android.view.ViewOutlineProvider() {
-            @Override public void getOutline(View v, android.graphics.Outline o) { o.setOval(0, 0, v.getWidth(), v.getHeight()); }
+            @Override public void getOutline(View v, android.graphics.Outline o) {
+                if (square) o.setRoundRect(0, 0, v.getWidth(), v.getHeight(), radius);
+                else o.setOval(0, 0, v.getWidth(), v.getHeight());
+            }
         });
         circle.addView(img, new FrameLayout.LayoutParams(-1, -1));
         View ring = new View(this);
@@ -962,8 +998,15 @@ public class MainActivity extends Activity {
     }
 
     private void switchProfile(String name) {
+        Ratings.switchProfile(this, name, () -> applyProfile(name));
+    }
+
+    private View liveItem;
+
+    private void applyProfile(String name) {
         extraRows.clear();
-        Store.setProfile(name);
+        if (liveItem != null) liveItem.setVisibility(Ratings.restricted() ? View.GONE : View.VISIBLE);
+        ProfileSync.syncNow(null);
         avatarText.setText(name.substring(0, 1).toUpperCase());
         View pl = drawer.findViewWithTag("profileLabel");
         if (pl instanceof TextView) ((TextView) pl).setText(name);

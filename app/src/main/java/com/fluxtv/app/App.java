@@ -25,6 +25,7 @@ public class App extends Application {
         ctx = this;
         Store.init(this);
         Theme.apply();
+        ProfileSync.start(this);   // TV-to-TV sync of profiles (does nothing until TVs are linked)
         // Save any crash so the home screen can show it next time (TVs hide crash dialogs).
         Thread.UncaughtExceptionHandler previous = Thread.getDefaultUncaughtExceptionHandler();
         Thread.setDefaultUncaughtExceptionHandler((thread, error) -> {

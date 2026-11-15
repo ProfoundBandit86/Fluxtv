@@ -42,6 +42,11 @@ public class LiveActivity extends FluxActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        if (Ratings.restricted()) {
+            android.widget.Toast.makeText(this, "Live TV is off for this profile", android.widget.Toast.LENGTH_LONG).show();
+            finish();
+            return;
+        }
         LinearLayout root = Ui.horizontal(this);
         root.setBackgroundColor(Ui.BG);
 

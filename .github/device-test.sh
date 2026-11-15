@@ -217,6 +217,45 @@ curl -s -m 20 http://127.0.0.1:8090/ > /dev/null
 adb shell am start -W -n $P/.SettingsActivity; sleep 3
 curl -s -m 20 http://127.0.0.1:8090/ > out/settings-page-final.html; echo "== WEB SECTIONS: $(grep -o "<summary>[^<]*" out/settings-page-final.html | tr '\n' ' ')"
 crashes home-button
+# ---------------- icons, Apps grid, Settings focus, age limits, TV-to-TV sync
+adb shell am start -W -n $P/.SettingsActivity --es category home; sleep 3
+curl -s -m 20 -X POST --data-urlencode "shape=square" http://127.0.0.1:8090/icon-shape | grep -o "<p class='m'>[^<]*"
+key DPAD_RIGHT 1; key DPAD_DOWN 1; key DPAD_DOWN 1; key DPAD_CENTER 2; top settings-after-click; shot 50-settings-after-click
+texts settings-after-click 40
+adb shell am start -W -n $P/.AppsActivity; sleep 4; shot 51-apps-grid
+adb shell am start -W -n $P/.MainActivity; sleep 8; nudge
+for i in 1 2 3 4 5 6; do key DPAD_DOWN 1; done; shot 52-home-square-icons
+adb forward tcp:8091 tcp:8091
+echo "== HELLO: $(curl -s -m 10 http://127.0.0.1:8091/sync/hello)"
+adb shell am start -W -n $P/.SettingsActivity --es category profiles; sleep 3
+CODE=$(curl -s -m 20 -X POST http://127.0.0.1:8090/sync-code | grep -o "[0-9]\{6\}" | head -1); echo "== CODE: $CODE"
+PAIR=$(curl -s -m 20 -X POST -H 'Content-Type: application/json' -d "{\"code\":\"$CODE\",\"id\":\"faketv\",\"name\":\"Bedroom TV\",\"key\":\"\"}" http://127.0.0.1:8091/sync/pair); echo "== PAIR: $PAIR"
+KEY=$(echo "$PAIR" | python3 -c "import json,sys; print(json.load(sys.stdin).get('key',''))")
+echo "== STATE BEFORE: $(curl -s -m 20 -H "X-Flux-Key: $KEY" http://127.0.0.1:8091/sync/state | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['profiles'], {k: list(v['library'].keys()) for k,v in d['data'].items()})")"
+echo "== BAD KEY: $(curl -s -m 10 -H "X-Flux-Key: nope" http://127.0.0.1:8091/sync/state)"
+NOW=$(($(date +%s) * 1000))
+python3 - "$NOW" > /tmp/state.json <<'PY'
+import json, sys
+now = int(sys.argv[1])
+fav = {"id": "tt0111161", "type": "movie", "name": "The Shawshank Redemption", "poster": "", "t": now}
+print(json.dumps({"id": "faketv", "name": "Bedroom TV", "profiles": ["Default", "Kids", "Grandma"], "deleted": {},
+  "data": {"Grandma": {"library": {"tt0111161": fav}, "library_removed": {}, "progress": {}, "settings_t": str(now)},
+           "Kids": {"library": {"tt0111161": fav, "tt0133093": dict(fav, id="tt0133093", name="The Matrix")}, "library_removed": {},
+                    "progress": {}, "max_rating": "PG", "pin": "", "settings_t": str(now + 5000)}}}))
+PY
+echo "== PUSH: $(curl -s -m 20 -X POST -H "X-Flux-Key: $KEY" -H 'Content-Type: application/json' --data-binary @/tmp/state.json http://127.0.0.1:8091/sync/state)"
+echo "== STATE AFTER: $(curl -s -m 20 -H "X-Flux-Key: $KEY" http://127.0.0.1:8091/sync/state | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['profiles'], {k: (list(v['library'].keys()), v.get('max_rating')) for k,v in d['data'].items()})")"
+echo "== SETTINGS COPY: $(curl -s -m 20 -H "X-Flux-Key: $KEY" http://127.0.0.1:8091/sync/settings | python3 -c "import json,sys; d=json.load(sys.stdin); print(len(d), 'keys; rd' , 'rd_token' in d or any('rd' in k for k in d), sorted(d)[:40])")"
+adb shell am start -W -n $P/.ProfilesActivity; sleep 4; texts profiles-synced 40; shot 53-profiles-synced
+curl -s -m 20 http://127.0.0.1:8090/ > out/settings-page-sync.html; echo "== WEB SYNC: $(grep -o "Sync between TVs[^<]*\|Linked with[^<]*\|Bedroom TV" out/settings-page-sync.html | sort | uniq -c | tr '\n' ' ')"
+curl -s -m 20 -X POST --data-urlencode "name=Kids" http://127.0.0.1:8090/profile-use | grep -o "<p class='m'>[^<]*"
+adb shell am start -W -n $P/.MainActivity; sleep 10; nudge; texts kids-home 50; shot 54-kids-home
+key DPAD_LEFT 1; key DPAD_LEFT 1; shot 55-kids-sidebar; texts kids-sidebar 30; key BACK 1
+adb shell am start -W -n $P/.MainActivity --es section favorites; sleep 5; texts kids-favorites 30; shot 56-kids-favorites
+adb shell am start -W -n $P/.SettingsActivity --es category profiles; sleep 3
+curl -s -m 20 -X POST --data-urlencode "name=Default" http://127.0.0.1:8090/profile-use | grep -o "<p class='m'>[^<]*"
+curl -s -m 20 -X POST --data-urlencode "shape=round" http://127.0.0.1:8090/icon-shape > /dev/null
+crashes sync
 adb logcat -d > out/logcat.txt
 kill $FAKE_PID 2>/dev/null
 exit 0

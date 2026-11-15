@@ -56,6 +56,7 @@ public class SettingsActivity extends FluxActivity {
         super.onCreate(savedInstanceState);
         if (getIntent().getStringExtra("category") != null) cat = getIntent().getStringExtra("category");
         build();
+        Ratings.guard(this);
     }
 
     @Override
@@ -143,7 +144,7 @@ public class SettingsActivity extends FluxActivity {
         lp.setMargins(0, Ui.dp(this, 2), 0, Ui.dp(this, 2));
         row.setLayoutParams(lp);
         String key = c[0];
-        row.setOnFocusChangeListener((v, has) -> { if (has && !key.equals(cat)) { cat = key; render(false); } });
+        row.setOnFocusChangeListener((v, has) -> { if (has && !rebuilding && !key.equals(cat)) { cat = key; render(false); } });
         row.setOnClickListener(v -> {
             if ("profiles".equals(key)) { startActivity(new Intent(this, ProfilesActivity.class)); return; }
             java.util.ArrayList<View> f = content.getFocusables(View.FOCUS_DOWN);
@@ -164,8 +165,11 @@ public class SettingsActivity extends FluxActivity {
         View cur = getCurrentFocus();
         if (keepFocus && cur != null && !(cur instanceof android.widget.EditText)) keep = content.getFocusables(View.FOCUS_DOWN).indexOf(cur);
         for (Map.Entry<String, View> e : catRows.entrySet()) e.getValue().setSelected(e.getKey().equals(cat));
-        content.removeAllViews();
         int scroll = keep >= 0 ? paneScroll.getScrollY() : 0;
+        // While the pane is rebuilt the focused control disappears and Android moves focus to the nearest
+        // view — often a category on the left, which would switch panes. Ignore that until we're done.
+        rebuilding = true;
+        content.removeAllViews();
         switch (cat) {
             case "home": paneHome(); break;
             case "appearance": paneAppearance(); break;
@@ -180,9 +184,16 @@ public class SettingsActivity extends FluxActivity {
         if (keep >= 0) {
             ArrayList<View> all = content.getFocusables(View.FOCUS_DOWN);
             View f = keep < all.size() ? all.get(keep) : (all.isEmpty() ? null : all.get(all.size() - 1));
-            if (f != null) f.post(f::requestFocus);
+            if (f != null) {
+                f.requestFocus();
+                paneScroll.post(() -> { paneScroll.scrollTo(0, scroll); f.requestFocus(); rebuilding = false; });
+                return;
+            }
         }
+        paneScroll.post(() -> rebuilding = false);
     }
+
+    private boolean rebuilding;
 
     private void heading(String title, String sub) {
         TextView t = Ui.heading(this, title, 26);
@@ -245,6 +256,11 @@ public class SettingsActivity extends FluxActivity {
             boolean on = !hiddenApps.contains(src[0]);
             cwRow.addView(Ui.pill(this, (on ? "✓ " : "") + src[1], on, v -> { ContinueWatching.setHidden(src[0], on); render(); }));
         }
+        content.addView(section("App icons on Home"));
+        LinearLayout shapes = buttonRow();
+        boolean sq = "square".equals(Store.get("app_icon_shape"));
+        shapes.addView(Ui.pill(this, "Round", !sq, v -> { Store.put("app_icon_shape", "round"); render(); }));
+        shapes.addView(Ui.pill(this, "Square", sq, v -> { Store.put("app_icon_shape", "square"); render(); }));
         content.addView(section("Rows"));
         content.addView(label("Choose which rows show on Home, and their order."));
         buttonRow().addView(Ui.button(this, R.drawable.ic_home, "Customize Home", v -> startActivity(new Intent(this, HomeRowsActivity.class))));

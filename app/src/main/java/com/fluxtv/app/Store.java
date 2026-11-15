@@ -163,6 +163,45 @@ public final class Store {
         return id;
     }
 
+    // ------------------------------------------------------------ copying settings between TVs
+
+    /** Things that belong to this TV only, or are shared through profile sync instead. */
+    private static boolean localOnly(String k) {
+        if (k.contains(":")) {
+            String base = k.substring(0, k.indexOf(':'));
+            // Per-profile app settings copy (player choices etc.), per-profile watch data doesn't (it syncs).
+            return java.util.Arrays.asList("library", "library_removed", "progress", "trakt_snap", "trakt_last",
+                    "max_rating", "pin", "settings_t", "rating", "logo_company").contains(base) || base.startsWith("cache");
+        }
+        return k.equals("device_id") || k.equals("profile") || k.equals("profiles") || k.equals("profiles_deleted")
+                || k.startsWith("sync_") || k.startsWith("home_") || k.startsWith("last_") || k.startsWith("update")
+                || k.equals("dock_apps") || k.startsWith("cw_hidden") || k.startsWith("watchnext");
+    }
+
+    public static synchronized JSONObject exportSettings() {
+        JSONObject o = new JSONObject();
+        for (Map.Entry<String, ?> e : p.getAll().entrySet()) {
+            if (localOnly(e.getKey()) || !(e.getValue() instanceof String)) continue;
+            try { o.put(e.getKey(), e.getValue()); } catch (JSONException ignored) { }
+        }
+        return o;
+    }
+
+    public static synchronized int importSettings(JSONObject o) {
+        SharedPreferences.Editor e = p.edit();
+        int n = 0;
+        for (Iterator<String> it = o.keys(); it.hasNext(); ) {
+            String k = it.next();
+            if (localOnly(k)) continue;
+            e.putString(k, o.optString(k));
+            n++;
+        }
+        e.commit();
+        addonsVersion++;
+        changes++;
+        return n;
+    }
+
     // ------------------------------------------------------------ profiles
 
     public static String profile() {
@@ -184,7 +223,11 @@ public final class Store {
     public static synchronized void addProfile(String name) {
         List<String> all = profiles();
         if (!all.contains(name)) all.add(name);
-        p.edit().putString("profiles", new JSONArray(all).toString()).apply();
+        JSONObject del = object("profiles_deleted");
+        del.remove(name);   // re-created on purpose
+        p.edit().putString("profiles", new JSONArray(all).toString()).putString("profiles_deleted", del.toString())
+                .putString("settings_t:" + name, String.valueOf(System.currentTimeMillis())).apply();
+        changes++;
     }
 
     /** Deletes a profile and its favorites, progress and Trakt link. */
@@ -193,7 +236,11 @@ public final class Store {
         all.remove(name);
         if (all.isEmpty()) all.add("Default");
         SharedPreferences.Editor e = p.edit().putString("profiles", new JSONArray(all).toString());
-        for (String k : new String[]{"library", "progress", "trakt_tokens", "trakt_snap", "trakt_last"}) e.remove(k + ":" + name);
+        for (String k : new String[]{"library", "library_removed", "progress", "trakt_tokens", "trakt_snap", "trakt_last",
+                "max_rating", "pin", "settings_t"}) e.remove(k + ":" + name);
+        JSONObject del = object("profiles_deleted");
+        try { del.put(name, System.currentTimeMillis()); } catch (JSONException ignored) { }
+        e.putString("profiles_deleted", del.toString());
         if (name.equals(profile())) e.putString("profile", all.get(0));
         e.apply();
         changes++;
@@ -208,6 +255,37 @@ public final class Store {
     public static void putProfileValue(String base, String profile, String value) {
         if (value == null) p.edit().remove(base + ":" + profile).apply();
         else p.edit().putString(base + ":" + profile, value).apply();
+    }
+
+    /** When a profile's age limit / PIN last changed (newest wins when TVs sync). */
+    public static void touchProfileSettings(String profile) {
+        putProfileValue("settings_t", profile, String.valueOf(System.currentTimeMillis()));
+        changes++;
+    }
+
+    /** Raw per-profile JSON object (library, library_removed, progress) for syncing. */
+    public static synchronized JSONObject profileObject(String base, String profile) {
+        return object(base + ":" + profile);
+    }
+
+    public static synchronized void putProfileObject(String base, String profile, JSONObject value) {
+        p.edit().putString(base + ":" + profile, value.toString()).apply();
+        changes++;
+    }
+
+    /** Profiles deleted on any TV (name → when), so a linked TV doesn't bring them back. */
+    public static synchronized JSONObject deletedProfiles() {
+        return object("profiles_deleted");
+    }
+
+    public static synchronized void setProfiles(List<String> names, JSONObject deleted) {
+        if (names.isEmpty()) names.add("Default");
+        SharedPreferences.Editor e = p.edit().putString("profiles", new JSONArray(names).toString())
+                .putString("profiles_deleted", deleted.toString());
+        if (!names.contains(profile())) e.putString("profile", names.get(0));
+        e.apply();
+        changes++;
+        addonsVersion++;
     }
 
     private static String key(String base) {
@@ -227,6 +305,7 @@ public final class Store {
         boolean added;
         if (lib.has(id)) {
             lib.remove(id);
+            markRemoved(id);
             added = false;
         } else {
             JSONObject e = preview(meta);
@@ -255,8 +334,16 @@ public final class Store {
     public static synchronized void removeFromLibrary(String id) {
         JSONObject lib = object(key("library"));
         if (lib.remove(id) == null) return;
+        markRemoved(id);
         p.edit().putString(key("library"), lib.toString()).apply();
         changes++;
+    }
+
+    /** Remembers when a favorite was removed, so syncing TVs remove it too instead of adding it back. */
+    private static void markRemoved(String id) {
+        JSONObject r = object(key("library_removed"));
+        try { r.put(id, System.currentTimeMillis()); } catch (JSONException ignored) { }
+        p.edit().putString(key("library_removed"), r.toString()).apply();
     }
 
     public static synchronized List<JSONObject> library() {

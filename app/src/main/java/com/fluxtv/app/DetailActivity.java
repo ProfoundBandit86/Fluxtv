@@ -64,6 +64,16 @@ public class DetailActivity extends FluxActivity {
         id = getIntent().getStringExtra("id");
         serverId = getIntent().getStringExtra("serverId");
         badge = getIntent().getStringExtra("badge");
+        if (Ratings.restricted()) {
+            JSONObject probe = new JSONObject();
+            try { probe.put("id", id).put("type", type); } catch (Exception ignored) { }
+            App.async(() -> Ratings.allowed(probe), ok -> {
+                if (!ok && !isFinishing()) {
+                    android.widget.Toast.makeText(this, "Not available on this profile", android.widget.Toast.LENGTH_LONG).show();
+                    finish();
+                }
+            }, null);
+        }
 
         FrameLayout root = new FrameLayout(this);
         root.setBackgroundColor(Ui.BG);

@@ -94,7 +94,7 @@ public abstract class FluxActivity extends Activity {
         item(R.drawable.ic_home, "Home", "home", () -> home("home"));
         item(R.drawable.ic_movie, "Movies", "movie", () -> home("movie"));
         item(R.drawable.ic_tv, "TV Shows", "series", () -> home("series"));
-        item(R.drawable.ic_live, "Live TV", "live", () -> go(new Intent(this, LiveActivity.class)));
+        if (!Ratings.restricted()) item(R.drawable.ic_live, "Live TV", "live", () -> go(new Intent(this, LiveActivity.class)));
         item(R.drawable.ic_heart, "Favorites", "favorites", () -> home("favorites"));
         item(R.drawable.ic_apps, "Apps", "apps", () -> go(new Intent(this, AppsActivity.class)));
         if (Arr.anyConfigured()) {
@@ -203,7 +203,8 @@ public abstract class FluxActivity extends Activity {
         // Rebuild if the menu's contents changed (profile, colours, Downloads set up) while away.
         if (panel != null && !open) {
             boolean hasDownloads = menu.findViewWithTag("downloads") != null;
-            if (hasDownloads != Arr.anyConfigured() || themeVersion != Theme.version()) {
+            boolean hasLive = menu.findViewWithTag("live") != null;
+            if (hasDownloads != Arr.anyConfigured() || themeVersion != Theme.version() || hasLive == Ratings.restricted()) {
                 frame.removeView(panel);
                 buildMenu();
                 frame.addView(panel, new FrameLayout.LayoutParams(Ui.dp(this, 250), ViewGroup.LayoutParams.MATCH_PARENT));

@@ -77,9 +77,16 @@ public final class Apps {
         android.graphics.drawable.GradientDrawable disc = new android.graphics.drawable.GradientDrawable();
         disc.setColor(0xFF2A2A36);
         android.graphics.drawable.LayerDrawable l = new android.graphics.drawable.LayerDrawable(new Drawable[]{disc, d});
-        int inset = (int) (c.getResources().getDisplayMetrics().density * 14);
+        int inset = (int) (c.getResources().getDisplayMetrics().density * 12);
         l.setLayerInset(1, inset, inset, inset, inset);
         return l;
+    }
+
+    public static boolean isAdaptive(Context c, String pkg) {
+        if (android.os.Build.VERSION.SDK_INT < 26) return false;
+        Drawable d = icon(c, pkg);
+        return d instanceof android.graphics.drawable.AdaptiveIconDrawable
+                && ((android.graphics.drawable.AdaptiveIconDrawable) d).getForeground() != null;
     }
 
     public static void launch(Context c, String pkg) {
