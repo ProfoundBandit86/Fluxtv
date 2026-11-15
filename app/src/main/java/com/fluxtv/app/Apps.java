@@ -82,6 +82,27 @@ public final class Apps {
         return l;
     }
 
+    /** The app's TV banner (the wide picture the Apps screen shows), or its icon if it has none. */
+    public static Drawable banner(Context c, String pkg) {
+        PackageManager pm = c.getPackageManager();
+        try {
+            Intent i = pm.getLeanbackLaunchIntentForPackage(pkg);
+            if (i == null) i = pm.getLaunchIntentForPackage(pkg);
+            if (i != null) {
+                android.content.pm.ResolveInfo ri = pm.resolveActivity(i, 0);
+                if (ri != null) {
+                    Drawable b = ri.activityInfo.loadBanner(pm);
+                    if (b == null) b = ri.activityInfo.applicationInfo.loadBanner(pm);
+                    if (b != null) return b;
+                    return ri.loadIcon(pm);
+                }
+            }
+            return pm.getApplicationIcon(pkg);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     public static boolean isAdaptive(Context c, String pkg) {
         if (android.os.Build.VERSION.SDK_INT < 26) return false;
         Drawable d = icon(c, pkg);

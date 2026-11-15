@@ -215,6 +215,7 @@ public class LivePlayerActivity extends Activity {
         index = i;
         GuideView.Entry e = list.get(i);
         Store.put("live_last", e.source.id + "|" + e.channel.id);
+        LiveActivity.addRecent(e);
         triedHls = false;
         error.setVisibility(View.GONE);
         play(Iptv.liveUrl(e.source, e.channel, false));

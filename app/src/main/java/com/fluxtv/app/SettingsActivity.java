@@ -268,11 +268,6 @@ public class SettingsActivity extends FluxActivity {
             boolean on = !hiddenApps.contains(src[0]);
             cwRow.addView(Ui.pill(this, (on ? "✓ " : "") + src[1], on, v -> { ContinueWatching.setHidden(src[0], on); render(); }));
         }
-        content.addView(section("App icons on Home"));
-        LinearLayout shapes = buttonRow();
-        boolean sq = "square".equals(Store.get("app_icon_shape"));
-        shapes.addView(Ui.pill(this, "Round", !sq, v -> { Store.put("app_icon_shape", "round"); render(); }));
-        shapes.addView(Ui.pill(this, "Square", sq, v -> { Store.put("app_icon_shape", "square"); render(); }));
         content.addView(section("Rows"));
         content.addView(label("Choose which rows show on Home, and their order."));
         buttonRow().addView(Ui.button(this, R.drawable.ic_home, "Customize Home", v -> startActivity(new Intent(this, HomeRowsActivity.class))));

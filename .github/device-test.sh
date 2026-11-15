@@ -255,17 +255,18 @@ echo "== recording to SMB for 20s"; sleep 20; key MENU 2; key DPAD_CENTER 3; sle
 echo "== SMB FILES: $(ls -la /srv/flux/Shows 2>&1 | tail -4 | tr '\n' ' ')"
 adb shell am start -W -n $P/.RecordingsActivity; sleep 4; shot 71-recordings-smb; texts recordings-smb 24
 key DPAD_CENTER 8; top play-recording; shot 72-play-recording; key BACK 2
+adb shell am start -W -a android.intent.action.VIEW -d "fluxtv://live/201"; sleep 8; top deeplink-live-201; texts deeplink-live 12; key BACK 2
+adb shell am start -W -n $P/.MainActivity; sleep 8; nudge; for i in 1 2 3 4; do key DPAD_DOWN 1; done; shot 73-home-live-row; texts home-live-row 40
 crashes live
 # ---------------- icons, Apps grid, Settings focus, age limits, TV-to-TV sync
 adb shell am start -W -n $P/.SettingsActivity --es category home; sleep 3
-curl -s -m 20 -X POST --data-urlencode "shape=square" http://127.0.0.1:8090/icon-shape | grep -o "<p class='m'>[^<]*"
 sleep 2; focused settings-start; key DPAD_RIGHT 2; focused settings-right
 for i in 1 2 3 4 5 6 7 8 9 10; do key DPAD_DOWN 1; F=$(focused settings-down-$i); echo "$F"; case "$F" in *"): Round"*|*"): Square"*) break;; esac; done
 key DPAD_CENTER 3; focused settings-after-click; top settings-after-click; shot 50-settings-after-click
 texts settings-after-click 40
 adb shell am start -W -n $P/.AppsActivity; sleep 4; shot 51-apps-grid
 adb shell am start -W -n $P/.MainActivity; sleep 8; nudge
-for i in 1 2 3 4 5 6; do key DPAD_DOWN 1; done; shot 52-home-square-icons
+for i in 1 2 3 4 5 6; do key DPAD_DOWN 1; done; shot 52-home-app-tiles
 adb forward tcp:8091 tcp:8091
 echo "== HELLO: $(curl -s -m 10 http://127.0.0.1:8091/sync/hello)"
 adb shell am start -W -n $P/.SettingsActivity --es category profiles; sleep 3
@@ -295,7 +296,6 @@ key DPAD_LEFT 1; key DPAD_LEFT 1; shot 55-kids-sidebar; texts kids-sidebar 30; k
 adb shell am start -W -n $P/.MainActivity --es section favorites; sleep 5; texts kids-favorites 30; shot 56-kids-favorites
 adb shell am start -W -n $P/.SettingsActivity --es category profiles; sleep 3
 curl -s -m 20 -X POST --data-urlencode "name=Default" http://127.0.0.1:8090/profile-use | grep -o "<p class='m'>[^<]*"
-curl -s -m 20 -X POST --data-urlencode "shape=round" http://127.0.0.1:8090/icon-shape > /dev/null
 crashes sync
 adb logcat -d > out/logcat.txt
 kill $FAKE_PID 2>/dev/null

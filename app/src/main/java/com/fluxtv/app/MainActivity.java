@@ -613,6 +613,7 @@ public class MainActivity extends Activity {
     private void renderHome() {
         continueRow(null);
         renderAppRow();
+        liveRow();
         renderServices();
         posterRow(rows, "Favorites", null, favorites(null));
         for (Addons.Row r : HomeLayout.visible(allRows())) {
@@ -622,6 +623,45 @@ public class MainActivity extends Activity {
         tail.setPadding(0, Ui.dp(this, 22), 0, 0);
         tail.addView(Ui.button(this, R.drawable.ic_settings, "Customize Home", v -> startActivity(new Intent(this, HomeRowsActivity.class))));
         rows.addView(tail);
+    }
+
+    /** Live TV on Home: the guide, then favourite / recently watched channels (OK tunes straight in). */
+    private void liveRow() {
+        if (Iptv.sources().isEmpty() || Ratings.restricted()) return;
+        LinearLayout slot = Ui.vertical(this);
+        slot.setClipChildren(false);
+        rows.addView(slot);
+        int gen = sectionGen;
+        App.async(LiveActivity::homeChannels, list -> {
+            if (gen != sectionGen) return;
+            LinearLayout row = Ui.row(this, slot, "Live TV", "Favorites and recent channels");
+            LinearLayout guideTile = (LinearLayout) appTile("TV guide", v -> startActivity(new Intent(this, LiveActivity.class)));
+            FrameLayout box = new FrameLayout(this);
+            box.addView(Ui.icon(this, R.drawable.ic_live, 34, Ui.ACCENT), new FrameLayout.LayoutParams(Ui.dp(this, 34), Ui.dp(this, 34), Gravity.CENTER));
+            guideTile.addView(box, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 84)));
+            guideTile.addView((View) guideTile.getTag(), new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+            row.addView(guideTile);
+            java.util.Set<String> favs = LiveActivity.favorites();
+            for (GuideView.Entry e : list) {
+                String grp = favs.contains(e.source.id + "|" + e.channel.id) ? "favorites" : "all";
+                LinearLayout t = (LinearLayout) appTile((e.channel.num.isEmpty() ? "" : e.channel.num + "  ") + e.channel.name,
+                        v -> startActivity(new Intent(this, LivePlayerActivity.class).putExtra("group", grp)
+                                .putExtra("source", e.source.id).putExtra("channel", e.channel.id)));
+                ImageView logo = new ImageView(this);
+                logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
+                logo.setPadding(Ui.dp(this, 10), Ui.dp(this, 8), Ui.dp(this, 10), Ui.dp(this, 8));
+                ImageLoader.load(logo, e.channel.logo, Ui.dp(this, 160));
+                t.addView(logo, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 84)));
+                t.addView((View) t.getTag(), new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+                Iptv.Program p = GuideView.at(Iptv.programs(e.source, e.channel), System.currentTimeMillis());
+                if (p != null) {
+                    TextView now = Ui.single(Ui.text(this, p.title, 12, Ui.MUTED));
+                    now.setGravity(Gravity.CENTER);
+                    t.addView(now, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+                }
+                row.addView(t);
+            }
+        }, null);
     }
 
     private void renderType(String type) {
@@ -713,88 +753,38 @@ public class MainActivity extends Activity {
         appRow.addView(addCircle());
     }
 
-    private View circleShell(String name, View.OnClickListener click) {
-        LinearLayout col = Ui.vertical(this);
-        col.setGravity(Gravity.CENTER_HORIZONTAL);
-        LinearLayout.LayoutParams clp = new LinearLayout.LayoutParams(Ui.dp(this, 92), ViewGroup.LayoutParams.WRAP_CONTENT);
-        clp.setMargins(0, Ui.dp(this, 6), Ui.dp(this, 10), Ui.dp(this, 6));
-        col.setLayoutParams(clp);
-        FrameLayout circle = new FrameLayout(this);
-        circle.setFocusable(true);
-        circle.setClickable(true);
-        circle.setOnClickListener(click);
-        StateListDrawable bg = new StateListDrawable();
-        bg.addState(new int[]{android.R.attr.state_selected}, oval(Ui.BUTTON, Ui.ACCENT));
-        bg.addState(new int[]{android.R.attr.state_focused}, oval(Ui.BUTTON, Ui.TEXT));
-        bg.addState(new int[]{}, oval(Ui.alpha(Color.WHITE, 0.07f), 0));
-        circle.setBackground(bg);
-        col.addView(circle, new LinearLayout.LayoutParams(Ui.dp(this, 72), Ui.dp(this, 72)));
-        TextView t = Ui.single(Ui.text(this, name, 11, Ui.DIM));
-        t.setGravity(Gravity.CENTER);
-        t.setPadding(0, Ui.dp(this, 6), 0, 0);
-        col.addView(t, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-        circle.setOnFocusChangeListener((v, has) -> {
-            v.animate().scaleX(has ? 1.1f : 1f).scaleY(has ? 1.1f : 1f).setDuration(140).start();
-            t.setTextColor(has ? Ui.TEXT : Ui.DIM);
-        });
-        col.setTag(circle);
-        return col;
-    }
-
-    /** Home app row icon shape: "round" (Google TV style) or "square" (rounded square). */
-    private boolean squareIcons() {
-        return "square".equals(Store.get("app_icon_shape"));
-    }
-
-    private GradientDrawable oval(int fill, int stroke) {
-        GradientDrawable d = new GradientDrawable();
-        if (squareIcons()) {
-            d.setShape(GradientDrawable.RECTANGLE);
-            d.setCornerRadius(Ui.dp(this, 18));
-        } else {
-            d.setShape(GradientDrawable.OVAL);
-        }
-        d.setColor(fill);
-        if (stroke != 0) d.setStroke(Ui.dp(this, 3), stroke);
-        return d;
+    /** Home app row tiles: the same rounded squares (banner + name) as the Apps screen. */
+    private View appTile(String name, View.OnClickListener click) {
+        LinearLayout t = Ui.vertical(this);
+        t.setGravity(Gravity.CENTER_HORIZONTAL);
+        t.setFocusable(true);
+        t.setClickable(true);
+        t.setOnClickListener(click);
+        int p = Ui.dp(this, 8);
+        t.setPadding(p, p, p, p);
+        t.setBackground(Ui.focusable(this, Ui.PANEL, Ui.BUTTON, Ui.ACCENT));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(Ui.dp(this, 170), ViewGroup.LayoutParams.WRAP_CONTENT);
+        lp.setMargins(0, Ui.dp(this, 6), Ui.dp(this, 14), Ui.dp(this, 6));
+        t.setLayoutParams(lp);
+        TextView label = Ui.single(Ui.text(this, name, 14, Ui.TEXT));
+        label.setGravity(Gravity.CENTER);
+        t.setTag(label);
+        t.setOnFocusChangeListener((v, has) -> v.animate().scaleX(has ? 1.06f : 1f).scaleY(has ? 1.06f : 1f).setDuration(140).start());
+        return t;
     }
 
     private View appCircle(String pkg) {
-        View col = circleShell(Apps.label(this, pkg), v -> Apps.launch(this, pkg));
-        FrameLayout circle = (FrameLayout) col.getTag();
-        // Adaptive icons: their full-bleed layers, zoomed to the visible area (what the system shows).
-        // Older icons: the whole icon, inset on a backdrop so nothing is cut off.
+        LinearLayout t = (LinearLayout) appTile(Apps.label(this, pkg), v -> Apps.launch(this, pkg));
         ImageView img = new ImageView(this);
-        Drawable d = Apps.roundIcon(this, pkg);
+        img.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        Drawable d = Apps.banner(this, pkg);
         if (d != null) img.setImageDrawable(d);
-        if (Apps.isAdaptive(this, pkg)) {
-            img.setScaleType(ImageView.ScaleType.FIT_XY);
-            img.setScaleX(1.5f);   // adaptive layers are 108dp; the visible icon is the middle 72dp
-            img.setScaleY(1.5f);
-        } else {
-            img.setScaleType(ImageView.ScaleType.FIT_CENTER);
-        }
-        boolean square = squareIcons();
-        int radius = Ui.dp(this, 18);
-        circle.setClipToOutline(true);
-        circle.setOutlineProvider(new android.view.ViewOutlineProvider() {
-            @Override public void getOutline(View v, android.graphics.Outline o) {
-                if (square) o.setRoundRect(0, 0, v.getWidth(), v.getHeight(), radius);
-                else o.setOval(0, 0, v.getWidth(), v.getHeight());
-            }
-        });
-        circle.addView(img, new FrameLayout.LayoutParams(-1, -1));
-        View ring = new View(this);
-        StateListDrawable rs = new StateListDrawable();
-        rs.addState(new int[]{android.R.attr.state_selected}, oval(Color.TRANSPARENT, Ui.ACCENT));
-        rs.addState(new int[]{android.R.attr.state_focused}, oval(Color.TRANSPARENT, Ui.TEXT));
-        rs.addState(new int[]{}, oval(Color.TRANSPARENT, 0));
-        ring.setBackground(rs);
-        ring.setDuplicateParentStateEnabled(true);
-        circle.addView(ring, new FrameLayout.LayoutParams(-1, -1));
-        circle.setContentDescription(Apps.label(this, pkg));
-        circle.setSelected(pkg.equals(movingApp));
-        circle.setOnLongClickListener(v -> {
+        t.addView(img, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 84)));
+        t.addView((View) t.getTag(), new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        t.setTag(t);   // focusApp() focuses the tile itself
+        t.setContentDescription(Apps.label(this, pkg));
+        t.setSelected(pkg.equals(movingApp));
+        t.setOnLongClickListener(v -> {
             new AlertDialog.Builder(this)
                     .setTitle(Apps.label(this, pkg))
                     .setItems(new String[]{"Move", "Remove from row", "Open"}, (dlg, which) -> {
@@ -815,15 +805,18 @@ public class MainActivity extends Activity {
                     .show();
             return true;
         });
-        return col;
+        return t;
     }
 
     private View addCircle() {
-        View col = circleShell("Add app", v -> pickApp());
-        FrameLayout circle = (FrameLayout) col.getTag();
-        ImageView plus = Ui.icon(this, R.drawable.ic_plus, 26, Ui.MUTED);
-        circle.addView(plus, new FrameLayout.LayoutParams(Ui.dp(this, 26), Ui.dp(this, 26), Gravity.CENTER));
-        return col;
+        LinearLayout t = (LinearLayout) appTile("Add app", v -> pickApp());
+        FrameLayout box = new FrameLayout(this);
+        ImageView plus = Ui.icon(this, R.drawable.ic_plus, 30, Ui.MUTED);
+        box.addView(plus, new FrameLayout.LayoutParams(Ui.dp(this, 30), Ui.dp(this, 30), Gravity.CENTER));
+        t.addView(box, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 84)));
+        t.addView((View) t.getTag(), new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        t.setTag(t);
+        return t;
     }
 
     private void focusApp(String pkg) {

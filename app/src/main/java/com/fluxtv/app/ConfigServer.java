@@ -291,9 +291,6 @@ public final class ConfigServer {
                 int n = ProfileSync.copySettingsFrom(f(form, "id"));
                 return "Copied " + n + " settings to this TV";
             }
-            case "/icon-shape":
-                Store.put("app_icon_shape", "square".equals(f(form, "shape")) ? "square" : "round");
-                return "App icon shape saved";
             case "/profile-use":
                 Store.setProfile(f(form, "name"));
                 return "Now watching as " + f(form, "name");
@@ -558,10 +555,6 @@ public final class ConfigServer {
             sb.append("<option value='").append(esc(pkg)).append("'>").append(esc(Apps.label(App.ctx, pkg))).append("</option>");
         }
         sb.append("</select><button>Add</button></form>");
-        boolean sq = "square".equals(Store.get("app_icon_shape"));
-        sb.append("<h3>App icons on Home</h3><form method='post' action='/icon-shape' class='row'>")
-          .append(select("shape", new String[]{"round", "square"}, new String[]{"Round", "Square"}, sq ? "square" : "round"))
-          .append("<button>Save</button></form>");
         sb.append("<h3>Region for streaming services</h3><form method='post' action='/region' class='row'><select name='region'>");
         for (String rg : new String[]{"US", "CA", "GB", "AU", "IE", "DE", "FR", "NL", "ES", "IT", "SE", "NO", "DK", "BR", "MX", "IN", "JP"}) {
             sb.append("<option").append(rg.equals(Tmdb.region()) ? " selected" : "").append(">").append(rg).append("</option>");
@@ -794,7 +787,6 @@ public final class ConfigServer {
     private static String sectionFor(String path) {
         if (path.startsWith("/profile") || path.startsWith("/trakt")) return "profiles";
         if (path.startsWith("/sync")) return "sync";
-        if (path.equals("/icon-shape")) return "home";
         if (path.equals("/appearance")) return "appearance";
         if (path.equals("/home-row") || path.equals("/cw") || path.equals("/dock") || path.equals("/region")) return "home";
         if (path.equals("/player") || path.equals("/size-limits")) return "player";

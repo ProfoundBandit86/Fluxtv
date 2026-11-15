@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="320dp"
+    android:height="180dp"
+    android:viewportWidth="320"
+    android:viewportHeight="180">
+    <path android:fillColor="#0F0C18" android:pathData="M0,0h320v180h-320z" />
+    <path android:fillColor="#7B5CFF" android:pathData="M0,130 L320,50 L320,180 L0,180z" />
+    <!-- a TV with a "live" dot -->
+    <path android:fillColor="#FFFFFF" android:pathData="M112,62 h96 a8,8 0 0 1 8,8 v52 a8,8 0 0 1 -8,8 h-96 a8,8 0 0 1 -8,-8 v-52 a8,8 0 0 1 8,-8z M116,74 v44 h88 v-44z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M140,140 h40 v6 h-40z" />
+    <path android:fillColor="#FF4D4D" android:pathData="M160,96 m-10,0 a10,10 0 1,0 20,0 a10,10 0 1,0 -20,0" />
+</vector>

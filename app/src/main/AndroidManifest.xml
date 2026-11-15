@@ -97,7 +97,24 @@
         <activity android:name=".ServersActivity" android:exported="${testExported}" android:screenOrientation="landscape"
             android:windowSoftInputMode="adjustResize" />
         <activity android:name=".SettingsActivity" android:exported="${testExported}" android:screenOrientation="landscape" />
-        <activity android:name=".LiveActivity" android:exported="${testExported}" android:screenOrientation="landscape" />
+        <activity android:name=".LiveActivity" android:exported="${testExported}" android:screenOrientation="landscape"
+            android:launchMode="singleTop" />
+        <!-- "Flux Live TV" in the TV's app list: opens the guide directly (map it to a remote button with Button Mapper).
+             fluxtv://live opens the guide; fluxtv://live/101 tunes to channel 101. -->
+        <activity-alias android:name=".LiveTvShortcut" android:targetActivity=".LiveActivity" android:exported="true"
+            android:label="Flux Live TV" android:icon="@drawable/icon" android:banner="@drawable/banner_live">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="fluxtv" android:host="live" />
+            </intent-filter>
+        </activity-alias>
         <activity android:name=".IptvActivity" android:exported="${testExported}" android:screenOrientation="landscape"
             android:windowSoftInputMode="adjustResize" />
         <activity android:name=".ServiceActivity" android:exported="true" android:screenOrientation="landscape">

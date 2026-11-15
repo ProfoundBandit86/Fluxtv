@@ -163,6 +163,30 @@ public class LiveActivity extends FluxActivity {
         setContentView(root);
         group = Store.get("live_group").isEmpty() ? "all" : Store.get("live_group");
         load();
+        tuneFromLink(getIntent());
+    }
+
+    @Override
+    protected void onNewIntent(Intent i) {
+        super.onNewIntent(i);
+        tuneFromLink(i);
+    }
+
+    /** fluxtv://live/101 (or the "channel" extra) tunes straight to channel 101. */
+    private void tuneFromLink(Intent i) {
+        String num = i.getStringExtra("channel_number");
+        Uri u = i.getData();
+        if (num == null && u != null && u.getLastPathSegment() != null && u.getLastPathSegment().matches("\\d+")) num = u.getLastPathSegment();
+        if (num == null) return;
+        String n = num;
+        App.async(() -> entries("all"), list -> {
+            for (GuideView.Entry e : list) if (e.channel.num.equals(n)) {
+                group = "all";
+                watch(e);
+                return;
+            }
+            Toast.makeText(this, "No channel " + n, Toast.LENGTH_SHORT).show();
+        }, null);
     }
 
     // ------------------------------------------------------------ data
@@ -234,6 +258,34 @@ public class LiveActivity extends FluxActivity {
             JSONArray a = new JSONArray(Store.get("live_favs").isEmpty() ? "[]" : Store.get("live_favs"));
             for (int i = 0; i < a.length(); i++) out.add(a.optString(i));
         } catch (Exception ignored) { }
+        return out;
+    }
+
+    /** Recently watched channels, newest first (for the Live TV row on Home). */
+    static void addRecent(GuideView.Entry e) {
+        List<String> r = new ArrayList<>();
+        r.add(e.source.id + "|" + e.channel.id);
+        try {
+            JSONArray a = new JSONArray(Store.get("live_recent").isEmpty() ? "[]" : Store.get("live_recent"));
+            for (int i = 0; i < a.length() && r.size() < 12; i++) if (!r.contains(a.optString(i))) r.add(a.optString(i));
+        } catch (Exception ignored) { }
+        Store.put("live_recent", new JSONArray(r).toString());
+    }
+
+    /** Channels for the Home row: Favorites first, then recently watched. Blocking. */
+    static List<GuideView.Entry> homeChannels() {
+        List<String> keys = new ArrayList<>(favorites());
+        try {
+            JSONArray a = new JSONArray(Store.get("live_recent").isEmpty() ? "[]" : Store.get("live_recent"));
+            for (int i = 0; i < a.length(); i++) if (!keys.contains(a.optString(i))) keys.add(a.optString(i));
+        } catch (Exception ignored) { }
+        List<GuideView.Entry> out = new ArrayList<>();
+        Map<String, GuideView.Entry> all = new LinkedHashMap<>();
+        for (Iptv.Source s : Iptv.sources()) {
+            try { for (Iptv.Channel c : Iptv.channels(s)) all.put(s.id + "|" + c.id, new GuideView.Entry(s, c)); } catch (Exception ignored) { }
+        }
+        for (String k : keys) if (all.containsKey(k) && out.size() < 16) out.add(all.get(k));
+        if (out.isEmpty()) for (GuideView.Entry e : all.values()) { if (out.size() >= 10) break; out.add(e); }
         return out;
     }
 
