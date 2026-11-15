@@ -98,6 +98,7 @@ public class StreamsActivity extends FluxActivity {
         FrameLayout.LayoutParams pp = new FrameLayout.LayoutParams(Ui.dp(this, 560), ViewGroup.LayoutParams.MATCH_PARENT, Gravity.END);
         root.addView(scroll, pp);
         setContentView(root);
+        if (getIntent().getBooleanExtra("autoplay", false)) buildStarting(root, bg);
 
         panel.addView(Ui.eyebrow(this, info.label.isEmpty() ? info.name : info.label));
         TextView h = Ui.heading(this, "Choose a stream", 26);
@@ -142,7 +143,10 @@ public class StreamsActivity extends FluxActivity {
     private void load() {
         status.setText("Finding streams…");
         list.removeAllViews();
-        App.async(() -> Addons.streams(info.type, info.videoId), this::onStreams, e -> status.setText(App.message(e)));
+        App.async(() -> Addons.streams(info.type, info.videoId), this::onStreams, e -> {
+            status.setText(App.message(e));
+            revealList();
+        });
     }
 
     // ------------------------------------------------------------ parsing
@@ -196,6 +200,7 @@ public class StreamsActivity extends FluxActivity {
             list.addView(retry);
             retry.post(retry::requestFocus);
             if (autoRequest()) requestFromArr(true);
+            revealList();
             return;
         }
         // Nothing here can actually play (no library copy, no direct link, no Real-Debrid): fall back.
@@ -209,13 +214,15 @@ public class StreamsActivity extends FluxActivity {
             autoQueue = ranked();
             if (!autoQueue.isEmpty()) {
                 Item best = autoQueue.remove(0);
-                status.setText("Starting the best source: " + describe(best) + "…  (Back to choose another)");
+                status.setText("Starting the best source: " + describe(best) + "…");
+                if (startingText != null) startingText.setText("Starting " + describe(best) + "…");
                 renderFilters();
                 renderList(false);
                 play(best, false);
                 return;
             }
         }
+        revealList();
         int lib = 0;
         for (Item i : items) if (i.library) lib++;
         status.setText(items.size() + " streams" + (lib > 0 ? " · " + lib + " from your library" : "")
@@ -465,6 +472,62 @@ public class StreamsActivity extends FluxActivity {
 
     private String lastSource = "";
 
+    // ------------------------------------------------------------ Play: straight into the video
+
+    private View starting;
+    private TextView startingText;
+    private boolean cancelled;
+
+    /** While Play finds and starts the best source, cover the list with a calm "starting" screen. */
+    private void buildStarting(FrameLayout root, ImageView backdrop) {
+        FrameLayout cover = new FrameLayout(this);
+        cover.setBackgroundColor(Color.BLACK);
+        cover.setClickable(true);
+        ImageView bg = new ImageView(this);
+        bg.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        bg.setAlpha(0.3f);
+        cover.addView(bg, new FrameLayout.LayoutParams(-1, -1));
+        ImageLoader.load(bg, info.background.isEmpty() ? info.poster : info.background, Ui.dp(this, 900));
+        LinearLayout col = Ui.vertical(this);
+        col.setGravity(Gravity.CENTER_HORIZONTAL);
+        android.widget.ProgressBar spin = new android.widget.ProgressBar(this);
+        spin.setIndeterminateTintList(android.content.res.ColorStateList.valueOf(Ui.ACCENT));
+        col.addView(spin, new LinearLayout.LayoutParams(Ui.dp(this, 48), Ui.dp(this, 48)));
+        TextView t = Ui.heading(this, info.title(), 26);
+        t.setGravity(Gravity.CENTER);
+        t.setPadding(0, Ui.dp(this, 20), 0, Ui.dp(this, 8));
+        col.addView(t);
+        startingText = Ui.text(this, "Finding the best source…", 15, Ui.MUTED);
+        startingText.setGravity(Gravity.CENTER);
+        col.addView(startingText);
+        cover.addView(col, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER));
+        root.addView(cover, new FrameLayout.LayoutParams(-1, -1));
+        starting = cover;
+    }
+
+    private boolean startingShown() {
+        return starting != null && starting.getVisibility() == View.VISIBLE;
+    }
+
+    /** Play couldn't start anything by itself: show the full list so you can choose. */
+    private void revealList() {
+        if (starting == null) return;
+        starting.setVisibility(View.GONE);
+        starting = null;
+        java.util.ArrayList<View> f = list.getFocusables(View.FOCUS_DOWN);
+        if (!f.isEmpty()) f.get(0).requestFocus();
+    }
+
+    @Override
+    public void onBackPressed() {
+        if (startingShown()) {
+            cancelled = true;   // back to the title page
+            finish();
+            return;
+        }
+        super.onBackPressed();
+    }
+
     private void play(Item it, boolean external) {
         lastSource = describe(it);
         JSONObject s = it.s.json;
@@ -489,20 +552,24 @@ public class StreamsActivity extends FluxActivity {
 
     private void resolve(Item it, boolean external) {
         JSONObject s = it.s.json;
+        boolean quiet = startingShown();
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setTitle("Real-Debrid")
                 .setMessage("Starting…")
                 .setCancelable(true)
                 .create();
-        dialog.show();
+        if (!quiet) dialog.show();
         JSONObject hints = s.optJSONObject("behaviorHints");
         String filename = hints != null ? hints.optString("filename") : "";
         int fileIdx = s.has("fileIdx") ? s.optInt("fileIdx", -1) : -1;
         String hash = s.optString("infoHash");
         App.async(() -> RealDebrid.resolve(hash, fileIdx, filename,
-                        msg -> App.MAIN.post(() -> { if (dialog.isShowing()) dialog.setMessage(msg); })),
+                        msg -> App.MAIN.post(() -> {
+                            if (dialog.isShowing()) dialog.setMessage(msg);
+                            if (quiet && startingText != null) startingText.setText(msg);
+                        })),
                 url -> {
-                    if (!dialog.isShowing() || isFinishing()) return;   // user cancelled
+                    if (isFinishing() || cancelled || (!quiet && !dialog.isShowing())) return;   // user cancelled
                     dialog.dismiss();
                     start(url, external);
                 },
@@ -516,12 +583,14 @@ public class StreamsActivity extends FluxActivity {
                         failed.add(it);
                         Item next = autoQueue.remove(0);
                         status.setText("That one wasn't available. Trying " + describe(next) + "…");
+                        if (startingText != null) startingText.setText("That one wasn't ready. Trying " + describe(next) + "…");
                         play(next, false);
                         return;
                     }
                     if (autoQueue != null) {
                         autoQueue = new ArrayList<>();   // stop auto-trying; let the viewer pick
                         status.setText("Couldn't start the best source automatically. Pick one below.");
+                        revealList();
                     }
                     if (e instanceof RealDebrid.RdException && ((RealDebrid.RdException) e).unavailable) {
                         markUnavailable(it, e instanceof RealDebrid.NotCachedException ? "Not ready" : "Blocked");
@@ -553,7 +622,10 @@ public class StreamsActivity extends FluxActivity {
             startActivity(info.into(new Intent(this, PlayerActivity.class)).putExtra("url", url)
                     .putExtra("source", lastSource));
             // Started straight from Play: Back from the player returns to the title page.
-            if (autoQueue != null && getIntent().getBooleanExtra("autoplay", false)) finish();
+            if (autoQueue != null && getIntent().getBooleanExtra("autoplay", false)) {
+                overridePendingTransition(0, 0);
+                finish();
+            }
         }
     }
 
