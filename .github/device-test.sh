@@ -256,7 +256,7 @@ echo "== SMB FILES: $(ls -la /srv/flux/Shows 2>&1 | tail -4 | tr '\n' ' ')"
 adb shell am start -W -n $P/.RecordingsActivity; sleep 4; shot 71-recordings-smb; texts recordings-smb 24
 key DPAD_CENTER 8; top play-recording; shot 72-play-recording; key BACK 2
 adb shell am start -W -a android.intent.action.VIEW -d "fluxtv://live/201"; sleep 8; top deeplink-live-201; texts deeplink-live 12; key BACK 2
-adb shell am start -W -n $P/.MainActivity; sleep 8; nudge; for i in 1 2 3 4; do key DPAD_DOWN 1; done; shot 73-home-live-row; texts home-live-row 40
+adb shell am start -W -n $P/.MainActivity; sleep 8; nudge; key DPAD_DOWN 1; shot 73-home-row-1; key DPAD_DOWN 1; shot 74-home-row-2; key DPAD_DOWN 1; shot 75-home-row-3; texts home-live-row 40
 crashes live
 # ---------------- icons, Apps grid, Settings focus, age limits, TV-to-TV sync
 adb shell am start -W -n $P/.SettingsActivity --es category home; sleep 3

@@ -185,9 +185,9 @@
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>
         </receiver>
-        <activity android:name=".RecordingsActivity" android:exported="${testExported}" />
-        <activity android:name=".SmbBrowseActivity" android:exported="${testExported}" />
-        <activity android:name=".LivePlayerActivity" android:exported="${testExported}"
+        <activity android:name=".RecordingsActivity" android:exported="${testExported}" android:screenOrientation="landscape" />
+        <activity android:name=".SmbBrowseActivity" android:exported="${testExported}" android:screenOrientation="landscape" android:windowSoftInputMode="adjustPan" />
+        <activity android:name=".LivePlayerActivity" android:exported="${testExported}" android:screenOrientation="landscape"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|keyboard|navigation" />
     </application>
 </manifest>

@@ -163,8 +163,7 @@ public class RecordingsActivity extends FluxActivity {
         if (Dvr.SCHEDULED.equals(st)) items.add("Cancel recording");
         if (!Dvr.SCHEDULED.equals(st)) items.add("Delete");
         new AlertDialog.Builder(this)
-                .setTitle(r.optString("title"))
-                .setMessage(r.optString("desc").isEmpty() ? r.optString("channelName") : r.optString("desc"))
+                .setTitle(r.optString("title") + "  ·  " + r.optString("channelName"))
                 .setItems(items.toArray(new String[0]), (d, w) -> {
                     String it = items.get(w);
                     if (it.equals("Play")) open(r);

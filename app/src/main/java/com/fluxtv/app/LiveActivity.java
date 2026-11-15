@@ -121,6 +121,7 @@ public class LiveActivity extends FluxActivity {
 
         // ---- the guide
         guide = new GuideView(this);
+        if (android.os.Build.VERSION.SDK_INT >= 26) guide.setDefaultFocusHighlightEnabled(false);
         guide.setPadding(0, 0, 0, 0);
         LinearLayout.LayoutParams glp = new LinearLayout.LayoutParams(-1, 0, 1f);
         glp.setMargins(Ui.dp(this, 24), 0, Ui.dp(this, 16), Ui.dp(this, 8));
@@ -414,8 +415,7 @@ public class LiveActivity extends FluxActivity {
         items.add("Watch " + e.channel.name + " now");
         items.add("Recordings");
         new AlertDialog.Builder(this)
-                .setTitle(p.title)
-                .setMessage(tf.format(new Date(p.start)) + " – " + tf.format(new Date(p.end)) + " on " + e.channel.name)
+                .setTitle(p.title + "  ·  " + tf.format(new Date(p.start)) + " – " + tf.format(new Date(p.end)) + "  ·  " + e.channel.name)
                 .setItems(items.toArray(new String[0]), (d, w) -> {
                     if (w == 0) {
                         if (rec == null) {
