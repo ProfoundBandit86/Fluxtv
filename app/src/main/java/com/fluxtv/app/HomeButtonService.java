@@ -32,6 +32,7 @@ public class HomeButtonService extends AccessibilityService {
     @Override
     protected void onServiceConnected() {
         super.onServiceConnected();
+        instance = this;
         findStockHomes();
         Store.put("home_service_seen", String.valueOf(System.currentTimeMillis()));
     }
@@ -54,12 +55,6 @@ public class HomeButtonService extends AccessibilityService {
 
     /** The running service (lets the smart home panel draw over other apps without extra permissions). */
     static HomeButtonService instance;
-
-    @Override
-    protected void onServiceConnected() {
-        super.onServiceConnected();
-        instance = this;
-    }
 
     @Override
     public void onDestroy() {
