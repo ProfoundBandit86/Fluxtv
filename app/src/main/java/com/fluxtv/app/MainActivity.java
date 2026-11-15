@@ -172,6 +172,7 @@ public class MainActivity extends Activity {
                 new int[]{Ui.PANEL, Ui.alpha(Ui.PANEL, 0.97f)}));
         drawerPanel.setElevation(Ui.dp(this, 12));
         drawerPanel.setTranslationX(-Ui.dp(this, 250));
+        drawerPanel.setVisibility(View.INVISIBLE);   // closed: hidden entirely, so its shadow doesn't show on the left edge
         drawerPanel.addView(drawer, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         drawer.setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);
 
@@ -262,6 +263,7 @@ public class MainActivity extends Activity {
         lastContentFocus = getCurrentFocus();
         drawer.setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
         contentRoot.setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);   // focus stays in the menu
+        drawerPanel.setVisibility(View.VISIBLE);
         drawerPanel.animate().translationX(0).setDuration(220).setInterpolator(new DecelerateInterpolator()).start();
         dim.setVisibility(View.VISIBLE);
         dim.animate().alpha(1f).setDuration(220).start();
@@ -272,7 +274,8 @@ public class MainActivity extends Activity {
     private void closeDrawer(boolean restoreFocus) {
         if (!drawerOpen) return;
         drawerOpen = false;
-        drawerPanel.animate().translationX(-Ui.dp(this, 250)).setDuration(200).setInterpolator(new DecelerateInterpolator()).start();
+        drawerPanel.animate().translationX(-Ui.dp(this, 250)).setDuration(200).setInterpolator(new DecelerateInterpolator())
+                .withEndAction(() -> { if (!drawerOpen) drawerPanel.setVisibility(View.INVISIBLE); }).start();
         dim.animate().alpha(0f).setDuration(200).withEndAction(() -> dim.setVisibility(View.GONE)).start();
         drawer.setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);
         contentRoot.setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
@@ -552,8 +555,6 @@ public class MainActivity extends Activity {
                     p.optDouble("progress", 0), 196,
                     v -> { if (ext) WatchNext.open(this, p); else DetailActivity.open(this, p); },
                     () -> feature(p, ext ? "Continue in " + p.optString("badge") : "Continue watching"));
-            View target = card instanceof ViewGroup && ((ViewGroup) card).getChildCount() > 0 ? ((ViewGroup) card).getChildAt(0) : card;
-            target.setOnLongClickListener(v -> { continueMenu(p, ext); return true; });
             row.addView(card);
             note(p, "Continue watching");
         }
@@ -581,24 +582,6 @@ public class MainActivity extends Activity {
                 row.addView(Ui.poster(this, p, open, focus));
             }
         }
-    }
-
-    /** Long-press on a Continue watching card: hide that app from the row, or open the settings. */
-    private void continueMenu(JSONObject p, boolean ext) {
-        String app = ext ? p.optString("badge") : "Flux";
-        String key = ext ? p.optString("package") : ContinueWatching.FLUX;
-        new AlertDialog.Builder(this)
-                .setTitle(p.optString("name"))
-                .setItems(new String[]{"Hide everything from " + app, "Choose apps for Continue watching"}, (d, w) -> {
-                    if (w == 0) {
-                        ContinueWatching.setHidden(key, true);
-                        renderSection();
-                        focusContent();
-                    } else {
-                        startActivity(new Intent(this, HomeRowsActivity.class));
-                    }
-                })
-                .show();
     }
 
     private void posterRow(ViewGroup target, String title, String note, List<JSONObject> items) {

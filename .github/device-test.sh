@@ -80,7 +80,7 @@ nudge; top home; texts home 60; shot 01-home
 for i in 1 2 3; do key DPAD_DOWN 1; done; sleep 2; texts home-scrolled 40; shot 02-home-scrolled
 key DPAD_LEFT 2; texts row-left-drawer 30; shot 02b-row-left-opens-drawer; key DPAD_RIGHT 2
 # Sidebar: ← from the first card opens it
-key DPAD_LEFT 1; key DPAD_LEFT 1; key DPAD_LEFT 2; texts drawer 20; shot 03-drawer
+shot 03a-closed-edge; key DPAD_LEFT 1; key DPAD_LEFT 1; key DPAD_LEFT 2; texts drawer 20; shot 03-drawer
 for i in 1 2 3 4 5 6 7 8 9 10; do key DPAD_DOWN 0; done; sleep 1; shot 03b-drawer-bottom
 for i in 1 2 3 4 5 6 7 8 9 10; do key DPAD_UP 0; done; sleep 1; key DPAD_DOWN 1
 key DPAD_DOWN 1; texts drawer-down 30; key DPAD_CENTER 20; top movies; texts movies 30; shot 04-movies

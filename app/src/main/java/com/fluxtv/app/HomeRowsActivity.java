@@ -29,8 +29,7 @@ public class HomeRowsActivity extends FluxActivity {
         help.setPadding(0, 0, 0, Ui.dp(this, 12));
         content.addView(help, new LinearLayout.LayoutParams(Ui.dp(this, 760), ViewGroup.LayoutParams.WRAP_CONTENT));
         content.addView(Ui.heading(this, "Continue watching shows items from", 16));
-        TextView cwHelp = Ui.text(this, "Apps appear here once they've added something to Continue watching. "
-                + "Tip: long-press a Continue watching card to hide its app.", 12, Ui.DIM);
+        TextView cwHelp = Ui.text(this, "Apps appear here once they've added something to Continue watching.", 12, Ui.DIM);
         cwHelp.setPadding(0, Ui.dp(this, 2), 0, Ui.dp(this, 6));
         content.addView(cwHelp);
         LinearLayout cw = new LinearLayout(this);

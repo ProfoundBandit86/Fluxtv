@@ -71,6 +71,7 @@ public abstract class FluxActivity extends Activity {
                 new int[]{Ui.PANEL, Ui.alpha(Ui.PANEL, 0.97f)}));
         panel.setElevation(Ui.dp(this, 12));
         panel.setTranslationX(-Ui.dp(this, 250));
+        panel.setVisibility(View.INVISIBLE);   // closed: hidden entirely, so its shadow doesn't show on the left edge
         menu = Ui.vertical(this);
         menu.setPadding(Ui.dp(this, 16), Ui.dp(this, 26), Ui.dp(this, 16), Ui.dp(this, 20));
         menu.setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);
@@ -177,6 +178,7 @@ public abstract class FluxActivity extends Activity {
         lastFocus = getCurrentFocus();
         menu.setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
         if (content != null) content.setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);
+        panel.setVisibility(View.VISIBLE);
         panel.animate().translationX(0).setDuration(220).setInterpolator(new DecelerateInterpolator()).start();
         dim.setVisibility(View.VISIBLE);
         dim.animate().alpha(1f).setDuration(220).start();
@@ -187,7 +189,8 @@ public abstract class FluxActivity extends Activity {
     protected void close(boolean restoreFocus) {
         if (!open) return;
         open = false;
-        panel.animate().translationX(-Ui.dp(this, 250)).setDuration(200).setInterpolator(new DecelerateInterpolator()).start();
+        panel.animate().translationX(-Ui.dp(this, 250)).setDuration(200).setInterpolator(new DecelerateInterpolator())
+                .withEndAction(() -> { if (!open) panel.setVisibility(View.INVISIBLE); }).start();
         dim.animate().alpha(0f).setDuration(200).withEndAction(() -> dim.setVisibility(View.GONE)).start();
         menu.setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);
         if (content != null) content.setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);

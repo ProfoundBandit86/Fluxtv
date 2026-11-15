@@ -235,8 +235,18 @@ public class SettingsActivity extends FluxActivity {
                 content.addView(label("If the switch is greyed out: open Settings → Apps → Flux TV → ⋮ → Allow restricted settings, then try again."));
             }
         }
+        content.addView(section("Continue watching shows items from"));
+        content.addView(label("Apps appear here once they've added something to Continue watching."));
+        java.util.Set<String> hiddenApps = ContinueWatching.hidden();
+        LinearLayout cwRow = null;
+        int n = 0;
+        for (String[] src : ContinueWatching.sources()) {
+            if (n++ % 3 == 0) cwRow = buttonRow();
+            boolean on = !hiddenApps.contains(src[0]);
+            cwRow.addView(Ui.pill(this, (on ? "✓ " : "") + src[1], on, v -> { ContinueWatching.setHidden(src[0], on); render(); }));
+        }
         content.addView(section("Rows"));
-        content.addView(label("Choose and order the rows on Home, and which apps appear in Continue watching."));
+        content.addView(label("Choose which rows show on Home, and their order."));
         buttonRow().addView(Ui.button(this, R.drawable.ic_home, "Customize Home", v -> startActivity(new Intent(this, HomeRowsActivity.class))));
         content.addView(section("Region for streaming services"));
         LinearLayout regions = buttonRow();
