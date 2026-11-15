@@ -2,6 +2,18 @@ plugins {
     id 'com.android.application'
 }
 
+// Google Home: Google doesn't publish its Home APIs SDK publicly. Put the files you download from the Google Home
+// Developer Console in app/libs/google-home (the .aar files, or the unzipped Maven repository) and the build
+// includes the Google Home connection. Without them, Flux builds as usual with Home Assistant only.
+def homeDir = file('libs/google-home')
+def homeRepo = new File(homeDir, 'com/google/android/gms/play-services-home').exists()
+def homeAars = fileTree(dir: homeDir, include: ['**/*.aar']).files.findAll { !homeRepo }
+def hasHomeSdk = homeRepo || !homeAars.isEmpty()
+if (hasHomeSdk) {
+    apply plugin: 'org.jetbrains.kotlin.android'
+    println "Google Home SDK found: building with the Google Home connection"
+}
+
 android {
     namespace 'com.fluxtv.app'
     compileSdk 35
@@ -52,6 +64,12 @@ android {
         }
     }
 
+    sourceSets {
+        main {
+            java.srcDirs += hasHomeSdk ? 'src/googlehome/java' : 'src/nogooglehome/java'
+        }
+    }
+
     lint {
         abortOnError false
         checkReleaseBuilds false
@@ -66,6 +84,20 @@ dependencies {
     // FFmpeg audio decoders (DTS, DTS-HD, TrueHD, AC3/E-AC3, FLAC, ALAC, Opus, Vorbis…) for boxes that can't play them natively
     implementation "org.jellyfin.media3:media3-ffmpeg-decoder:$media3+1"
     implementation "androidx.media3:media3-datasource:$media3"
+    if (hasHomeSdk) {
+        if (homeRepo) {
+            def v = { name -> new File(homeDir, "com/google/android/gms/$name").listFiles().findAll { it.isDirectory() }*.name.max() }
+            implementation "com.google.android.gms:play-services-home:${v('play-services-home')}"
+            implementation "com.google.android.gms:play-services-home-types:${v('play-services-home-types')}"
+        } else {
+            implementation files(homeAars)
+            // what the SDK needs when it's added as plain .aar files
+            implementation 'com.google.android.gms:play-services-base:18.5.0'
+            implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.10.2'
+        }
+        implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2'
+        implementation 'androidx.activity:activity-ktx:1.9.3'
+    }
     // SMB 2/3 network shares for DVR recordings
     implementation "eu.agno3.jcifs:jcifs-ng:2.1.10"
 }

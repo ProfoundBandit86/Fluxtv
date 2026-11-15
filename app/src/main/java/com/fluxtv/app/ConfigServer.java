@@ -687,8 +687,10 @@ public final class ConfigServer {
               .append("' placeholder='http://homeassistant.local:8123' autocomplete='off'>")
               .append("<input name='token' placeholder='Long-lived access token' autocomplete='off'><button>Connect</button></form>");
         }
-        sb.append("<p class='u'>Google Home: Google doesn't let TV apps control Google Home devices yet; add them to Home Assistant "
-                + "(Hue, TP-Link/Kasa, Nest, Matter…) and they show here. Open the panel from Quick Settings (hold Home), the sidebar, "
+        sb.append("<h3>Google Home</h3><p class='u'>").append(!GoogleHomeProvider.included()
+                ? "Not in this build: put Google's Home APIs SDK files in the Flux repo under app/libs/google-home."
+                : GoogleHomeProvider.signedIn() ? "Connected." : "Connect it on the TV: Settings → Smart home → Connect Google Home (Google's sign-in shows on the TV).")
+          .append("</p><p class='u'>Open the panel from Quick Settings (hold Home), the sidebar, "
                 + "or the \"Flux Smart Home\" app (map it to a remote button with Button Mapper).</p></details>");
 
         // ---------------- Live TV & DVR

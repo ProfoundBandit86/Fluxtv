@@ -264,7 +264,7 @@ curl -s -m 30 -X POST --data-urlencode "url=http://10.0.2.2:8000/ha" --data-urle
 curl -s -m 30 -X POST --data-urlencode "url=http://10.0.2.2:8000/ha" --data-urlencode "token=hatoken" http://127.0.0.1:8090/sh-connect | grep -o "<p class='m'>[^<]*"
 curl -s -m 30 http://127.0.0.1:8090/ > out/settings-page-sh.html; echo "== WEB DEVICES: $(grep -o "name='d_[^']*'[^>]*>[^<]*" out/settings-page-sh.html | sed "s/name='d_//; s/' value='on'//" | tr '\n' '|')"
 adb shell am start -W -n $P/.SettingsActivity --es category smarthome; sleep 5; shot 80-settings-smarthome; texts settings-smarthome 40
-adb shell am start -W -n $P/.SmartPanelActivity 2>/dev/null || adb shell am start -W -a android.intent.action.VIEW -d "fluxtv://smarthome"
+adb shell am start -W -a android.intent.action.VIEW -d "fluxtv://smarthome"
 sleep 5; top smart-panel; shot 81-smart-panel; texts smart-panel 30
 key DPAD_RIGHT 1; key DPAD_RIGHT 1; key DPAD_RIGHT 2; sleep 1; shot 82-smart-dimmed
 key DPAD_DOWN 1; key DPAD_CENTER 2; key DPAD_DOWN 1; key DPAD_CENTER 2; sleep 2; shot 83-smart-toggled
@@ -272,7 +272,7 @@ echo "== HA LOG: $(curl -s http://127.0.0.1:8000/ha/_log | python3 -c "import js
 key BACK 2; top after-panel-back
 # Over a playing video (overlay through the accessibility service)
 adb shell am start -W -n $P/.LiveActivity; sleep 5; key DPAD_CENTER 6
-adb shell am start -W -a android.intent.action.VIEW -d "fluxtv://smarthome"; sleep 4; top panel-over-video; shot 84-panel-over-video; key BACK 2; top after-overlay-back
+adb shell am start -W -a android.intent.action.VIEW -d "fluxtv://smarthome"; sleep 4; top panel-over-video; shot 84-panel-over-video; key BACK 2; top after-overlay-back; shot 85-after-overlay-back
 crashes smarthome
 # ---------------- icons, Apps grid, Settings focus, age limits, TV-to-TV sync
 adb shell am start -W -n $P/.SettingsActivity --es category home; sleep 3

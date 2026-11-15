@@ -287,10 +287,12 @@ public class SettingsActivity extends FluxActivity {
     }
 
     private List<SmartHome.Device> shDevices;
+    private boolean shWasSignedIn;
     private String shError;
 
     private void paneSmartHome() {
         heading("Smart home", "A panel for your lights and devices that opens over anything you're watching.");
+        if (shWasSignedIn != GoogleHomeProvider.signedIn()) { shWasSignedIn = GoogleHomeProvider.signedIn(); shDevices = null; }
         content.addView(section("Home Assistant"));
         if (HomeAssistant.configured()) {
             content.addView(label("Connected to " + HomeAssistant.url()));
@@ -318,8 +320,23 @@ public class SettingsActivity extends FluxActivity {
                     n -> { Toast.makeText(this, "Connected: " + n, Toast.LENGTH_LONG).show(); shDevices = null; render(); },
                     e -> Toast.makeText(this, "Couldn't connect: " + App.message(e), Toast.LENGTH_LONG).show())));
         }
-        content.addView(label("Google Home: Google doesn't let TV apps control Google Home devices yet. Most of those devices can be "
-                + "added to Home Assistant (Hue, TP-Link/Kasa, Nest, Matter…) and then show here."));
+        content.addView(section("Google Home"));
+        if (!GoogleHomeProvider.included()) {
+            content.addView(label("Not in this build. Google only gives its Home APIs SDK to signed-in developers: download it from the "
+                    + "Google Home Developer Console and put the files in the Flux repo under app/libs/google-home. The next build "
+                    + "includes Google Home here."));
+        } else if (GoogleHomeProvider.signedIn()) {
+            content.addView(label("Connected. Your Google Home lights and plugs can be added to the panel below."));
+            buttonRow().addView(Ui.button(this, "Disconnect Google Home", v -> { GoogleHomeProvider.signOut(); shDevices = null; render(); }));
+        } else {
+            String err = Store.get("gh_last_error");
+            content.addView(label("Sign in with the Google account that has your home, and allow Flux to see and control its devices."
+                    + (err.isEmpty() ? "" : "\nLast try: " + err)));
+            buttonRow().addView(Ui.button(this, R.drawable.ic_ghome, "Connect Google Home", v -> {
+                Store.put("gh_last_error", "");
+                startActivity(new Intent(this, GoogleHomeSignInActivity.class));
+            }));
+        }
 
         content.addView(section("Show over other apps"));
         boolean acc = HomeButtonService.instance != null;

@@ -38,13 +38,24 @@ public final class SmartHome {
     private SmartHome() { }
 
     public static boolean configured() {
-        return HomeAssistant.configured();
+        return HomeAssistant.configured() || GoogleHomeProvider.signedIn();
+    }
+
+    private static boolean google(Device d) {
+        return d.id.startsWith("gh:");
     }
 
     /** All controllable devices, sorted by room then name. Blocking. */
     public static List<Device> all() throws Exception {
         List<Device> out = new ArrayList<>();
-        if (HomeAssistant.configured()) out.addAll(HomeAssistant.devices());
+        Exception first = null;
+        if (HomeAssistant.configured()) {
+            try { out.addAll(HomeAssistant.devices()); } catch (Exception e) { first = e; }
+        }
+        if (GoogleHomeProvider.signedIn()) {
+            try { out.addAll(GoogleHomeProvider.devices()); } catch (Exception e) { if (first == null) first = e; }
+        }
+        if (out.isEmpty() && first != null) throw first;
         Collections.sort(out, (a, b) -> {
             int r = roomKey(a).compareToIgnoreCase(roomKey(b));
             return r != 0 ? r : a.name.compareToIgnoreCase(b.name);
@@ -99,14 +110,14 @@ public final class SmartHome {
     // ------------------------------------------------------------ commands (blocking)
 
     public static void setOn(Device d, boolean on) throws Exception {
-        HomeAssistant.setOn(d, on);
+        if (google(d)) GoogleHomeProvider.setOn(d, on); else HomeAssistant.setOn(d, on);
         d.on = on;
         d.state = on ? "on" : "off";
     }
 
     public static void setLevel(Device d, int level) throws Exception {
         level = Math.max(0, Math.min(100, level));
-        HomeAssistant.setLevel(d, level);
+        if (google(d)) GoogleHomeProvider.setLevel(d, level); else HomeAssistant.setLevel(d, level);
         d.level = level;
         if (!COVER.equals(d.kind)) d.on = level > 0;
     }
