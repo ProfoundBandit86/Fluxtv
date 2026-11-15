@@ -260,7 +260,7 @@ public final class Iptv {
                 } catch (Exception e) { a = apiArray(s, "get_live_categories", null); }
             } else {
                 a = apiArray(s, "get_live_categories", null);
-                try (java.io.FileOutputStream out = new java.io.FileOutputStream(cf)) { out.write(a.toString().getBytes(StandardCharsets.UTF_8)); } catch (Exception ignored) { }
+                try (java.io.FileOutputStream fo = new java.io.FileOutputStream(cf)) { fo.write(a.toString().getBytes(StandardCharsets.UTF_8)); } catch (Exception ignored) { }
             }
             for (int i = 0; i < a.length(); i++) {
                 JSONObject c = a.optJSONObject(i);

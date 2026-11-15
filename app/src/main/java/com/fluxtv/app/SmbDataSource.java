@@ -2,7 +2,6 @@ package com.fluxtv.app;
 
 import android.net.Uri;
 
-import androidx.annotation.Nullable;
 import androidx.media3.common.C;
 import androidx.media3.datasource.BaseDataSource;
 import androidx.media3.datasource.DataSource;
@@ -75,7 +74,6 @@ public final class SmbDataSource extends BaseDataSource {
         return n;
     }
 
-    @Nullable
     @Override
     public Uri getUri() {
         return uri;
@@ -123,7 +121,6 @@ public final class SmbDataSource extends BaseDataSource {
             return current.read(b, o, l);
         }
 
-        @Nullable
         @Override
         public Uri getUri() {
             return current == null ? null : current.getUri();
