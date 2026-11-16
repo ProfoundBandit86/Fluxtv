@@ -327,7 +327,8 @@ public final class Ui {
         StateListDrawable s = new StateListDrawable();
         s.addState(new int[]{android.R.attr.state_focused}, rounded(c, Color.TRANSPARENT, TEXT, 13));
         s.addState(new int[]{}, new ColorDrawable(Color.TRANSPARENT));
-        f.setBackground(s);
+        // The highlight is drawn on top of the picture, so the picture can never hide part of it.
+        f.setForeground(s);
         return f;
     }
 

@@ -58,8 +58,25 @@ public class SettingsActivity extends FluxActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         if (getIntent().getStringExtra("category") != null) cat = getIntent().getStringExtra("category");
+        if (savedInstanceState != null) {
+            // Back after a theme change (the screen restarts to apply colours): same section, same option.
+            cat = savedInstanceState.getString("cat", cat);
+            pendingFocus = savedInstanceState.getInt("focus", -1);
+            pendingScroll = savedInstanceState.getInt("scroll", 0);
+        }
         build();
         Ratings.guard(this);
+    }
+
+    private int pendingFocus = -1, pendingScroll;
+
+    @Override
+    protected void onSaveInstanceState(Bundle out) {
+        super.onSaveInstanceState(out);
+        out.putString("cat", cat);
+        View f = getCurrentFocus();
+        out.putInt("focus", f == null || content == null ? -1 : content.getFocusables(View.FOCUS_DOWN).indexOf(f));
+        out.putInt("scroll", paneScroll == null ? 0 : paneScroll.getScrollY());
     }
 
     @Override
@@ -67,7 +84,20 @@ public class SettingsActivity extends FluxActivity {
         super.onResume();
         if (!ConfigServer.running()) ConfigServer.start(() -> { if (!isFinishing()) render(); });
         updatePhoneHint();
-        render(false);
+        if (pendingFocus >= 0) {
+            int idx = pendingFocus, y = pendingScroll;
+            pendingFocus = -1;
+            render(false);
+            rebuilding = true;
+            paneScroll.post(() -> {
+                ArrayList<View> all = content.getFocusables(View.FOCUS_DOWN);
+                paneScroll.scrollTo(0, y);
+                if (!all.isEmpty()) all.get(Math.min(idx, all.size() - 1)).requestFocus();
+                paneScroll.post(() -> rebuilding = false);
+            });
+        } else {
+            render(true);   // coming back from another screen: keep your place
+        }
     }
 
     @Override

@@ -258,6 +258,13 @@ key DPAD_CENTER 8; top play-recording; shot 72-play-recording; key BACK 2
 adb shell am start -W -a android.intent.action.VIEW -d "fluxtv://live/201"; sleep 8; top deeplink-live-201; texts deeplink-live 12; key BACK 2
 adb shell am start -W -n $P/.MainActivity; sleep 8; nudge; key DPAD_DOWN 1; shot 73-home-row-1; key DPAD_DOWN 1; shot 74-home-row-2; key DPAD_DOWN 1; shot 75-home-row-3; texts home-live-row 40
 crashes live
+# ---------------- Settings keeps your place after choosing a theme
+adb shell am start -W -n $P/.SettingsActivity --es category appearance; sleep 3
+key DPAD_CENTER 2; key DPAD_RIGHT 1; key DPAD_RIGHT 1; focused theme-before
+key DPAD_CENTER 4; focused theme-after; shot 91-theme-after
+curl -s -m 20 -X POST --data-urlencode "theme=0" http://127.0.0.1:8090/appearance > /dev/null
+adb shell am start -W -n $P/.MainActivity; sleep 6; nudge; key DPAD_DOWN 1; shot 92-home-highlight
+
 # ---------------- Home shows instantly from its saved copy
 adb shell am force-stop $P; sleep 1
 adb shell am start -n $P/.MainActivity; sleep 1.5; shot 90-home-1500ms; texts home-1500ms 25
