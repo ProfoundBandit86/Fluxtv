@@ -448,12 +448,12 @@ public final class Ui {
         HorizontalScrollView hs = new FocusScroll.Horizontal(c);
         // Room around the cards so a highlighted (slightly enlarged) card isn't cut off at the row's edges;
         // the negative margin keeps the first card lined up with the row title.
-        hs.setPadding(dp(c, 18), 0, dp(c, 48), 0);
-        hs.setClipToPadding(false);
+        // (The room is padding inside the row's contents: Android clips at the scroll view's own padding.)
+        hs.setPadding(0, 0, 0, 0);
         LinearLayout items = new LinearLayout(c);
         items.setOrientation(LinearLayout.HORIZONTAL);
         items.setClipChildren(false);
-        items.setPadding(0, dp(c, 10), 0, dp(c, 10));
+        items.setPadding(dp(c, 14), dp(c, 10), dp(c, 48), dp(c, 10));
         hs.addView(items);
         LinearLayout.LayoutParams hlp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         hlp.setMargins(-dp(c, 14), -dp(c, 6), 0, -dp(c, 6));

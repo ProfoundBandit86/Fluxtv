@@ -101,6 +101,7 @@ public final class FocusScroll {
                 if (left < x) dest = left;
                 else if (right > x + w) dest = right - w;
                 dest = Math.max(0, dest);
+                if (r.left - margin <= 0) dest = 0;   // first card: keep the row's left margin visible
                 if (dest != x) smoothScrollTo(dest, 0);
             });
         }
