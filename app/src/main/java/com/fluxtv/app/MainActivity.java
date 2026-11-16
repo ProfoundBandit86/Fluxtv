@@ -152,6 +152,7 @@ public class MainActivity extends Activity {
         scroll = new FocusScroll.Vertical(this);
         rows = Ui.vertical(this);
         rows.setClipChildren(false);
+        rows.setClipToPadding(false);
         rows.setPadding(Ui.dp(this, 56), 0, 0, Ui.dp(this, 200));
         scroll.addView(rows);
         float heightDp = getResources().getDisplayMetrics().heightPixels / getResources().getDisplayMetrics().density;

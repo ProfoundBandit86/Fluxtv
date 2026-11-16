@@ -431,6 +431,7 @@ public final class Ui {
         LinearLayout block = vertical(c);
         block.setTag("row");
         block.setClipChildren(false);
+        block.setClipToPadding(false);
         parent.addView(block);
         parent = block;
         if (title != null && !title.isEmpty()) {
@@ -453,6 +454,7 @@ public final class Ui {
         LinearLayout items = new LinearLayout(c);
         items.setOrientation(LinearLayout.HORIZONTAL);
         items.setClipChildren(false);
+        items.setClipToPadding(false);   // this was what cut off the left of an enlarged card
         items.setPadding(dp(c, 14), dp(c, 10), dp(c, 48), dp(c, 10));
         hs.addView(items);
         LinearLayout.LayoutParams hlp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
