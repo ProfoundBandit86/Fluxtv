@@ -258,6 +258,11 @@ key DPAD_CENTER 8; top play-recording; shot 72-play-recording; key BACK 2
 adb shell am start -W -a android.intent.action.VIEW -d "fluxtv://live/201"; sleep 8; top deeplink-live-201; texts deeplink-live 12; key BACK 2
 adb shell am start -W -n $P/.MainActivity; sleep 8; nudge; key DPAD_DOWN 1; shot 73-home-row-1; key DPAD_DOWN 1; shot 74-home-row-2; key DPAD_DOWN 1; shot 75-home-row-3; texts home-live-row 40
 crashes live
+# ---------------- Home shows instantly from its saved copy
+adb shell am force-stop $P; sleep 1
+adb shell am start -n $P/.MainActivity; sleep 1.5; shot 90-home-1500ms; texts home-1500ms 25
+sleep 8; texts home-later 25
+
 # ---------------- Smart home panel (Home Assistant)
 adb shell am start -W -n $P/.SettingsActivity --es category smarthome; sleep 3
 curl -s -m 30 -X POST --data-urlencode "url=http://10.0.2.2:8000/ha" --data-urlencode "token=wrong" http://127.0.0.1:8090/sh-connect | grep -o "<p class='m'>[^<]*"

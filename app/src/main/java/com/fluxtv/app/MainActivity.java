@@ -108,10 +108,11 @@ public class MainActivity extends Activity {
         // Full-width backdrop, fading into the background on the left and at the bottom.
         FrameLayout.LayoutParams hp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 340), Gravity.TOP);
         contentRoot.addView(heroImage, hp);
+        // A light, even shade behind the title text (no dark band down the left edge).
         View scrimLeft = new View(this);
         scrimLeft.setBackground(new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
-                new int[]{Ui.BG, Ui.alpha(Ui.BG, 0.85f), Ui.alpha(Ui.BG, 0.35f), Color.TRANSPARENT}));
-        contentRoot.addView(scrimLeft, new FrameLayout.LayoutParams(Ui.dp(this, 720), Ui.dp(this, 340)));
+                new int[]{Ui.alpha(Ui.BG, 0.45f), Ui.alpha(Ui.BG, 0.38f), Ui.alpha(Ui.BG, 0.15f), Color.TRANSPARENT}));
+        contentRoot.addView(scrimLeft, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 340)));
         View scrimBottom = new View(this);
         scrimBottom.setBackground(Ui.scrim(GradientDrawable.Orientation.BOTTOM_TOP, Ui.BG, 1f));
         FrameLayout.LayoutParams sb = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 160), Gravity.TOP);
@@ -140,6 +141,8 @@ public class MainActivity extends Activity {
         heroText.setMaxLines(2);
         heroText.setEllipsize(TextUtils.TruncateAt.END);
         heroText.setPadding(0, Ui.dp(this, 10), 0, 0);
+        // Soft shadows keep the text readable over bright pictures now that the shade is lighter.
+        for (TextView t : new TextView[]{heroEyebrow, heroTitle, heroMeta, heroText}) t.setShadowLayer(Ui.dp(this, 6), 0, Ui.dp(this, 1), 0xCC000000);
         hero.addView(heroEyebrow);
         hero.addView(heroTitle);
         hero.addView(heroMeta);
@@ -395,6 +398,8 @@ public class MainActivity extends Activity {
             load();
         } else if (Store.changes() != renderedChanges) {
             renderSection();
+        } else if (System.currentTimeMillis() - loadedAt > 10 * 60 * 1000) {
+            load();   // keeps showing the current rows and swaps in fresh ones
         } else if (section.equals("home")) {
             refreshExternal();
         }
@@ -450,29 +455,157 @@ public class MainActivity extends Activity {
 
     // ------------------------------------------------------------ data
 
+    private int loadGen;
+    private long loadedAt;
+
+    /**
+     * Loads Home. Shows the saved copy from last time straight away (or, the first time, Continue watching and
+     * then each row as soon as its source answers), and swaps in fresh rows when everything has loaded,
+     * keeping your place.
+     */
     private void load() {
+        boolean sameSources = Store.addonsVersion() == loadedVersion && Store.profile().equals(loadedProfile);
         loadedVersion = Store.addonsVersion();
         loadedProfile = Store.profile();
-        rows.removeAllViews();
-        TextView loading = Ui.text(this, "Loading…", 14, Ui.MUTED);
-        loading.setPadding(0, Ui.dp(this, 40), 0, 0);
-        rows.addView(loading);
-        android.content.Context app = getApplicationContext();
-        App.async(() -> {
-            Blend.Home h = Blend.home();
-            external = WatchNext.load(app);
-            appRows = WatchNext.channels(app);
-            services = Tmdb.services();
-            return h;
-        }, h -> {
-            home = h;
-            HomeLayout.setAvailable(allRows());
-            renderSection();
-            if (!drawerOpen) rows.post(this::focusContent);
-        }, e -> {
+        loadedAt = System.currentTimeMillis();
+        if (!sameSources) home = null;   // another profile or different add-ons: don't keep showing the old rows
+        boolean showing = home != null;
+        if (!showing) {
+            Blend.Home saved = Blend.cached();
+            if (saved != null) {
+                home = saved;
+                HomeLayout.setAvailable(allRows());
+                renderSection();
+                if (!drawerOpen) rows.post(this::focusContent);
+                showing = true;
+            }
+        }
+        if (!showing) {
             rows.removeAllViews();
-            rows.addView(Ui.text(this, "Couldn't load: " + App.message(e), 14, Ui.MUTED));
+            TextView loading = Ui.text(this, "Loading…", 14, Ui.MUTED);
+            loading.setPadding(0, Ui.dp(this, 40), 0, 0);
+            rows.addView(loading);
+        }
+        int gen = ++loadGen;
+        boolean progressive = !showing;
+        android.content.Context app = getApplicationContext();
+        App.IO.execute(() -> {
+            java.util.concurrent.Future<List<Tmdb.Service>> svc = Addons.POOL.submit(Tmdb::services);
+            List<JSONObject> ext = WatchNext.load(app);
+            List<Addons.Row> ch = WatchNext.channels(app);
+            App.MAIN.post(() -> { if (gen == loadGen) { external = ext; appRows = ch; } });
+            final boolean[] finished = {false};
+            Blend.Home h;
+            try {
+                h = Blend.home(!progressive ? null : partial -> App.MAIN.post(() -> {
+                    if (gen == loadGen && !finished[0] && !isFinishing()) applyHome(partial, ext, ch, services);
+                }));
+            } catch (Exception e) {
+                App.MAIN.post(() -> {
+                    if (gen != loadGen || home != null) return;
+                    rows.removeAllViews();
+                    rows.addView(Ui.text(this, "Couldn't load: " + App.message(e), 14, Ui.MUTED));
+                });
+                return;
+            }
+            List<Tmdb.Service> sv;
+            try { sv = svc.get(30, java.util.concurrent.TimeUnit.SECONDS); } catch (Exception e) { sv = services; }
+            List<Tmdb.Service> fsv = sv;
+            Blend.Home fh = h;
+            App.MAIN.post(() -> {
+                if (gen != loadGen || isFinishing()) return;
+                finished[0] = true;
+                applyHome(fh, ext, ch, fsv);
+            });
+            Blend.save(h);
+            prefetchPosters(h);
         });
+    }
+
+    /** Swaps in new Home data without moving your highlight (same row, same position). */
+    private void applyHome(Blend.Home h, List<JSONObject> ext, List<Addons.Row> ch, List<Tmdb.Service> sv) {
+        int[] pos = drawerOpen ? null : focusPosition();
+        int y = scroll.getScrollY();
+        boolean hadFocus = getCurrentFocus() != null && !drawerOpen;
+        home = h;
+        external = ext;
+        appRows = ch;
+        if (sv != null) services = sv;
+        HomeLayout.setAvailable(allRows());
+        renderSection();
+        if (drawerOpen) return;
+        if (pos != null) {
+            scroll.scrollTo(0, y);
+            rows.post(() -> { if (!restoreFocus(pos)) focusContent(); scroll.scrollTo(0, y); });
+        } else if (!hadFocus || getCurrentFocus() == null) {
+            rows.post(this::focusContent);
+        }
+    }
+
+    /** Every Home row block, top to bottom. */
+    private void rowBlocks(ViewGroup g, List<ViewGroup> out) {
+        for (int i = 0; i < g.getChildCount(); i++) {
+            View c = g.getChildAt(i);
+            if ("row".equals(c.getTag()) && c instanceof ViewGroup) out.add((ViewGroup) c);
+            else if (c instanceof ViewGroup) rowBlocks((ViewGroup) c, out);
+        }
+    }
+
+    private static ViewGroup itemsOf(ViewGroup block) {
+        for (int i = 0; i < block.getChildCount(); i++) {
+            View c = block.getChildAt(i);
+            if (c instanceof android.widget.HorizontalScrollView) return (ViewGroup) ((ViewGroup) c).getChildAt(0);
+        }
+        return null;
+    }
+
+    /** {row, item} of the highlighted card, or null if the highlight isn't on a card in a row. */
+    private int[] focusPosition() {
+        View f = getCurrentFocus();
+        if (f == null) return null;
+        List<ViewGroup> blocks = new ArrayList<>();
+        rowBlocks(rows, blocks);
+        for (int r = 0; r < blocks.size(); r++) {
+            ViewGroup items = itemsOf(blocks.get(r));
+            if (items == null) continue;
+            for (int k = 0; k < items.getChildCount(); k++) {
+                View card = items.getChildAt(k);
+                if (card == f || (card instanceof ViewGroup && isInside(f, (ViewGroup) card))) return new int[]{r, k};
+            }
+        }
+        return null;
+    }
+
+    private static boolean isInside(View v, ViewGroup g) {
+        for (android.view.ViewParent p = v.getParent(); p != null; p = p.getParent()) if (p == g) return true;
+        return false;
+    }
+
+    private boolean restoreFocus(int[] pos) {
+        List<ViewGroup> blocks = new ArrayList<>();
+        rowBlocks(rows, blocks);
+        if (blocks.isEmpty()) return false;
+        ViewGroup items = itemsOf(blocks.get(Math.min(pos[0], blocks.size() - 1)));
+        if (items == null || items.getChildCount() == 0) return false;
+        for (int k = Math.min(pos[1], items.getChildCount() - 1); k >= 0; k--) {
+            View c = items.getChildAt(k);
+            if (c.getVisibility() == View.VISIBLE && (c.requestFocus() || c.requestFocus(View.FOCUS_DOWN))) return true;
+        }
+        return false;
+    }
+
+    /** Fetches the first posters of each row in the background so scrolling down shows them at once. */
+    private static void prefetchPosters(Blend.Home h) {
+        int rowsDone = 0;
+        for (Addons.Row r : h.rows) {
+            if (rowsDone++ >= 10) break;
+            int n = 0;
+            for (JSONObject p : r.items) {
+                if (n++ >= 10) break;
+                ImageLoader.prefetch(p.optString("poster"));
+            }
+        }
+        for (JSONObject p : h.continueWatching) ImageLoader.prefetch(p.optString("background"));
     }
 
     private void refreshExternal() {

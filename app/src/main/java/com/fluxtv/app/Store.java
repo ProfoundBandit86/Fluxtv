@@ -26,6 +26,12 @@ public final class Store {
     private static int addonsVersion = 0;
     private static int changes = 0;
 
+    /** Identifies the current add-ons + servers (a saved Home is only reused if these haven't changed). */
+    public static String addonsVersionKey() {
+        return Integer.toHexString((get("addons") + "|" + get("servers") + "|" + get("iptv") + "|" + get("region")
+                + "|" + get("home_rows")).hashCode());
+    }
+
     /** Bumps when favorites or watch progress change. */
     public static int changes() {
         return changes;
