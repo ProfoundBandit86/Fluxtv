@@ -288,7 +288,16 @@ public class SettingsActivity extends FluxActivity {
                 r.addView(Ui.pill(this, "Home opens Flux", HomeButtonService.enabled(this), v -> { HomeButtonService.setEnabled(true); render(); }));
                 r.addView(Ui.pill(this, "Off", !HomeButtonService.enabled(this), v -> { HomeButtonService.setEnabled(false); render(); }));
             } else {
-                content.addView(label("If the switch is greyed out: open Settings → Apps → Flux TV → ⋮ → Allow restricted settings, then try again."));
+                if (android.os.Build.VERSION.SDK_INT >= 33) {
+                    content.addView(label("Switch turns itself back off? Android 13 and newer (Google TV 14, onn 4K Pro) blocks this for apps "
+                            + "installed from a downloaded file. Press Unlock: Flux reinstalls itself the way app stores do (your settings "
+                            + "stay), then turn the switch on again."
+                            + (Store.get("reinstalled_for_home").isEmpty() ? "" : "\nAlready reinstalled. If the switch still flips off, "
+                            + "see the computer fix in the web app (System section).")));
+                    buttonRow().addView(Ui.button(this, R.drawable.ic_update, "Unlock the Home button (reinstall Flux)", v -> Updater.reinstall(this)));
+                } else {
+                    content.addView(label("If the switch is greyed out: open Settings → Apps → Flux TV → ⋮ → Allow restricted settings, then try again."));
+                }
             }
         }
         content.addView(section("Continue watching shows items from"));

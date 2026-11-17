@@ -63,6 +63,18 @@ public final class Updater {
         });
     }
 
+    /** Reinstalls the latest release over this copy, even if it's the same version (unlocks the Home button). */
+    public static void reinstall(Activity a) {
+        if (busy) return;
+        busy = true;
+        toast(a, "Downloading Flux TV…");
+        App.async(Updater::latest, rel -> {
+            if (rel == null || rel.apkUrl == null) { busy = false; toast(a, "Couldn't find the latest Flux TV"); return; }
+            Store.put("reinstalled_for_home", String.valueOf(System.currentTimeMillis()));
+            install(a, rel, true);
+        }, e -> { busy = false; toast(a, "Download failed: " + App.message(e)); });
+    }
+
     static Release latest() throws Exception {
         JSONObject j = new JSONObject(Http.call("GET", "https://api.github.com/repos/" + REPO + "/releases/latest",
                 Http.map("Accept", "application/vnd.github+json"), null, null));
@@ -138,6 +150,11 @@ public final class Updater {
         if (Build.VERSION.SDK_INT >= 31) {
             // Lets Android 12+ update silently once Flux is the installer of record.
             params.setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED);
+        }
+        if (Build.VERSION.SDK_INT >= 33) {
+            // Installed "from a store" rather than "from a downloaded file": Android 13+ blocks downloaded apps from
+            // turning on accessibility services (the Home button switch flips back off), store installs aren't blocked.
+            params.setPackageSource(PackageInstaller.PACKAGE_SOURCE_STORE);
         }
         int id = installer.createSession(params);
         PackageInstaller.Session session = installer.openSession(id);

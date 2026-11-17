@@ -814,7 +814,15 @@ public final class ConfigServer {
         // ---------------- system
         sb.append(section("system", "System", "Version, Home button")).append("<p>Flux TV ").append(esc(Updater.currentName(App.ctx)))
           .append("</p><p class='u'>Home button: ").append(esc(HomeButtonService.status(App.ctx)))
-          .append(" To change it, open Settings → Home screen on the TV.</p></details>");
+          .append(" To change it, open Settings → Home screen on the TV.</p>");
+        if (!HomeButtonService.running(App.ctx) && !HomeButtonService.isDefaultHome(App.ctx)) {
+            sb.append("<p class='u'>If the TV's Accessibility switch for Flux turns itself off: first press <b>Unlock the Home button</b> in "
+                    + "Flux's Settings → Home screen. If it still turns off, from a computer with ADB connected to the TV run:<br><code>"
+                    + "adb shell appops set com.fluxtv.app ACCESS_RESTRICTED_SETTINGS allow</code><br>then turn the switch on again. Or switch "
+                    + "it on directly:<br><code>adb shell settings put secure enabled_accessibility_services "
+                    + "com.fluxtv.app/com.fluxtv.app.HomeButtonService</code><br><code>adb shell settings put secure accessibility_enabled 1</code></p>");
+        }
+        sb.append("</details>");
         sb.append("</body></html>");
         return sb.toString();
     }
