@@ -44,7 +44,7 @@ adb shell am force-stop $P
 adb logcat -c
 
 # ---------------- fake TMDB + Gemini
-(ffmpeg -loglevel error -y -f lavfi -i testsrc=size=640x360:rate=25 -f lavfi -i sine=frequency=440 -t 90 -c:v libx264 -preset veryfast -pix_fmt yuv420p -c:a aac -f mpegts /tmp/flux-test.ts && echo "== TEST TS: $(ls -la /tmp/flux-test.ts)") || echo "== TEST TS: ffmpeg failed"
+(command -v ffmpeg >/dev/null || sudo apt-get install -y -q ffmpeg > /tmp/ffmpeg-install.log 2>&1; ffmpeg -loglevel error -y -f lavfi -i testsrc=size=640x360:rate=25 -f lavfi -i sine=frequency=440 -t 90 -c:v libx264 -preset veryfast -pix_fmt yuv420p -c:a aac -f mpegts /tmp/flux-test.ts && echo "== TEST TS: $(ls -la /tmp/flux-test.ts)") || echo "== TEST TS: ffmpeg failed"
 nohup python3 .github/fake_xtream.py > /tmp/fake.log 2>&1 < /dev/null &
 FAKE_PID=$!
 sleep 2
@@ -363,6 +363,9 @@ echo "== PORTAL REQS: $(curl -s http://127.0.0.1:8000/_reqs | python3 -c "import
 adb shell am start -W -n $P/.LiveActivity; sleep 8; texts live-with-portal 30; shot 101-guide-with-portal
 key DPAD_LEFT 2; shot 102-guide-past; texts guide-past 12
 key DPAD_CENTER 10; top catchup; shot 103-catchup-playing; texts catchup 12
+key BACK 2; key BACK 2
+adb shell am start -W -n $P/.LiveActivity; sleep 6; key DPAD_DOWN 1; key DPAD_DOWN 1; key DPAD_LEFT 2; texts guide-past-xtream 12; shot 103b-guide-past-xtream
+key DPAD_CENTER 10; top catchup-xtream; shot 103c-catchup-xtream
 echo "== CATCHUP REQS: $(curl -s http://127.0.0.1:8000/_reqs | python3 -c "import json,sys; r=json.load(sys.stdin); print([x for x in r if 'timeshift' in x or 'archive' in x][-4:])")"
 key BACK 2; key BACK 2
 adb shell am start -W -n $P/.MultiviewActivity --es group all --es source $XT --es channel 1001; sleep 15; shot 104-multiview-2; top multiview
@@ -370,6 +373,7 @@ key DPAD_RIGHT 2; shot 105-multiview-right
 key MENU 2; texts multiview-menu 10; tap "Add a view"; sleep 10; shot 106-multiview-3
 key BACK 2
 crashes portal-catchup-multiview
+adb shell am start -W -n $P/.SettingsActivity; sleep 4
 curl -s -m 30 -X POST --data-urlencode "tmdb=http://10.0.2.2:8000/3" --data-urlencode "gemini=http://10.0.2.2:8000/gemini/" --data-urlencode "trakt=http://10.0.2.2:8000/trakt" --data-urlencode "sports=http://10.0.2.2:8000/espn" http://127.0.0.1:8090/test-config | grep -o "<p class='m'>[^<]*"
 adb shell am start -W -n $P/.SportsActivity; sleep 15; texts sports 40; shot 107-sports
 tap "Kansas City Chiefs"; sleep 10; top sports-watch; shot 108-sports-watch; key BACK 2

@@ -344,6 +344,12 @@ public class LiveActivity extends FluxActivity {
             t += "   ·   " + (left < 1 ? "ending" : left + " min left");
             progBar.setVisibility(View.VISIBLE);
             progBar.setProgress((int) (1000 * (now - p.start) / Math.max(1, p.end - p.start)));
+        } else if (p.end <= now) {
+            boolean today = now - p.start < 18 * 3600_000L;
+            t += "   ·   " + (today ? "earlier" : android.text.format.DateUtils.formatDateTime(this, p.start,
+                    android.text.format.DateUtils.FORMAT_SHOW_WEEKDAY | android.text.format.DateUtils.FORMAT_ABBREV_WEEKDAY))
+                    + (Iptv.canReplay(e.channel, p) ? "   ·   ↺ OK to replay" : "");
+            progBar.setVisibility(View.INVISIBLE);
         } else {
             long in = (p.start - now) / 60000;
             t += "   ·   " + (in < 60 ? "in " + in + " min" : android.text.format.DateUtils.formatDateTime(this, p.start,
