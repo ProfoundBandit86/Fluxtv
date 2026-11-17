@@ -382,15 +382,16 @@ sleep 2; longtap "Kansas City Chiefs"; sleep 2; texts sports-watch-on 12; shot 1
 tap "Table"; sleep 5; texts sports-table 30; shot 110-sports-table; key BACK 1
 crashes sports
 # ---------------- v29: simpler player bar (Ask Gemini + ⋮), Ask Gemini about the screen
-adb shell am start -W -n $P/.PlayerActivity --es url "http://10.0.2.2:8000/timeshift/test/test/60/x/1001.ts" --es pi_type movie --es pi_meta tt0133093 --es pi_video tt0133093 --es pi_name "The Matrix"
-sleep 10; key DPAD_UP 2; texts player-bar 20; shot 120-player-bar
-key DPAD_RIGHT 1; key DPAD_RIGHT 1; key DPAD_RIGHT 1; focused bar-right; key DPAD_RIGHT 1; focused bar-right2; key DPAD_CENTER 2; texts more-menu 20; shot 121-more-menu
-key DPAD_CENTER 2; texts more-audio 12; shot 122-more-audio; key BACK 2; texts more-back 12; key BACK 2; key BACK 2
-key DPAD_UP 2; key DPAD_RIGHT 1; key DPAD_RIGHT 1; key DPAD_RIGHT 1; key DPAD_CENTER 3; texts gemini-open 20; shot 123-gemini-open
+adb shell am start -W -n $P/.PlayerActivity --es url "http://10.0.2.2:8000/timeshift/test/test/60/x/1001.ts" --es pi_type movie --es pi_meta tt0133093 --es pi_video tt0133093 --es pi_name "The\ Matrix"
+sleep 10; key DPAD_UP 1; shot 120-player-bar
+key DPAD_RIGHT 0; key DPAD_RIGHT 0; key DPAD_RIGHT 0; key DPAD_RIGHT 1; key DPAD_CENTER 2; texts more-menu 20; shot 121-more-menu
+key DPAD_CENTER 2; texts more-audio 12; shot 122-more-audio
+key BACK 2; texts more-back 12; key BACK 2
+key DPAD_LEFT 1; key DPAD_CENTER 3; texts gemini-open 20; shot 123-gemini-open
 key DPAD_CENTER 6; texts gemini-answer 20; shot 124-gemini-answer
-key DPAD_LEFT 1; key DPAD_RIGHT 1; key DPAD_CENTER 3; shot 125-gemini-type; adb shell input text "Who%sdirected%sthis"; key ENTER 6; texts gemini-followup 20; shot 126-gemini-followup
+key DPAD_RIGHT 1; key DPAD_CENTER 3; shot 125-gemini-type; adb shell input text "Who%sdirected%sthis"; key ENTER 6; texts gemini-followup 20; shot 126-gemini-followup
 echo "== SCREEN ASKS: $(curl -s http://127.0.0.1:8000/_screen)"
-key BACK 2; key BACK 2; texts gemini-closed 8; key BACK 2
+key BACK 1; key BACK 2; texts gemini-closed 8; top gemini-closed; key BACK 2
 crashes gemini
 adb logcat -d > out/logcat.txt
 kill $FAKE_PID 2>/dev/null
