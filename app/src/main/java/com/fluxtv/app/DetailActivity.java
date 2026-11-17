@@ -420,17 +420,20 @@ public class DetailActivity extends FluxActivity {
         if (playVideo != null) {
             String vid = playVideo, lbl = playLabel, ttl = playTitle;
             String[] best = bestCache.get(vid);
-            android.widget.Button play = Ui.primary(this, R.drawable.ic_play, ttl,
-                    best == null ? "Finding the best source…" : best[0] == null ? "Choose a source" : "Best source: " + best[0],
-                    v -> openStreams(vid, lbl, true));
+            android.widget.Button play = Ui.primary(this, R.drawable.ic_play, ttl, null, v -> openStreams(vid, lbl, true));
             play.setTag("play");
+            play.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 14);
+            play.setMinHeight(0);
+            play.setMinimumHeight(0);
+            play.setPadding(Ui.dp(this, 18), 0, Ui.dp(this, 22), 0);
+            LinearLayout.LayoutParams pl = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, Ui.dp(this, 44));
+            pl.setMargins(0, Ui.dp(this, 4), Ui.dp(this, 8), Ui.dp(this, 4));
+            pl.gravity = Gravity.CENTER_VERTICAL;
+            play.setLayoutParams(pl);
             buttons.addView(play);
-            android.widget.Button sources = Ui.button(this, R.drawable.ic_list,
+            android.widget.Button sources = Ui.tile(this, R.drawable.ic_list,
                     best == null ? "Sources" : "Sources · " + best[1], v -> openStreams(vid, lbl, false));
             sources.setTag("sources");
-            LinearLayout.LayoutParams sl = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, Ui.dp(this, 64));
-            sl.setMargins(0, Ui.dp(this, 4), Ui.dp(this, 12), Ui.dp(this, 4));
-            sources.setLayoutParams(sl);
             buttons.addView(sources);
             if (best == null) prefetchBest(vid, ttl);
         }
@@ -676,17 +679,9 @@ public class DetailActivity extends FluxActivity {
         String t = isSeries() ? "series" : "movie";
         App.async(() -> StreamsActivity.bestOf(Addons.streams(t, videoId)), best -> {
             bestCache.put(videoId, best);
-            View p = buttons.findViewWithTag("play");
-            if (p instanceof android.widget.Button) {
-                Ui.setPrimaryText(this, (android.widget.Button) p, title,
-                        best[0] == null ? (best[1].equals("0") ? "No sources found" : "Choose a source") : "Best source: " + best[0]);
-            }
             View s = buttons.findViewWithTag("sources");
             if (s instanceof android.widget.Button) ((android.widget.Button) s).setText("Sources · " + best[1]);
-        }, e -> {
-            View p = buttons.findViewWithTag("play");
-            if (p instanceof android.widget.Button) Ui.setPrimaryText(this, (android.widget.Button) p, title, "");
-        });
+        }, e -> { });
     }
 
     private void playTrailer() {

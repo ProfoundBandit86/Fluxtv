@@ -200,31 +200,36 @@ public final class Ui {
         b.setText(sb);
     }
 
-    /** A square button with an icon over a short label (secondary actions on the title page). */
+    /** A compact button with an icon beside a short label (secondary actions on the title page). */
     public static Button tile(Context c, int iconRes, String label, View.OnClickListener click) {
         Button b = new Button(c);
         b.setText(label);
         b.setAllCaps(false);
-        b.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11);
+        b.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
         b.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
-        b.setTextColor(onFocusDark(MUTED));
+        b.setTextColor(onFocusDark(TEXT));
         b.setSingleLine(true);
         b.setEllipsize(android.text.TextUtils.TruncateAt.END);
         b.setFocusable(true);
         b.setBackground(focusable(c, GLASS, TEXT, 0));
         b.setStateListAnimator(null);
-        b.setGravity(Gravity.CENTER);
-        b.setPadding(dp(c, 4), dp(c, 8), dp(c, 4), dp(c, 6));
+        b.setGravity(Gravity.CENTER_VERTICAL);
+        b.setPadding(dp(c, 14), 0, dp(c, 16), 0);
+        b.setMinHeight(0);
+        b.setMinimumHeight(0);
+        b.setMinWidth(0);
+        b.setMinimumWidth(0);
         Drawable d = c.getResources().getDrawable(iconRes, c.getTheme()).mutate();
-        int sz = dp(c, 22);
+        int sz = dp(c, 16);
         d.setBounds(0, 0, sz, sz);
-        b.setCompoundDrawables(null, d, null, null);
-        b.setCompoundDrawablePadding(dp(c, 4));
+        b.setCompoundDrawables(d, null, null, null);
+        b.setCompoundDrawablePadding(dp(c, 8));
         b.setCompoundDrawableTintList(onFocusDark(TEXT));
         b.setOnClickListener(click);
         b.setContentDescription(label);
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(c, 76), dp(c, 64));
-        lp.setMargins(0, dp(c, 4), dp(c, 10), dp(c, 4));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(c, 40));
+        lp.setMargins(0, dp(c, 4), dp(c, 8), dp(c, 4));
+        lp.gravity = Gravity.CENTER_VERTICAL;
         b.setLayoutParams(lp);
         return b;
     }

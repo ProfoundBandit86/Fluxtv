@@ -489,7 +489,6 @@ public class SettingsActivity extends FluxActivity {
                 Iptv.setExtraEpgUrls(l);
                 render(true);
             }));
-            content.addView(line);
         }
         LinearLayout add = buttonRow();
         add.setGravity(Gravity.CENTER_VERTICAL);
@@ -505,18 +504,14 @@ public class SettingsActivity extends FluxActivity {
             if (!u.startsWith("http")) { Toast.makeText(this, "Enter a link starting with http", Toast.LENGTH_SHORT).show(); return; }
             addEpg(u);
         }));
-        content.addView(add);
-        LinearLayout presets = buttonRow();
+        LinearLayout presets = null;
         String[][] known = {{"US (epgshare01)", "https://epgshare01.online/epgshare01/epg_ripper_US1.xml.gz"},
                 {"UK (epgshare01)", "https://epgshare01.online/epgshare01/epg_ripper_UK1.xml.gz"},
                 {"Canada (epgshare01)", "https://epgshare01.online/epgshare01/epg_ripper_CA1.xml.gz"}};
         for (String[] k : known) {
             if (extra.contains(k[1])) continue;
+            if (presets == null) { content.addView(label("Free guides")); presets = buttonRow(); }
             presets.addView(Ui.pill(this, "+ " + k[0], false, v -> addEpg(k[1])));
-        }
-        if (presets.getChildCount() > 0) {
-            content.addView(label("Free guides"));
-            content.addView(presets);
         }
         content.addView(section("Preview while browsing the guide"));
         boolean prev = !"off".equals(Store.get("live_preview"));

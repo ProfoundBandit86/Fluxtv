@@ -131,13 +131,60 @@ public class HomeButtonService extends AccessibilityService {
         return true;
     }
 
+    private android.view.View blip;
+
+    /**
+     * Newer Android blocks apps in the background from opening screens, which made Home do nothing on
+     * some TVs. While Flux shows a window it counts as "in use", so a 1-pixel invisible accessibility
+     * window goes up for a moment around the launch (the same trick button-remapping apps use).
+     */
     private void launch(Intent i) {
-        i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NO_ANIMATION);
+        i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NO_ANIMATION
+                | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+        showBlip();
+        handler.postDelayed(() -> {
+            try {
+                android.app.PendingIntent pi = android.app.PendingIntent.getActivity(this, 7, i,
+                        android.app.PendingIntent.FLAG_UPDATE_CURRENT | android.app.PendingIntent.FLAG_IMMUTABLE);
+                if (android.os.Build.VERSION.SDK_INT >= 34) {
+                    android.app.ActivityOptions o = android.app.ActivityOptions.makeBasic();
+                    o.setPendingIntentBackgroundActivityStartMode(android.app.ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED);
+                    pi.send(this, 0, null, null, null, null, o.toBundle());
+                } else {
+                    pi.send();
+                }
+            } catch (Exception ex) {
+                android.util.Log.w("FluxHome", "PendingIntent launch failed, trying directly", ex);
+                try { startActivity(i); } catch (Exception ex2) {
+                    Store.put("home_last_error", String.valueOf(ex2));
+                    android.util.Log.w("FluxHome", "Couldn't open Flux", ex2);
+                }
+            }
+            handler.postDelayed(this::hideBlip, 1500);
+        }, 30);
+    }
+
+    private void showBlip() {
+        if (blip != null) return;
         try {
-            startActivity(i);
+            android.view.WindowManager wm = (android.view.WindowManager) getSystemService(WINDOW_SERVICE);
+            android.view.WindowManager.LayoutParams lp = new android.view.WindowManager.LayoutParams(1, 1,
+                    android.view.WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+                    android.view.WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | android.view.WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
+                    android.graphics.PixelFormat.TRANSLUCENT);
+            lp.gravity = android.view.Gravity.TOP | android.view.Gravity.START;
+            blip = new android.view.View(this);
+            wm.addView(blip, lp);
         } catch (Exception ex) {
-            android.util.Log.w("FluxHome", "Couldn't open Flux", ex);
+            blip = null;
+            android.util.Log.w("FluxHome", "No overlay window", ex);
         }
+    }
+
+    private void hideBlip() {
+        if (blip == null) return;
+        try { ((android.view.WindowManager) getSystemService(WINDOW_SERVICE)).removeView(blip); } catch (Exception ignored) { }
+        blip = null;
     }
 
     @Override
