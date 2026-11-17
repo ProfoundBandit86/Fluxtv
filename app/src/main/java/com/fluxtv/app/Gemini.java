@@ -101,6 +101,66 @@ public final class Gemini {
         return best;
     }
 
+
+    /**
+     * A question about what's playing. context = what is being watched and where we are in it; history = earlier
+     * {role, text} turns of this conversation; frame = the picture on screen as JPEG (may be null). Blocking.
+     */
+    public static String askAboutScreen(String context, List<String[]> history, String question, byte[] frame) throws Exception {
+        if (!enabled()) throw new Exception("Add a Gemini API key in Settings → Search first");
+        JSONObject body = new JSONObject();
+        body.put("systemInstruction", new JSONObject().put("parts", new JSONArray().put(new JSONObject().put("text",
+                "You are a helpful companion on a TV, answering questions about the movie or show the viewer is watching. "
+                + context + " A still of the current frame may be attached. Answer in 2-5 short sentences of plain text "
+                + "(no markdown, no lists), easy to read from a couch. Never reveal anything that happens after the viewer's "
+                + "current point unless they explicitly ask for spoilers. If you can't tell who or what is on screen, say so "
+                + "briefly and give your best guess with that caveat."))));
+        JSONArray contents = new JSONArray();
+        for (String[] t : history) {
+            contents.put(new JSONObject().put("role", t[0]).put("parts", new JSONArray().put(new JSONObject().put("text", t[1]))));
+        }
+        JSONArray parts = new JSONArray();
+        if (frame != null) parts.put(new JSONObject().put("inlineData", new JSONObject().put("mimeType", "image/jpeg")
+                .put("data", android.util.Base64.encodeToString(frame, android.util.Base64.NO_WRAP))));
+        parts.put(new JSONObject().put("text", question));
+        contents.put(new JSONObject().put("role", "user").put("parts", parts));
+        body.put("contents", contents);
+        String model = model();
+        JSONObject gen = new JSONObject().put("maxOutputTokens", 700);
+        JSONObject think = thinking(model);
+        if (think != null) gen.put("thinkingConfig", think);
+        body.put("generationConfig", gen);
+        // Google Search grounding for cast/trivia questions; dropped if the key or model doesn't allow it.
+        body.put("tools", new JSONArray().put(new JSONObject().put("google_search", new JSONObject())));
+        String reply = null;
+        Exception last = null;
+        for (int attempt = 0; attempt < 3 && reply == null; attempt++) {
+            try {
+                reply = Http.call("POST", api() + "models/" + model + ":generateContent", headers(), body.toString(), "application/json");
+            } catch (Http.HttpException e) {
+                last = e;
+                if (e.code == 400 && body.has("tools")) { body.remove("tools"); continue; }
+                if (e.code == 400 && gen.has("thinkingConfig")) { gen.remove("thinkingConfig"); continue; }
+                if (e.code == 404) { Store.put("gemini_model_t", "0"); throw new Exception("Gemini model unavailable, try again"); }
+                if (e.code == 401 || e.code == 403) throw new Exception("Gemini didn't accept the API key. Check it in Settings.");
+                if (e.code == 429) throw new Exception("Gemini's free limit is used up for now. Try again later.");
+                throw e;
+            }
+        }
+        if (reply == null) throw last != null ? last : new Exception("Gemini didn't answer");
+        JSONArray cands = new JSONObject(reply).optJSONArray("candidates");
+        JSONObject content = cands == null || cands.optJSONObject(0) == null ? null : cands.optJSONObject(0).optJSONObject("content");
+        JSONArray out = content == null ? null : content.optJSONArray("parts");
+        StringBuilder sb = new StringBuilder();
+        if (out != null) for (int i = 0; i < out.length(); i++) {
+            JSONObject pt = out.optJSONObject(i);
+            if (pt != null && !pt.optBoolean("thought")) sb.append(pt.optString("text"));
+        }
+        String text = sb.toString().replaceAll("\\*\\*|__|^#+\\s*", "").trim();
+        if (text.isEmpty()) throw new Exception("Gemini didn't answer that one. Try asking another way.");
+        return text;
+    }
+
     /** Titles Gemini suggests for a request, resolved to cards. */
     public static List<JSONObject> search(String request) throws Exception {
         if (!enabled()) throw new Exception("Add a Gemini API key in Settings");

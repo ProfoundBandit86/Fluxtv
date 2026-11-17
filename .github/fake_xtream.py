@@ -127,6 +127,7 @@ SRT = "1\n00:00:00,500 --> 00:10:00,000\nFLUX ADDON SUBTITLE\n"
 
 
 REQS = []
+SCREEN_LOG = []
 TS_FILE = "/tmp/flux-test.ts"
 STALKER_TOKEN = "TOK123"
 
@@ -216,6 +217,13 @@ class H(BaseHTTPRequestHandler):
             return self.send(404, "{}")
         if u.path.endswith(":generateContent"):
             GEMINI_LOG.append({"path": u.path, "body": raw[:600]})
+            if '"systemInstruction"' in raw:
+                b = json.loads(raw)
+                has_img = any("inlineData" in pt for c in b.get("contents", []) for pt in c.get("parts", []))
+                turns = len(b.get("contents", []))
+                SCREEN_LOG.append({"image": has_img, "turns": turns, "tools": "tools" in b, "q": b["contents"][-1]["parts"][-1]["text"]})
+                return self.send(200, json.dumps({"candidates": [{"content": {"parts": [{"text":
+                    "That's **the presenter** in front of a test pattern%s. (turn %d)" % (" I can see the frame" if has_img else "", turns)}]}}]}))
             text = json.dumps([{"title": "The Matrix", "year": 1999, "type": "movie"},
                                {"title": "Breaking Bad", "year": 2008, "type": "series"}])
             return self.send(200, json.dumps({"candidates": [{"content": {"parts": [{"text": text}]}}]}))
@@ -233,6 +241,8 @@ class H(BaseHTTPRequestHandler):
         q = {k: v[0] for k, v in parse_qs(u.query).items()}
         p = u.path
         REQS.append(self.path)
+        if p == "/_screen":
+            return self.send(200, json.dumps(SCREEN_LOG))
         if p == "/_reqs":
             return self.send(200, json.dumps(REQS[-400:]))
         if p.startswith("/timeshift/") or p.startswith("/stalker-play/"):
