@@ -17,6 +17,7 @@ LIVE = [
     {"num": 101, "name": "Flux News", "stream_id": 1001, "stream_icon": "", "epg_channel_id": "news.flux", "category_id": "1"},
     {"num": 102, "name": "World Report", "stream_id": 1002, "stream_icon": "", "epg_channel_id": "world.flux", "category_id": "1"},
     {"num": 201, "name": "Sports One", "stream_id": 2001, "stream_icon": "", "epg_channel_id": "sports.flux", "category_id": "2"},
+    {"num": 301, "name": "Cooking HD", "stream_id": 3001, "stream_icon": "", "epg_channel_id": "", "category_id": "2"},
 ]
 VOD_CATS = [{"category_id": "10", "category_name": "New Movies"}]
 VOD = [
@@ -195,6 +196,13 @@ class H(BaseHTTPRequestHandler):
         u = urlparse(self.path)
         q = {k: v[0] for k, v in parse_qs(u.query).items()}
         p = u.path
+        if p.startswith("/introdb/segments"):
+            q = parse_qs(urlparse(self.path).query)
+            if q.get("imdb_id", [""])[0] == "tt0903747":
+                return self.send(200, json.dumps({"imdb_id": "tt0903747", "segments": [
+                    {"segment_type": "intro", "start_ms": 2000, "end_ms": 40000},
+                    {"segment_type": "outro", "start_ms": 62000, "end_ms": None}]}))
+            return self.send(404, json.dumps({"error": "not found"}))
         if p.startswith("/ha/"):
             if p == "/ha/_log":
                 return self.send(200, json.dumps({"log": HA_LOG, "states": HA}, indent=1))
@@ -301,10 +309,10 @@ class H(BaseHTTPRequestHandler):
             fmt = lambda t: time.strftime("%Y%m%d%H%M%S +0000", time.gmtime(t))
             start = NOW - NOW % 1800 - 3600
             body = '<?xml version="1.0" encoding="UTF-8"?><tv>'
-            for c in LIVE:
+            for c in [c for c in LIVE if c["epg_channel_id"]]:
                 body += '<channel id="%s"><display-name>%s</display-name></channel>' % (c["epg_channel_id"], c["name"])
             shows = ["Morning Brief", "Market Watch", "The Big Match", "Nature Hour", "Late Night Live", "Documentary: Oceans", "Evening News", "Comedy Club"]
-            for ci, c in enumerate(LIVE):
+            for ci, c in enumerate([c for c in LIVE if c["epg_channel_id"]]):
                 t = start
                 k = ci
                 while t < NOW + 8 * 3600:
@@ -313,6 +321,16 @@ class H(BaseHTTPRequestHandler):
                         fmt(t), fmt(t + dur), c["epg_channel_id"], shows[k % len(shows)], shows[k % len(shows)], c["name"])
                     t += dur
                     k += 1
+            body += '</tv>'
+            return self.send(200, body, "application/xml")
+        if p == "/extra-epg.xml":
+            fmt = lambda t: time.strftime("%Y%m%d%H%M%S +0000", time.gmtime(t))
+            start = NOW - NOW % 1800 - 3600
+            body = '<?xml version="1.0"?><tv><channel id="cook.other.us"><display-name>Cooking</display-name></channel>'
+            body += '<channel id="unrelated.us"><display-name>Unrelated</display-name></channel>'
+            for i in range(10):
+                body += '<programme start="%s" stop="%s" channel="cook.other.us"><title>Pasta Masterclass %d</title><desc>From the extra guide.</desc></programme>' % (
+                    fmt(start + i * 3600), fmt(start + (i + 1) * 3600), i + 1)
             body += '</tv>'
             return self.send(200, body, "application/xml")
         if p == "/epg.xml":

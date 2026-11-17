@@ -80,6 +80,8 @@ public final class FocusScroll {
             setHorizontalScrollBarEnabled(false);
             setClipChildren(false);
             setClipToPadding(false);
+            // A row never takes the highlight itself (an empty one would be an invisible stop).
+            setFocusable(false);
         }
 
         @Override

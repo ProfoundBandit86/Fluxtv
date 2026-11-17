@@ -280,6 +280,29 @@ public final class Tmdb {
         return a.optJSONObject(0).optInt("id");
     }
 
+    /** YouTube id of the official trailer (English first), or null. */
+    public static String trailer(String id, String type) {
+        if (!enabled() || id == null || !(id.startsWith("tt") || id.startsWith("tmdb:"))) return null;
+        try {
+            boolean tv = "series".equals(type) || id.startsWith("tmdb:tv");
+            int n = tmdbNumber(id.split(":")[0].startsWith("tt") ? id.split(":")[0] : id, tv ? "series" : "movie");
+            JSONArray a = get("/" + (tv ? "tv" : "movie") + "/" + n + "/videos", "include_video_language=en,null").optJSONArray("results");
+            if (a == null) return null;
+            String best = null;
+            int bestScore = -1;
+            for (int i = 0; i < a.length(); i++) {
+                JSONObject v = a.optJSONObject(i);
+                if (v == null || !"YouTube".equals(v.optString("site"))) continue;
+                int score = ("Trailer".equals(v.optString("type")) ? 4 : "Teaser".equals(v.optString("type")) ? 2 : 0)
+                        + (v.optBoolean("official") ? 2 : 0) + ("en".equals(v.optString("iso_639_1")) ? 1 : 0);
+                if (score > bestScore) { bestScore = score; best = v.optString("key"); }
+            }
+            return best;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     /** US certificate (e.g. "PG-13", "TV-14"), "ADULT" for adult titles, or null when there isn't one. */
     public static String certification(String id, String type) throws Exception {
         if (!enabled()) return null;

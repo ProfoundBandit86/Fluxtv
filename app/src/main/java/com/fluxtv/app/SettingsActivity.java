@@ -461,12 +461,63 @@ public class SettingsActivity extends FluxActivity {
         content.addView(label(g.length() == 0 ? "Add a provider first." : g.toString().trim()
                 + "\nChannels, the guide and logos are saved on this TV and refreshed in the background every few hours, so Live TV opens instantly."));
         LinearLayout gr = buttonRow();
-        gr.addView(Ui.button(this, R.drawable.ic_update, "Update the guide now", v -> {
-            Toast.makeText(this, "Updating the TV guide…", Toast.LENGTH_SHORT).show();
-            App.async(() -> { for (Iptv.Source s : Iptv.sources()) Iptv.loadGuide(s, true); return true; },
-                    ok -> { Toast.makeText(this, "TV guide updated", Toast.LENGTH_SHORT).show(); render(); },
+        gr.addView(Ui.button(this, R.drawable.ic_update, "Download guides now", v -> {
+            Toast.makeText(this, "Downloading TV guides…", Toast.LENGTH_SHORT).show();
+            App.async(Iptv::downloadAllGuides,
+                    msg -> { Toast.makeText(this, msg, Toast.LENGTH_LONG).show(); render(true); },
                     e -> Toast.makeText(this, "Guide: " + App.message(e), Toast.LENGTH_LONG).show());
         }));
+        String last = Store.get("epg_last");
+        if (!last.isEmpty()) content.addView(label("Last download: " + last));
+        content.addView(label("Download every"));
+        content.addView(choices(new String[]{"3 hours", "6 hours", "12 hours", "Day"}, "epg_refresh", 0));
+
+        content.addView(section("Extra guide sources"));
+        content.addView(label("XMLTV links (.xml or .xml.gz) that fill in channels your provider's guide is missing. "
+                + "Channels are matched by guide id first, then by name. Used for every provider."));
+        List<String> extra = Iptv.extraEpgUrls();
+        for (String u : extra) {
+            LinearLayout line = buttonRow();
+            line.setGravity(Gravity.CENTER_VERTICAL);
+            String st = Store.get("epg_status:" + u);
+            TextView t = Ui.text(this, u + "\n" + (st.isEmpty() ? "Not downloaded yet" : st), 13,
+                    st.startsWith("Failed") ? Color.parseColor("#F87171") : Ui.TEXT);
+            line.addView(t, new LinearLayout.LayoutParams(Ui.dp(this, 560), ViewGroup.LayoutParams.WRAP_CONTENT));
+            line.addView(Ui.button(this, "Remove", v -> {
+                List<String> l = Iptv.extraEpgUrls();
+                l.remove(u);
+                Iptv.setExtraEpgUrls(l);
+                render(true);
+            }));
+            content.addView(line);
+        }
+        LinearLayout add = buttonRow();
+        add.setGravity(Gravity.CENTER_VERTICAL);
+        android.widget.EditText eu = new android.widget.EditText(this);
+        eu.setSingleLine(true);
+        eu.setHint("https://…/guide.xml.gz");
+        eu.setTextColor(Ui.TEXT);
+        eu.setHintTextColor(Ui.DIM);
+        eu.setTextSize(15);
+        add.addView(eu, new LinearLayout.LayoutParams(Ui.dp(this, 460), ViewGroup.LayoutParams.WRAP_CONTENT));
+        add.addView(Ui.button(this, "Add", v -> {
+            String u = eu.getText().toString().trim();
+            if (!u.startsWith("http")) { Toast.makeText(this, "Enter a link starting with http", Toast.LENGTH_SHORT).show(); return; }
+            addEpg(u);
+        }));
+        content.addView(add);
+        LinearLayout presets = buttonRow();
+        String[][] known = {{"US (epgshare01)", "https://epgshare01.online/epgshare01/epg_ripper_US1.xml.gz"},
+                {"UK (epgshare01)", "https://epgshare01.online/epgshare01/epg_ripper_UK1.xml.gz"},
+                {"Canada (epgshare01)", "https://epgshare01.online/epgshare01/epg_ripper_CA1.xml.gz"}};
+        for (String[] k : known) {
+            if (extra.contains(k[1])) continue;
+            presets.addView(Ui.pill(this, "+ " + k[0], false, v -> addEpg(k[1])));
+        }
+        if (presets.getChildCount() > 0) {
+            content.addView(label("Free guides"));
+            content.addView(presets);
+        }
         content.addView(section("Preview while browsing the guide"));
         boolean prev = !"off".equals(Store.get("live_preview"));
         LinearLayout pv = buttonRow();
@@ -562,6 +613,12 @@ public class SettingsActivity extends FluxActivity {
         content.addView(choices(PlayerActivity.SUB_STYLES, "player_sub_style", 0));
         content.addView(section("Picture size"));
         content.addView(choices(PlayerActivity.ZOOMS, "player_zoom", 0));
+        content.addView(section("Skip intro & credits"));
+        content.addView(label("Times come from the community databases IntroDB and TheIntroDB, so shows without data get no button."));
+        content.addView(choices(PlayerActivity.SKIP_MODES, "player_skip", 0));
+        content.addView(section("Play next episode"));
+        content.addView(label("Shows the next episode when the credits start (or 30 s before the end)."));
+        content.addView(choices(PlayerActivity.NEXT_MODES, "player_next", 1));
         content.addView(section("Stream size limits"));
         content.addView(label("Bigger streams are hidden and never auto-played. Your own library is never limited."));
         for (int q = 0; q < SizeLimits.QUALITIES.length; q++) {
@@ -668,6 +725,16 @@ public class SettingsActivity extends FluxActivity {
             row.addView(Ui.pill(this, names[i], i == cur, v -> { Store.put(key, String.valueOf(idx)); render(); }));
         }
         return row;
+    }
+
+    private void addEpg(String url) {
+        List<String> l = Iptv.extraEpgUrls();
+        if (!l.contains(url)) l.add(url);
+        Iptv.setExtraEpgUrls(l);
+        Toast.makeText(this, "Added. Downloading guides…", Toast.LENGTH_SHORT).show();
+        render(true);
+        App.async(Iptv::downloadAllGuides, msg -> { Toast.makeText(this, msg, Toast.LENGTH_LONG).show(); render(true); },
+                e -> Toast.makeText(this, "Guide: " + App.message(e), Toast.LENGTH_LONG).show());
     }
 
     /** A key field that shows only the last characters of a saved key. */

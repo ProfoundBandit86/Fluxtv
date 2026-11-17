@@ -132,7 +132,8 @@ public class PlayerActivity extends Activity {
                     reportToServer();
                     scrobble("stop");
                     reported = true;
-                    finish();
+                    if (nextUp != null && playNextMode() > 0) playNext();
+                    else finish();
                 }
             }
 
@@ -209,6 +210,7 @@ public class PlayerActivity extends Activity {
         player.setPlayWhenReady(true);
         root.setFocusable(true);
         root.requestFocus();
+        loadCues();
         // No controls or badges when a video starts; press OK or ↑ to bring them up.
     }
 
@@ -617,6 +619,217 @@ public class PlayerActivity extends Activity {
         skipHint.setAlpha(1f);
         App.MAIN.removeCallbacks(hideSkip);
         App.MAIN.postDelayed(hideSkip, 1500);
+    }
+
+    // ------------------------------------------------------------ skip intro / credits, play next
+
+    static final String[] SKIP_MODES = {"Show a Skip button", "Skip automatically", "Off"};
+    static final String[] NEXT_MODES = {"Off", "Countdown 10 s", "Countdown 5 s", "Ask, don't count down"};
+
+    private List<Segments.Seg> cues = new ArrayList<>();
+    private PlayInfo nextUp;
+    private LinearLayout cueBox;
+    private android.widget.Button cueButton;
+    private Segments.Seg shownCue;
+    private final java.util.Set<String> dismissed = new java.util.HashSet<>();
+    private boolean nextShowing;
+    private int countLeft;
+
+    private static int skipMode() { return intPref("player_skip", 0); }
+    private static int playNextMode() { return intPref("player_next", 1); }
+
+    private void loadCues() {
+        if (info == null || live || info.videoId.startsWith("dvr:")) return;
+        String type = info.type, vid = info.videoId, metaId = info.metaId;
+        if (skipMode() != 2) App.async(() -> Segments.lookup(type, vid), l -> cues = l, e -> { });
+        if ("series".equals(type) && playNextMode() > 0) {
+            App.async(() -> findNext(type, metaId, vid), n -> nextUp = n, e -> { });
+        }
+    }
+
+    /** The episode after videoId in the show's episode list, or null. */
+    private PlayInfo findNext(String type, String metaId, String videoId) throws Exception {
+        JSONObject m = Addons.meta(type, metaId);
+        JSONArray v = m.optJSONArray("videos");
+        if (v == null) return null;
+        List<JSONObject> eps = new ArrayList<>();
+        for (int i = 0; i < v.length(); i++) {
+            JSONObject o = v.optJSONObject(i);
+            if (o != null && o.optInt("season") > 0) eps.add(o);
+        }
+        java.util.Collections.sort(eps, (a, b) -> a.optInt("season") != b.optInt("season")
+                ? Integer.compare(a.optInt("season"), b.optInt("season"))
+                : Integer.compare(a.optInt("episode", a.optInt("number")), b.optInt("episode", b.optInt("number"))));
+        for (int i = 0; i < eps.size() - 1; i++) {
+            if (!videoId.equals(eps.get(i).optString("id"))) continue;
+            JSONObject n = eps.get(i + 1);
+            String rel = n.optString("released");
+            if (!rel.isEmpty()) {
+                try {
+                    java.text.SimpleDateFormat f = new java.text.SimpleDateFormat("yyyy-MM-dd", Locale.US);
+                    if (f.parse(rel.substring(0, 10)).getTime() > System.currentTimeMillis()) return null; // not out yet
+                } catch (Exception ignored) { }
+            }
+            int ep = n.optInt("episode", n.optInt("number"));
+            String t = n.optString("name", n.optString("title"));
+            String label = "S" + n.optInt("season") + " E" + ep + (t.isEmpty() ? "" : " · " + t);
+            PlayInfo pi = PlayInfo.of(type, metaId, n.optString("id"), info.name, info.poster, label);
+            pi.background = info.background;
+            return pi;
+        }
+        return null;
+    }
+
+    private final Runnable cueTick = new Runnable() {
+        @Override
+        public void run() {
+            try { checkCues(); } catch (Exception ignored) { }
+            App.MAIN.postDelayed(this, 500);
+        }
+    };
+
+    private void checkCues() {
+        if (player == null || live || panelOpen()) return;
+        long pos = player.getCurrentPosition(), dur = player.getDuration();
+        if (dur <= 0 || !player.isPlaying() && !nextShowing) { if (!nextShowing) hideCue(); return; }
+        // Play next: at the credits marker, else 30 s before the end.
+        Segments.Seg credits = null;
+        for (Segments.Seg c : cues) if ("credits".equals(c.kind) && (c.end < 0 || c.end >= dur - 60_000)) credits = c;
+        long nextAt = credits != null ? credits.start : dur - 30_000;
+        if (nextUp != null && playNextMode() > 0 && pos >= nextAt && !dismissed.contains("next")) {
+            if (!nextShowing) showNext();
+            return;
+        }
+        if (nextShowing && pos < nextAt) hideCue();
+        if (nextShowing) return;
+        Segments.Seg in = null;
+        for (Segments.Seg c : cues) {
+            long end = c.end < 0 ? dur : c.end;
+            if (pos >= c.start && pos < end - 1500 && !dismissed.contains(c.kind + c.start)) { in = c; break; }
+        }
+        if (in == null) { hideCue(); return; }
+        if (skipMode() == 1) {
+            dismissed.add(in.kind + in.start);
+            seekPast(in, dur);
+            Toast.makeText(this, in.button().replace("Skip", "Skipped"), Toast.LENGTH_SHORT).show();
+            return;
+        }
+        if (skipMode() == 0 && in != shownCue) showCue(in.button(), null);
+        shownCue = in;
+    }
+
+    private void seekPast(Segments.Seg c, long dur) {
+        long end = c.end < 0 ? dur : c.end;
+        if (end >= dur - 2000) {
+            if (nextUp != null && playNextMode() > 0) { playNext(); return; }
+            end = dur - 1000;
+        }
+        player.seekTo(end);
+    }
+
+    /** The pill at the bottom right. sub is a second line (next episode name). */
+    private void showCue(String text, String sub) {
+        if (cueBox == null) {
+            cueBox = new LinearLayout(this);
+            cueBox.setOrientation(LinearLayout.VERTICAL);
+            cueBox.setGravity(Gravity.END);
+            cueButton = Ui.primary(this, R.drawable.ic_play, text, null, v -> pressCue());
+            cueButton.setFocusable(false);   // OK reaches it through cueKey, so the video keeps focus
+            cueBox.addView(cueButton);
+            FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM | Gravity.END);
+            lp.setMargins(0, 0, Ui.dp(this, 48), Ui.dp(this, 120));
+            root.addView(cueBox, lp);
+        }
+        if (sub != null) Ui.setPrimaryText(this, cueButton, text, sub);
+        else Ui.setPrimaryText(this, cueButton, text, "Press OK  ·  Back to dismiss");
+        if (cueBox.getVisibility() != View.VISIBLE || cueBox.getAlpha() < 1f) {
+            cueBox.setVisibility(View.VISIBLE);
+            cueBox.setAlpha(0f);
+            cueBox.setTranslationX(Ui.dp(this, 40));
+            cueBox.animate().alpha(1f).translationX(0).setDuration(220).start();
+        }
+    }
+
+    private void hideCue() {
+        App.MAIN.removeCallbacks(countdown);
+        nextShowing = false;
+        shownCue = null;
+        if (cueBox != null && cueBox.getVisibility() == View.VISIBLE) cueBox.setVisibility(View.GONE);
+    }
+
+    private boolean cueShowing() {
+        return cueBox != null && cueBox.getVisibility() == View.VISIBLE;
+    }
+
+    private void showNext() {
+        nextShowing = true;
+        int mode = playNextMode();
+        countLeft = mode == 1 ? 10 : mode == 2 ? 5 : -1;
+        updateNextText();
+        App.MAIN.removeCallbacks(countdown);
+        if (countLeft > 0) App.MAIN.postDelayed(countdown, 1000);
+    }
+
+    private void updateNextText() {
+        String sub = nextUp.label + (countLeft > 0 ? "   ·   starts in " + countLeft + " s" : "");
+        showCue("Next episode", sub);
+    }
+
+    private final Runnable countdown = new Runnable() {
+        @Override
+        public void run() {
+            if (!nextShowing) return;
+            if (player != null && !player.isPlaying()) { App.MAIN.postDelayed(this, 1000); return; } // paused: wait
+            countLeft--;
+            if (countLeft <= 0) { playNext(); return; }
+            updateNextText();
+            App.MAIN.postDelayed(this, 1000);
+        }
+    };
+
+    private void pressCue() {
+        if (nextShowing) { playNext(); return; }
+        if (shownCue != null && player != null) {
+            dismissed.add(shownCue.kind + shownCue.start);
+            Segments.Seg c = shownCue;
+            hideCue();
+            seekPast(c, player.getDuration());
+        }
+    }
+
+    private boolean playingNext;
+
+    private void playNext() {
+        if (playingNext || nextUp == null) return;
+        playingNext = true;
+        App.MAIN.removeCallbacks(countdown);
+        if (!reported) {
+            saveProgress();
+            reportToServer();
+            scrobble("stop");
+            reported = true;
+        }
+        startActivity(nextUp.into(new Intent(this, StreamsActivity.class)).putExtra("autoplay", true));
+        overridePendingTransition(0, 0);
+        finish();
+    }
+
+    /** OK presses the Skip / Next button; Back dismisses it. Only while the controls are hidden. */
+    private boolean cueKey(KeyEvent e) {
+        if (!cueShowing() || panelOpen() || controlsShown()) return false;
+        int k = e.getKeyCode();
+        boolean ok = k == KeyEvent.KEYCODE_DPAD_CENTER || k == KeyEvent.KEYCODE_ENTER || k == KeyEvent.KEYCODE_NUMPAD_ENTER;
+        boolean back = k == KeyEvent.KEYCODE_BACK || k == KeyEvent.KEYCODE_ESCAPE;
+        if (!ok && !back) return false;
+        if (e.getAction() == KeyEvent.ACTION_UP) {
+            if (ok) pressCue();
+            else {
+                dismissed.add(nextShowing ? "next" : shownCue != null ? shownCue.kind + shownCue.start : "");
+                hideCue();
+            }
+        }
+        return true;
     }
 
     // ------------------------------------------------------------ preferences
@@ -1201,6 +1414,7 @@ public class PlayerActivity extends Activity {
     @Override
     public boolean dispatchKeyEvent(KeyEvent e) {
         int k = e.getKeyCode();
+        if (!live && cueKey(e)) return true;
         if (!live && controls != null && !panelOpen()) {
             Boolean r = vodKey(e);
             if (r != null) return r;
@@ -1273,12 +1487,15 @@ public class PlayerActivity extends Activity {
     protected void onResume() {
         super.onResume();
         App.MAIN.postDelayed(saver, 10_000);
+        App.MAIN.post(cueTick);
     }
 
     @Override
     protected void onPause() {
         super.onPause();
         App.MAIN.removeCallbacks(saver);
+        App.MAIN.removeCallbacks(cueTick);
+        App.MAIN.removeCallbacks(countdown);
         saveProgress();
         if (!reported) {
             reportToServer();

@@ -38,6 +38,7 @@ public class DetailActivity extends FluxActivity {
 
     private String type, id, serverId, badge;
     private JSONObject meta;
+    private LinearLayout epGroup;
     private LinearLayout buttons, seasonsBar, episodes, chips, similarRow, about;
     private ImageView backdrop, logo;
     private TextView title, description, credits;
@@ -157,9 +158,10 @@ public class DetailActivity extends FluxActivity {
         content.addView(hero, new LinearLayout.LayoutParams(Ui.dp(this, 860), ViewGroup.LayoutParams.WRAP_CONTENT));
 
         // ---- episodes
-        LinearLayout epGroup = Ui.vertical(this);
+        epGroup = Ui.vertical(this);
         epGroup.setTag("group");
         epGroup.setClipChildren(false);
+        epGroup.setVisibility(View.GONE);   // shown for series only (an empty row here was an invisible stop)
         content.addView(epGroup);
         episodesHeader = sectionTitle("Episodes");
         epGroup.addView(episodesHeader);
@@ -476,16 +478,12 @@ public class DetailActivity extends FluxActivity {
             if (arrStatus == null && !arrLoading) loadArrStatus(arr);
         }
 
-        String trailer = trailerId();
-        if (trailer != null) {
-            buttons.addView(Ui.tile(this, R.drawable.ic_trailer, "Trailer", v -> {
-                try {
-                    startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com/watch?v=" + trailer)));
-                } catch (ActivityNotFoundException e) {
-                    Toast.makeText(this, "YouTube isn't installed", Toast.LENGTH_SHORT).show();
-                }
-            }));
-        }
+        // Trailer on every title: the add-on's, else TMDB's (looked up when pressed).
+        android.widget.Button tb = Ui.tile(this, R.drawable.ic_trailer, "Trailer", v -> playTrailer());
+        tb.setTag("trailer");
+        View after = buttons.findViewWithTag("sources");
+        if (after == null) after = buttons.findViewWithTag("play");
+        buttons.addView(tb, after != null ? buttons.indexOfChild(after) + 1 : buttons.getChildCount());
         if (focusedIndex >= 0 && focusedIndex < buttons.getChildCount()) buttons.getChildAt(focusedIndex).requestFocus();
     }
 
@@ -603,6 +601,7 @@ public class DetailActivity extends FluxActivity {
         TreeMap<Integer, List<JSONObject>> map = seasons();
         if (map.isEmpty()) return;
         episodesHeader.setVisibility(View.VISIBLE);
+        epGroup.setVisibility(View.VISIBLE);
         JSONObject next = nextEpisode();
         if (!map.containsKey(selectedSeason)) {
             selectedSeason = next != null ? next.optInt("season", 1)
@@ -688,6 +687,29 @@ public class DetailActivity extends FluxActivity {
             View p = buttons.findViewWithTag("play");
             if (p instanceof android.widget.Button) Ui.setPrimaryText(this, (android.widget.Button) p, title, "");
         });
+    }
+
+    private void playTrailer() {
+        String yt = trailerId();
+        if (yt != null) { openYoutube(yt); return; }
+        String mid = meta.optString("id", id);
+        String type = isSeries() ? "series" : "movie";
+        App.async(() -> { String t = Tmdb.trailer(mid, type); return t == null ? "" : t; }, t -> {
+            if (t.isEmpty()) Toast.makeText(this, Tmdb.enabled() ? "No trailer found" : "No trailer listed (add a TMDB key in Settings → Search to find more)", Toast.LENGTH_LONG).show();
+            else openYoutube(t);
+        }, e -> Toast.makeText(this, "No trailer found", Toast.LENGTH_SHORT).show());
+    }
+
+    /** YouTube for TV, SmartTube, or whatever handles YouTube links on this TV. */
+    private void openYoutube(String ytId) {
+        Intent[] tries = {
+                new Intent(Intent.ACTION_VIEW, Uri.parse("vnd.youtube:" + ytId)),
+                new Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com/watch?v=" + ytId)),
+        };
+        for (Intent i : tries) {
+            try { startActivity(i); return; } catch (ActivityNotFoundException ignored) { }
+        }
+        Toast.makeText(this, "Install YouTube or SmartTube to watch trailers", Toast.LENGTH_LONG).show();
     }
 
     private String trailerId() {

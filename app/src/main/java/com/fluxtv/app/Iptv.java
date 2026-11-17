@@ -477,9 +477,8 @@ public final class Iptv {
     /** Programmes for a channel from the saved guide, oldest first (empty until the guide has loaded). */
     public static List<Program> programs(Source s, Channel c) {
         Map<String, List<Program>> g = guides.get(s.id);
-        if (g == null || c.epgId.isEmpty()) return new ArrayList<>();
-        List<Program> list = g.get(c.epgId);
-        if (list == null) list = g.get(c.epgId.toLowerCase(Locale.ROOT));
+        if (g == null) return new ArrayList<>();
+        List<Program> list = lookup(g, c);
         return list == null ? new ArrayList<>() : list;
     }
 
@@ -508,14 +507,14 @@ public final class Iptv {
      */
     public static Map<String, List<Program>> loadGuide(Source s, boolean force) throws Exception {
         Map<String, List<Program>> g = guides.get(s.id);
-        if (g != null && !force && guideAge(s) < GUIDE_TTL) return g;
+        if (g != null && !force && guideAge(s) < refreshHours() * 3600_000L) return g;
         if (g == null && !force) {
             Map<String, List<Program>> disk = readGuide(s);
             if (disk != null) {
                 guides.put(s.id, disk);
                 guideTime.put(s.id, diskTime(s, "epg"));
                 if (guideAge(s) < 12L * 3600 * 1000) {
-                    if (guideAge(s) > GUIDE_TTL) App.IO.execute(() -> { try { downloadGuide(s); } catch (Exception ignored) { } });
+                    if (guideAge(s) > refreshHours() * 3600_000L) App.IO.execute(() -> { try { downloadGuide(s); } catch (Exception ignored) { } });
                     return disk;
                 }
             }
@@ -528,56 +527,54 @@ public final class Iptv {
     private static Map<String, List<Program>> downloadGuide(Source s) throws Exception {
         synchronized (GUIDE_LOCK) {
             String url = epgUrl(s);
-            if (url.isEmpty()) return new HashMap<>();
+            List<String> extras = extraEpgUrls();
+            if (url.isEmpty() && extras.isEmpty()) return new HashMap<>();
+            List<Channel> chans = new ArrayList<>();
+            try { chans = channels(s); } catch (Exception ignored) { }
             // Only keep channels we actually have (providers' guides can be huge).
             java.util.Set<String> wanted = new java.util.HashSet<>();
-            try { for (Channel c : channels(s)) if (!c.epgId.isEmpty()) { wanted.add(c.epgId); wanted.add(c.epgId.toLowerCase(Locale.ROOT)); } } catch (Exception ignored) { }
+            for (Channel c : chans) if (!c.epgId.isEmpty()) { wanted.add(c.epgId); wanted.add(c.epgId.toLowerCase(Locale.ROOT)); }
             Map<String, List<Program>> g = new HashMap<>();
-            long now = System.currentTimeMillis(), from = now - 3 * 3600 * 1000L, until = now + 48 * 3600 * 1000L;
-            try (InputStream raw0 = Http.open(url)) {
-                java.io.BufferedInputStream raw = new java.io.BufferedInputStream(raw0, 65536);
-                raw.mark(4);
-                int b1 = raw.read(), b2 = raw.read();
-                raw.reset();
-                InputStream in = (b1 == 0x1f && b2 == 0x8b) ? new GZIPInputStream(raw, 65536) : raw;
-                XmlPullParser x = Xml.newPullParser();
-                x.setInput(in, null);
-                Program cur = null;
-                String channel = null, field = null;
-                for (int ev = x.getEventType(); ev != XmlPullParser.END_DOCUMENT; ev = x.next()) {
-                    if (ev == XmlPullParser.START_TAG) {
-                        String tag = x.getName();
-                        if ("programme".equals(tag)) {
-                            channel = x.getAttributeValue(null, "channel");
-                            long st = xmlDate(x.getAttributeValue(null, "start"));
-                            long en = xmlDate(x.getAttributeValue(null, "stop"));
-                            if (channel != null && en > from && st < until && (wanted.isEmpty() || wanted.contains(channel))) {
-                                cur = new Program();
-                                cur.start = st;
-                                cur.end = en;
-                            } else {
-                                cur = null;
-                            }
-                        } else if (cur != null && ("title".equals(tag) || "desc".equals(tag))) {
-                            field = tag;
-                        }
-                    } else if (ev == XmlPullParser.TEXT && cur != null && field != null) {
-                        if (field.equals("title") && cur.title.isEmpty()) cur.title = x.getText().trim();
-                        if (field.equals("desc") && cur.desc.isEmpty()) {
-                            String d = x.getText().trim();
-                            cur.desc = d.length() > 500 ? d.substring(0, 500) + "…" : d;
-                        }
-                    } else if (ev == XmlPullParser.END_TAG) {
-                        if ("programme".equals(x.getName()) && cur != null && channel != null) {
-                            List<Program> list = g.get(channel);
-                            if (list == null) g.put(channel, list = new ArrayList<>());
-                            list.add(cur);
-                            cur = null;
-                        }
-                        field = null;
-                    }
+            Exception first = null;
+            if (!url.isEmpty()) {
+                try {
+                    parseXmltv(url, wanted, null, g, null);
+                } catch (Exception e) {
+                    first = e;
                 }
             }
+            // Extra guides fill in channels the provider's guide misses: matched by id, then by name.
+            List<Channel> missing = new ArrayList<>();
+            for (Channel c : chans) if (lookup(g, c) == null) missing.add(c);
+            for (String extra : extras) {
+                if (missing.isEmpty()) break;
+                java.util.Set<String> ids = new java.util.HashSet<>(), names = new java.util.HashSet<>();
+                for (Channel c : missing) {
+                    if (!c.epgId.isEmpty()) ids.add(c.epgId.toLowerCase(Locale.ROOT));
+                    names.add(norm(c.name));
+                }
+                Map<String, List<Program>> eg = new HashMap<>();
+                Map<String, String> nameToId = new HashMap<>();
+                try {
+                    int n = parseXmltv(extra, ids, names, eg, nameToId);
+                    Store.put("epg_status:" + extra, "OK · " + n + " matching channels · " + new SimpleDateFormat("MMM d, h:mm a", Locale.getDefault()).format(new java.util.Date()));
+                } catch (Exception e) {
+                    Store.put("epg_status:" + extra, "Failed: " + e.getMessage());
+                    continue;
+                }
+                List<Channel> still = new ArrayList<>();
+                for (Channel c : missing) {
+                    List<Program> l = c.epgId.isEmpty() ? null : eg.get(c.epgId.toLowerCase(Locale.ROOT));
+                    if (l == null) {
+                        String id = nameToId.get(norm(c.name));
+                        if (id != null) l = eg.get(id.toLowerCase(Locale.ROOT));
+                    }
+                    if (l != null && !l.isEmpty()) g.put("#" + c.id, l);
+                    else still.add(c);
+                }
+                missing = still;
+            }
+            if (g.isEmpty() && first != null) throw first;
             for (List<Program> list : g.values()) Collections.sort(list, (a, b) -> Long.compare(a.start, b.start));
             guides.put(s.id, g);
             guideTime.put(s.id, System.currentTimeMillis());
@@ -585,6 +582,139 @@ public final class Iptv {
             writeGuide(s, g);
             return g;
         }
+    }
+
+    /**
+     * Streams one XMLTV file into out (keys: channel id, and lower-cased id when names != null).
+     * wanted: ids to keep (empty = all). names: normalised channel names whose ids should also be kept;
+     * nameToId receives the matches. Returns the number of channels kept.
+     */
+    private static int parseXmltv(String url, java.util.Set<String> wanted, java.util.Set<String> names,
+                                  Map<String, List<Program>> out, Map<String, String> nameToId) throws Exception {
+        long now = System.currentTimeMillis(), from = now - 3 * 3600 * 1000L, until = now + 48 * 3600 * 1000L;
+        boolean lower = names != null;
+        java.util.Set<String> keep = new java.util.HashSet<>(wanted);
+        try (InputStream raw0 = Http.open(url)) {
+            java.io.BufferedInputStream raw = new java.io.BufferedInputStream(raw0, 65536);
+            raw.mark(4);
+            int b1 = raw.read(), b2 = raw.read();
+            raw.reset();
+            InputStream in = (b1 == 0x1f && b2 == 0x8b) ? new GZIPInputStream(raw, 65536) : raw;
+            XmlPullParser x = Xml.newPullParser();
+            x.setInput(in, null);
+            Program cur = null;
+            String channel = null, field = null, chanId = null;
+            for (int ev = x.getEventType(); ev != XmlPullParser.END_DOCUMENT; ev = x.next()) {
+                if (ev == XmlPullParser.START_TAG) {
+                    String tag = x.getName();
+                    if ("channel".equals(tag)) {
+                        chanId = x.getAttributeValue(null, "id");
+                    } else if ("display-name".equals(tag) && chanId != null && names != null) {
+                        field = "name";
+                    } else if ("programme".equals(tag)) {
+                        channel = x.getAttributeValue(null, "channel");
+                        if (channel != null && lower) channel = channel.toLowerCase(Locale.ROOT);
+                        long st = xmlDate(x.getAttributeValue(null, "start"));
+                        long en = xmlDate(x.getAttributeValue(null, "stop"));
+                        if (channel != null && en > from && st < until && (keep.isEmpty() && names == null || keep.contains(channel))) {
+                            cur = new Program();
+                            cur.start = st;
+                            cur.end = en;
+                        } else {
+                            cur = null;
+                        }
+                    } else if (cur != null && ("title".equals(tag) || "desc".equals(tag))) {
+                        field = tag;
+                    }
+                } else if (ev == XmlPullParser.TEXT && field != null) {
+                    if (field.equals("name") && chanId != null) {
+                        String n = norm(x.getText());
+                        if (names.contains(n) && !nameToId.containsKey(n)) {
+                            nameToId.put(n, chanId);
+                            keep.add(chanId.toLowerCase(Locale.ROOT));
+                        }
+                    } else if (cur != null) {
+                        if (field.equals("title") && cur.title.isEmpty()) cur.title = x.getText().trim();
+                        if (field.equals("desc") && cur.desc.isEmpty()) {
+                            String d = x.getText().trim();
+                            cur.desc = d.length() > 500 ? d.substring(0, 500) + "…" : d;
+                        }
+                    }
+                } else if (ev == XmlPullParser.END_TAG) {
+                    if ("programme".equals(x.getName()) && cur != null && channel != null) {
+                        List<Program> list = out.get(channel);
+                        if (list == null) out.put(channel, list = new ArrayList<>());
+                        list.add(cur);
+                        cur = null;
+                    } else if ("channel".equals(x.getName())) {
+                        chanId = null;
+                    }
+                    field = null;
+                }
+            }
+        }
+        return out.size();
+    }
+
+    private static List<Program> lookup(Map<String, List<Program>> g, Channel c) {
+        List<Program> list = g.get("#" + c.id);
+        if (list == null && !c.epgId.isEmpty()) {
+            list = g.get(c.epgId);
+            if (list == null) list = g.get(c.epgId.toLowerCase(Locale.ROOT));
+        }
+        return list;
+    }
+
+    /** "BBC One HD (UK)" → "bbcone": for matching channel names across guides. */
+    static String norm(String n) {
+        if (n == null) return "";
+        String s = n.toLowerCase(Locale.ROOT)
+                .replaceAll("\\[[^\\]]*\\]|\\([^)]*\\)", " ")
+                .replaceAll("^[a-z]{2,3}\\s*[:|\\-]\\s+", "")
+                .replaceAll("\\b(uhd|fhd|hd|sd|4k|hevc|h265|backup|east|west)\\b", " ")
+                .replaceAll("[^a-z0-9]", "");
+        return s;
+    }
+
+    // ---------------------------------------------------------------- extra guide sources (EPG downloader)
+
+    /** Guide (XMLTV) links added in Settings → Live TV & DVR, used for every playlist. */
+    public static List<String> extraEpgUrls() {
+        List<String> out = new ArrayList<>();
+        try {
+            JSONArray a = new JSONArray(Store.get("epg_extra").isEmpty() ? "[]" : Store.get("epg_extra"));
+            for (int i = 0; i < a.length(); i++) if (!a.optString(i).trim().isEmpty()) out.add(a.optString(i).trim());
+        } catch (Exception ignored) { }
+        return out;
+    }
+
+    public static void setExtraEpgUrls(List<String> urls) {
+        Store.put("epg_extra", new JSONArray(urls).toString());
+    }
+
+    /** Hours between automatic guide downloads (Settings). */
+    public static int refreshHours() {
+        int[] choices = {3, 6, 12, 24};
+        int i = PlayerActivity.intPref("epg_refresh", 0);
+        return choices[Math.max(0, Math.min(choices.length - 1, i))];
+    }
+
+    /** Downloads every playlist's guide now. Returns a one-line summary. Blocking. */
+    public static String downloadAllGuides() {
+        int ok = 0, programmes = 0;
+        StringBuilder err = new StringBuilder();
+        for (Source s : sources()) {
+            try {
+                Map<String, List<Program>> g = downloadGuide(s);
+                ok++;
+                for (List<Program> l : g.values()) programmes += l.size();
+            } catch (Exception e) {
+                err.append(s.name).append(": ").append(e.getMessage()).append(". ");
+            }
+        }
+        String msg = ok + " guide" + (ok == 1 ? "" : "s") + " downloaded · " + programmes + " programmes" + (err.length() > 0 ? " · " + err : "");
+        Store.put("epg_last", msg + " · " + new SimpleDateFormat("MMM d, h:mm a", Locale.getDefault()).format(new java.util.Date()));
+        return msg;
     }
 
     private static void writeGuide(Source s, Map<String, List<Program>> g) {

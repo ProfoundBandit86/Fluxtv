@@ -41,7 +41,7 @@ public class App extends Application {
         MAIN.postDelayed(new Runnable() {
             @Override public void run() {
                 IO.execute(Iptv::prefetchAll);
-                MAIN.postDelayed(this, 3 * 3600 * 1000L);
+                MAIN.postDelayed(this, 3600 * 1000L);   // guides refresh when older than Settings says
             }
         }, 8000);
         // Save any crash so the home screen can show it next time (TVs hide crash dialogs).

@@ -331,6 +331,27 @@ adb shell am start -W -n $P/.MainActivity --es section favorites; sleep 5; texts
 adb shell am start -W -n $P/.SettingsActivity --es category profiles; sleep 3
 curl -s -m 20 -X POST --data-urlencode "name=Default" http://127.0.0.1:8090/profile-use | grep -o "<p class='m'>[^<]*"
 crashes sync
+# ---------------- v26: info screen (no phantom stop, Trailer), skip intro / credits / next episode, extra guide sources
+curl -s -m 30 -X POST --data-urlencode "tmdb=http://10.0.2.2:8000/3" --data-urlencode "gemini=http://10.0.2.2:8000/gemini/" --data-urlencode "trakt=http://10.0.2.2:8000/trakt" --data-urlencode "introdb=http://10.0.2.2:8000/introdb" http://127.0.0.1:8090/test-config | grep -o "<p class='m'>[^<]*"
+adb shell am start -W -n $P/.DetailActivity --es type movie --es id tt0111161 --es name Test
+sleep 12; focused info-open; texts info-buttons 20; shot 90-info-open
+key DPAD_DOWN 1; focused info-one-down; shot 91-info-one-down
+key DPAD_UP 1; focused info-back-up
+adb shell am start -W -n $P/.PlayerActivity --es url "https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_fmp4/master.m3u8" --es pi_type series --es pi_meta tt0903747 --es pi_video tt0903747:1:1 --es pi_name "Breaking Bad" --es pi_label "S1 E1"
+sleep 14; shot 92-skip-intro; texts skip-intro 10
+key DPAD_CENTER 3; shot 93-after-skip-intro; texts after-skip 10
+sleep 26; shot 94-next-episode; texts next-episode 10
+sleep 4; shot 95-next-countdown
+sleep 9; top after-countdown; shot 96-next-started
+key BACK 2; key BACK 2
+crashes skip-next
+curl -s -m 60 -X POST --data-urlencode "urls=http://10.0.2.2:8000/extra-epg.xml" --data-urlencode "refresh=1" http://127.0.0.1:8090/epg-extra | grep -o "<p class='m'>[^<]*"
+sleep 15
+curl -s -m 60 -X POST http://127.0.0.1:8090/dvr-guide | grep -o "<p class='m'>[^<]*"
+curl -s -m 20 http://127.0.0.1:8090/ > out/settings-page-epg.html; echo "== WEB EPG: $(grep -o 'Last download: [^<]*\|extra-epg.xml: [^<]*' out/settings-page-epg.html | tr '\n' ' ')"
+adb shell am start -W -n $P/.LiveActivity; sleep 8; shot 97-guide-extra; texts guide-extra 40
+adb shell am start -W -n $P/.SettingsActivity --es category live; sleep 4; key DPAD_RIGHT 1; key DPAD_DOWN 1; key DPAD_DOWN 1; key DPAD_DOWN 1; key DPAD_DOWN 1; key DPAD_DOWN 1; shot 98-settings-epg; texts settings-epg 40
+crashes epg
 adb logcat -d > out/logcat.txt
 kill $FAKE_PID 2>/dev/null
 exit 0

@@ -184,8 +184,20 @@ public final class ConfigServer {
                 return "Guide link saved; loading the guide in the background";
             }
             case "/dvr-guide":
-                for (Iptv.Source gs : Iptv.sources()) Iptv.loadGuide(gs, true);
-                return "TV guide updated";
+                return Iptv.downloadAllGuides();
+            case "/epg-extra": {
+                List<String> l = new ArrayList<>();
+                for (String line : f(form, "urls").split("[\\r\\n]+")) {
+                    String u = line.trim();
+                    if (u.isEmpty()) continue;
+                    if (!u.startsWith("http")) throw new Exception("Links must start with http: " + u);
+                    if (!l.contains(u)) l.add(u);
+                }
+                Iptv.setExtraEpgUrls(l);
+                if (form.containsKey("refresh")) Store.put("epg_refresh", f(form, "refresh"));
+                App.IO.execute(Iptv::downloadAllGuides);
+                return l.size() + " extra guide source" + (l.size() == 1 ? "" : "s") + " saved; downloading guides in the background";
+            }
             case "/dvr-preview":
                 Store.put("live_preview", f(form, "preview"));
                 return "Saved";
@@ -364,7 +376,7 @@ public final class ConfigServer {
                 return "Size limits saved";
             case "/player":
                 for (String k : new String[]{"player_audio_lang", "player_sub_lang", "player_subs", "player_sub_size",
-                        "player_sub_style", "player_zoom"}) {
+                        "player_sub_style", "player_zoom", "player_skip", "player_next"}) {
                     if (form.containsKey(k)) Store.put(k, f(form, k));
                 }
                 return "Player settings saved";
@@ -376,6 +388,7 @@ public final class ConfigServer {
                 Store.put("test_tmdb", f(form, "tmdb"));
                 Store.put("test_gemini", f(form, "gemini"));
                 Store.put("test_trakt", f(form, "trakt"));
+                if (!f(form, "introdb").isEmpty()) Store.put("test_introdb", f(form, "introdb"));
                 Store.put("gemini_model_t", "0");
                 return "Test endpoints set";
             default:
@@ -600,6 +613,8 @@ public final class ConfigServer {
           .append("Subtitle size").append(select("player_sub_size", PlayerActivity.SUB_SIZES, PlayerActivity.intPref("player_sub_size", 1)))
           .append("Subtitle style").append(select("player_sub_style", PlayerActivity.SUB_STYLES, PlayerActivity.intPref("player_sub_style", 0)))
           .append("Picture size").append(select("player_zoom", PlayerActivity.ZOOMS, PlayerActivity.intPref("player_zoom", 0)))
+          .append("Skip intro &amp; credits").append(select("player_skip", PlayerActivity.SKIP_MODES, PlayerActivity.intPref("player_skip", 0)))
+          .append("Play next episode").append(select("player_next", PlayerActivity.NEXT_MODES, PlayerActivity.intPref("player_next", 1)))
           .append("<button>Save player settings</button></form>")
           .append(sizeLimitsForm())
           .append("<p class='u'>While watching: press OK or ↑ to show the controls; Audio, Subtitles, Quality, Speed and Picture are in the bar. "
@@ -716,7 +731,20 @@ public final class ConfigServer {
             ga.append(esc(is.name)).append(": ").append(age == Long.MAX_VALUE ? "guide not loaded yet" : "guide updated " + (age / 60000 < 60 ? age / 60000 + " min ago" : age / 3600000 + " h ago")).append("<br>");
         }
         sb.append("<p class='u'>").append(ga.length() == 0 ? "Add an IPTV provider first." : ga.toString()).append("</p>")
-          .append(form("/dvr-guide", "", "Update the TV guide now", "s"));
+          .append(form("/dvr-guide", "", "Download guides now", "s"));
+        if (!Store.get("epg_last").isEmpty()) sb.append("<p class='u'>Last download: ").append(esc(Store.get("epg_last"))).append("</p>");
+        StringBuilder eu = new StringBuilder(), est = new StringBuilder();
+        for (String u : Iptv.extraEpgUrls()) {
+            eu.append(esc(u)).append("\n");
+            String st = Store.get("epg_status:" + u);
+            est.append(esc(u)).append(": ").append(esc(st.isEmpty() ? "not downloaded yet" : st)).append("<br>");
+        }
+        sb.append("<form method='post' action='/epg-extra'><b>Extra guide sources</b><p class='u'>XMLTV links (.xml or .xml.gz), one per line. "
+                + "They fill in channels your provider's guide misses, matched by guide id, then by channel name.</p>")
+          .append("<textarea name='urls' rows='3' style='width:100%' placeholder='https://…/guide.xml.gz'>").append(eu).append("</textarea>")
+          .append("Download every").append(select("refresh", new String[]{"3 hours", "6 hours", "12 hours", "Day"}, PlayerActivity.intPref("epg_refresh", 0)))
+          .append("<button>Save guide sources</button></form>")
+          .append(est.length() == 0 ? "" : "<p class='u'>" + est + "</p>");
         sb.append("<form method='post' action='/dvr-preview' class='row'><b>Preview while browsing the guide</b>")
           .append(select("preview", new String[]{"on", "off"}, new String[]{"On", "Off (one-connection providers)"}, "off".equals(Store.get("live_preview")) ? "off" : "on"))
           .append("<button>Save</button></form>");
