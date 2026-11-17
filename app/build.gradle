@@ -32,7 +32,11 @@ android {
 
     buildTypes {
         release {
-            minifyEnabled false
+            // R8: drops unused library code and optimises the rest (smaller APK, faster start).
+            // Names are kept (no obfuscation) so crash reports stay readable.
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
             signingConfig signingConfigs.release
         }
     }

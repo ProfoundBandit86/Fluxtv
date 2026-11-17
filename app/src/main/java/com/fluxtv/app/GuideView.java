@@ -112,8 +112,10 @@ public class GuideView extends View {
     /** Called every minute so the "now" line and the current programme move on. */
     public void tick() {
         long now = System.currentTimeMillis();
-        if (focusTime < now) focusTime = now;
-        if (windowStart + HALF_HOUR <= now - now % HALF_HOUR - HALF_HOUR) windowStart = now - now % HALF_HOUR;
+        if (focusTime >= now - 120_000) {   // browsing catch-up in the past stays put
+            if (focusTime < now) focusTime = now;
+            if (windowStart + HALF_HOUR <= now - now % HALF_HOUR - HALF_HOUR) windowStart = now - now % HALF_HOUR;
+        }
         invalidate();
     }
 
@@ -184,15 +186,19 @@ public class GuideView extends View {
             case KeyEvent.KEYCODE_DPAD_LEFT: {
                 Iptv.Program p = focused();
                 long start = p != null ? p.start : focusTime - HALF_HOUR;
-                if (start <= now || focusTime <= now) {
+                Entry se = selected();
+                // Channels with catch-up can go back into the past (replays); others stop at now.
+                long earliest = se != null && se.channel.archiveDays > 0 ? now - se.channel.archiveDays * 86_400_000L : now;
+                if (start <= earliest || (earliest >= now && (start <= now || focusTime <= now))) {
                     if (focusTime > now) { focusTime = now; windowStart = now - now % HALF_HOUR; break; }
                     if (listener != null) listener.onLeftEdge();
                     return true;
                 }
-                Iptv.Program prev = at(programs(selected()), start - 1);
-                focusTime = Math.max(now, prev != null ? Math.max(prev.start, now) : start - HALF_HOUR);
+                Iptv.Program prev = at(programs(se), start - 1);
+                focusTime = Math.max(earliest, prev != null ? Math.max(prev.start, earliest) : start - HALF_HOUR);
+                if (earliest >= now) focusTime = Math.max(now, focusTime);
                 while (focusTime < windowStart) windowStart -= HALF_HOUR;
-                if (windowStart < now - now % HALF_HOUR) windowStart = now - now % HALF_HOUR;
+                if (earliest >= now && windowStart < now - now % HALF_HOUR) windowStart = now - now % HALF_HOUR;
                 break;
             }
             case KeyEvent.KEYCODE_DPAD_CENTER:
@@ -203,10 +209,22 @@ public class GuideView extends View {
             default:
                 return super.onKeyDown(code, ev);
         }
+        clampPast(now);
         clampTop();
         invalidate();
         fire();
         return true;
+    }
+
+    /** Moving onto a channel without catch-up while looking at the past: back to now. */
+    private void clampPast(long now) {
+        Entry e = selected();
+        if (focusTime >= now - 120_000 || e == null) return;
+        long earliest = e.channel.archiveDays > 0 ? now - e.channel.archiveDays * 86_400_000L : now;
+        if (focusTime < earliest) {
+            focusTime = earliest >= now ? now : earliest;
+            windowStart = focusTime - focusTime % HALF_HOUR;
+        }
     }
 
     private boolean longPressed;
@@ -315,7 +333,7 @@ public class GuideView extends View {
             for (Iptv.Program p : list) {
                 if (p.end <= windowStart || p.start >= end) continue;
                 any = true;
-                drawCell(c, p.start, p.end, p.title, y, selRow && p.start <= focusTime && p.end > focusTime, focusedView,
+                drawCell(c, p.start, p.end, (p.end <= now && Iptv.canReplay(e.channel, p) ? "↺ " : "") + p.title, y, selRow && p.start <= focusTime && p.end > focusTime, focusedView,
                         p.start <= now && p.end > now, Dvr.find(e.source, e.channel, p.start) != null, now);
             }
             if (!any) drawCell(c, windowStart, end, "No information", y, selRow, focusedView, false, false, now);

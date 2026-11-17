@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Tiny fake Xtream Codes / M3U / XMLTV server for the emulator test (reached at 10.0.2.2:8000)."""
 import base64, json, time
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, HTTPServer, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
 
 HLS = "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8"
@@ -14,7 +14,7 @@ def b64(s):
 
 CATS = [{"category_id": "1", "category_name": "News"}, {"category_id": "2", "category_name": "Sports"}]
 LIVE = [
-    {"num": 101, "name": "Flux News", "stream_id": 1001, "stream_icon": "", "epg_channel_id": "news.flux", "category_id": "1"},
+    {"num": 101, "name": "Flux News", "stream_id": 1001, "stream_icon": "", "epg_channel_id": "news.flux", "category_id": "1", "tv_archive": 1, "tv_archive_duration": 3},
     {"num": 102, "name": "World Report", "stream_id": 1002, "stream_icon": "", "epg_channel_id": "world.flux", "category_id": "1"},
     {"num": 201, "name": "Sports One", "stream_id": 2001, "stream_icon": "", "epg_channel_id": "sports.flux", "category_id": "2"},
     {"num": 301, "name": "Cooking HD", "stream_id": 3001, "stream_icon": "", "epg_channel_id": "", "category_id": "2"},
@@ -125,6 +125,42 @@ TRAKT_POLLS = [0]
 SRT = "1\n00:00:00,500 --> 00:10:00,000\nFLUX ADDON SUBTITLE\n"
 
 
+
+REQS = []
+TS_FILE = "/tmp/flux-test.ts"
+STALKER_TOKEN = "TOK123"
+
+
+def stalker_programmes(cid):
+    start = NOW - NOW % 1800 - 6 * 3600
+    out = []
+    for i in range(20):
+        t = start + i * 1800
+        out.append({"id": "%s%02d" % (cid, i), "name": "Portal Show %d" % (i + 1), "descr": "From the portal guide.",
+                    "start_timestamp": t, "stop_timestamp": t + 1800})
+    return out
+
+
+def espn_scoreboard(path):
+    if not path.startswith("football/nfl"):
+        return {"events": []}
+    def team(name, nick, loc, abbr, score, home):
+        return {"homeAway": "home" if home else "away", "score": score, "winner": False,
+                "team": {"displayName": name, "shortDisplayName": nick, "name": nick, "location": loc, "abbreviation": abbr, "logo": ""},
+                "records": [{"summary": "9-2"}]}
+    iso = lambda t: time.strftime("%Y-%m-%dT%H:%MZ", time.gmtime(t))
+    return {"events": [
+        {"id": "401", "name": "Buffalo Bills at Kansas City Chiefs", "date": iso(NOW - 1800),
+         "status": {"type": {"state": "in", "shortDetail": "2nd 4:12", "completed": False}},
+         "competitions": [{"competitors": [team("Kansas City Chiefs", "Chiefs", "Kansas City", "KC", "17", True),
+                                           team("Buffalo Bills", "Bills", "Buffalo", "BUF", "14", False)],
+                           "broadcasts": [{"names": ["CBS"]}]}]},
+        {"id": "402", "name": "Dallas Cowboys at Philadelphia Eagles", "date": iso(NOW + 4 * 3600),
+         "status": {"type": {"state": "pre", "shortDetail": "8:20 PM", "completed": False}},
+         "competitions": [{"competitors": [team("Philadelphia Eagles", "Eagles", "Philadelphia", "PHI", "0", True),
+                                           team("Dallas Cowboys", "Cowboys", "Dallas", "DAL", "0", False)],
+                           "broadcasts": [{"names": ["Sports One"]}]}]}]}
+
 class H(BaseHTTPRequestHandler):
     def send(self, code, body, ctype="application/json"):
         data = body.encode() if isinstance(body, str) else body
@@ -196,6 +232,45 @@ class H(BaseHTTPRequestHandler):
         u = urlparse(self.path)
         q = {k: v[0] for k, v in parse_qs(u.query).items()}
         p = u.path
+        REQS.append(self.path)
+        if p == "/_reqs":
+            return self.send(200, json.dumps(REQS[-400:]))
+        if p.startswith("/timeshift/") or p.startswith("/stalker-play/"):
+            try:
+                data = open(TS_FILE, "rb").read()
+            except Exception:
+                return self.send(404, "no test stream")
+            return self.send(200, data, "video/mp2t")
+        if p == "/stalker/portal.php":
+            t, a = q.get("type", ""), q.get("action", "")
+            if t == "stb" and a == "handshake":
+                return self.send(200, json.dumps({"js": {"token": STALKER_TOKEN, "random": "x"}}))
+            if self.headers.get("Authorization", "") != "Bearer " + STALKER_TOKEN or "00%3A1A%3A79%3A00%3A00%3A01" not in self.headers.get("Cookie", "").upper().replace("%3a", "%3A"):
+                return self.send(200, "Authorization failed.", "text/plain")
+            if t == "stb" and a == "get_profile":
+                return self.send(200, json.dumps({"js": {"id": "1", "status": 0}}))
+            if t == "itv" and a == "get_genres":
+                return self.send(200, json.dumps({"js": [{"id": "*", "title": "All"}, {"id": "10", "title": "Portal News"}, {"id": "11", "title": "Portal Sports"}]}))
+            if t == "itv" and a == "get_all_channels":
+                return self.send(200, json.dumps({"js": {"data": [
+                    {"id": "501", "name": "Portal One", "number": "1", "logo": "", "cmd": "ffmpeg http://localhost/ch/501", "tv_genre_id": "10", "xmltv_id": "", "tv_archive": 1, "tv_archive_duration": 72},
+                    {"id": "502", "name": "Portal Sports", "number": "2", "logo": "", "cmd": "ffmpeg http://localhost/ch/502", "tv_genre_id": "11", "xmltv_id": "", "tv_archive": 0}]}}))
+            if t == "itv" and a == "create_link":
+                return self.send(200, json.dumps({"js": {"cmd": "ffmpeg http://10.0.2.2:8000/stalker-play/live.ts?play_token=abc"}}))
+            if t == "itv" and a == "get_epg_info":
+                return self.send(200, json.dumps({"js": {"data": {"501": stalker_programmes("501"), "502": stalker_programmes("502")}}}))
+            if t == "itv" and a == "get_short_epg":
+                return self.send(200, json.dumps({"js": stalker_programmes(q.get("ch_id", "501"))}))
+            if t == "tv_archive" and a == "create_link":
+                return self.send(200, json.dumps({"js": {"cmd": "auto http://10.0.2.2:8000/stalker-play/archive.ts"}}))
+            return self.send(200, json.dumps({"js": []}))
+        if p.startswith("/espn/apis/site/v2/sports/") and p.endswith("/scoreboard"):
+            return self.send(200, json.dumps(espn_scoreboard(p[len("/espn/apis/site/v2/sports/"):])))
+        if p.startswith("/espn/apis/v2/sports/") and p.endswith("/standings"):
+            entry = lambda n, w, l: {"team": {"displayName": n}, "stats": [{"name": "wins", "displayValue": str(w)}, {"name": "losses", "displayValue": str(l)}, {"name": "winPercent", "displayValue": ".%03d" % (1000 * w // (w + l))}]}
+            return self.send(200, json.dumps({"children": [
+                {"name": "AFC", "standings": {"entries": [entry("Kansas City Chiefs", 9, 2), entry("Buffalo Bills", 8, 3)]}},
+                {"name": "NFC", "standings": {"entries": [entry("Philadelphia Eagles", 9, 2), entry("Dallas Cowboys", 5, 6)]}}]}))
         if p.startswith("/introdb/segments"):
             q = parse_qs(urlparse(self.path).query)
             if q.get("imdb_id", [""])[0] == "tt0903747":
@@ -262,7 +337,7 @@ class H(BaseHTTPRequestHandler):
             a = q.get("action", "")
             if a == "":
                 return self.send(200, json.dumps({"user_info": {"auth": 1, "status": "Active", "allowed_output_formats": ["ts", "m3u8"]},
-                                                  "server_info": {"url": "10.0.2.2", "port": "8000"}}))
+                                                  "server_info": {"url": "10.0.2.2", "port": "8000", "timezone": "UTC"}}))
             if a == "get_live_categories":
                 return self.send(200, json.dumps(CATS))
             if a == "get_live_streams":
@@ -317,8 +392,11 @@ class H(BaseHTTPRequestHandler):
                 k = ci
                 while t < NOW + 8 * 3600:
                     dur = 1800 if k % 3 else 3600
+                    title = shows[k % len(shows)]
+                    if c["epg_channel_id"] == "sports.flux" and t <= NOW < t + dur:
+                        title = "NFL Football: Buffalo Bills at Kansas City Chiefs"
                     body += '<programme start="%s" stop="%s" channel="%s"><title>%s</title><desc>%s on %s. A description of this programme for the guide.</desc></programme>' % (
-                        fmt(t), fmt(t + dur), c["epg_channel_id"], shows[k % len(shows)], shows[k % len(shows)], c["name"])
+                        fmt(t), fmt(t + dur), c["epg_channel_id"], title, title, c["name"])
                     t += dur
                     k += 1
             body += '</tv>'
@@ -347,4 +425,4 @@ class H(BaseHTTPRequestHandler):
         pass
 
 
-HTTPServer(("0.0.0.0", 8000), H).serve_forever()
+ThreadingHTTPServer(("0.0.0.0", 8000), H).serve_forever()

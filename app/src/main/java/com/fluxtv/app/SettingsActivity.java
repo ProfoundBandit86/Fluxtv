@@ -465,7 +465,7 @@ public class SettingsActivity extends FluxActivity {
         for (Iptv.Source s : Iptv.sources()) {
             long age = Iptv.guideAge(s);
             g.append(s.name).append(": ").append(age == Long.MAX_VALUE ? "not loaded yet" : "updated " + (age / 60000 < 60 ? age / 60000 + " min ago" : age / 3600000 + " h ago"))
-             .append(s.epg.isEmpty() ? (s.xtream() ? " (from the provider)" : " (no EPG link)") : " (your EPG link)").append("\n");
+             .append(s.epg.isEmpty() ? (s.xtream() || s.stalker() ? " (from the provider)" : " (no EPG link)") : " (your EPG link)").append("\n");
         }
         content.addView(label(g.length() == 0 ? "Add a provider first." : g.toString().trim()
                 + "\nChannels, the guide and logos are saved on this TV and refreshed in the background every few hours, so Live TV opens instantly."));

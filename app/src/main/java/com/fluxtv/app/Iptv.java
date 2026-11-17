@@ -36,16 +36,16 @@ import java.util.zip.GZIPOutputStream;
  */
 public final class Iptv {
 
-    public static final String XTREAM = "xtream", M3U = "m3u";
+    public static final String XTREAM = "xtream", M3U = "m3u", STALKER = "stalker";
 
     public static class Source {
-        public String kind = "", id = "", name = "", url = "", user = "", pass = "", m3u = "", epg = "";
+        public String kind = "", id = "", name = "", url = "", user = "", pass = "", m3u = "", epg = "", tz = "";
 
         JSONObject toJson() {
             JSONObject j = new JSONObject();
             try {
                 j.put("kind", kind); j.put("id", id); j.put("name", name); j.put("url", url);
-                j.put("user", user); j.put("pass", pass); j.put("m3u", m3u); j.put("epg", epg);
+                j.put("user", user); j.put("pass", pass); j.put("m3u", m3u); j.put("epg", epg); j.put("tz", tz);
             } catch (Exception ignored) { }
             return j;
         }
@@ -54,12 +54,25 @@ public final class Iptv {
             Source s = new Source();
             s.kind = j.optString("kind"); s.id = j.optString("id"); s.name = j.optString("name");
             s.url = j.optString("url"); s.user = j.optString("user"); s.pass = j.optString("pass");
-            s.m3u = j.optString("m3u"); s.epg = j.optString("epg");
+            s.m3u = j.optString("m3u"); s.epg = j.optString("epg"); s.tz = j.optString("tz");
             return s;
         }
 
         public boolean xtream() {
             return XTREAM.equals(kind);
+        }
+
+        public boolean stalker() {
+            return STALKER.equals(kind);
+        }
+
+        /** Xtream and portals give groups as ids; playlists use the group's name. */
+        public boolean groupsById() {
+            return xtream() || stalker();
+        }
+
+        public String kindLabel() {
+            return xtream() ? "Xtream Codes · " + url : stalker() ? "MAC portal · " + url + " · " + user : "M3U playlist";
         }
     }
 
@@ -74,10 +87,14 @@ public final class Iptv {
 
     public static class Channel {
         public String id = "", name = "", logo = "", group = "", epgId = "", url = "", num = "";
+        /** Days of catch-up the provider keeps (0 = none). */
+        public int archiveDays;
+        /** Playlist catch-up: mode ("default", "append", "shift", "flussonic", "xc") and template. */
+        public String catchup = "", catchupSource = "";
     }
 
     public static class Program {
-        public String title = "", desc = "";
+        public String id = "", title = "", desc = "";
         public long start, end;
     }
 
@@ -173,6 +190,8 @@ public final class Iptv {
         if (!ui.optString("status").isEmpty() && !ui.optString("status").equalsIgnoreCase("Active")) {
             throw new Exception("This account is " + ui.optString("status").toLowerCase(Locale.ROOT));
         }
+        JSONObject si = j.optJSONObject("server_info");
+        if (si != null) s.tz = si.optString("timezone");
         String host;
         try {
             host = new URI(s.url).getHost();
@@ -266,6 +285,23 @@ public final class Iptv {
                 JSONObject c = a.optJSONObject(i);
                 if (c != null) out.add(new Category(c.optString("category_id"), c.optString("category_name")));
             }
+        } else if (s.stalker()) {
+            java.io.File cf = file(s, "cats");
+            List<Category> cached = null;
+            if (cf.exists() && System.currentTimeMillis() - cf.lastModified() < 24L * 3600 * 1000) {
+                try {
+                    JSONArray a = new JSONArray(new String(readAll(cf), StandardCharsets.UTF_8));
+                    cached = new ArrayList<>();
+                    for (int i = 0; i < a.length(); i++) cached.add(new Category(a.getJSONObject(i).optString("i"), a.getJSONObject(i).optString("n")));
+                } catch (Exception ignored) { cached = null; }
+            }
+            if (cached == null) {
+                cached = Stalker.genres(s);
+                JSONArray a = new JSONArray();
+                for (Category c : cached) a.put(new JSONObject().put("i", c.id).put("n", c.name));
+                try (java.io.FileOutputStream fo = new java.io.FileOutputStream(cf)) { fo.write(a.toString().getBytes(StandardCharsets.UTF_8)); } catch (Exception ignored) { }
+            }
+            out.addAll(cached);
         } else {
             Map<String, Boolean> seen = new LinkedHashMap<>();
             for (Channel c : channels(s)) seen.put(c.group.isEmpty() ? "Channels" : c.group, true);
@@ -307,8 +343,11 @@ public final class Iptv {
                 c.group = o.optString("category_id");
                 c.epgId = o.optString("epg_channel_id");
                 c.num = o.optString("num");
+                if (o.optInt("tv_archive", 0) == 1) c.archiveDays = Math.max(1, o.optInt("tv_archive_duration", 3));
                 out.add(c);
             }
+        } else if (s.stalker()) {
+            out = Stalker.channels(s);
         } else {
             out = parseM3u(s.m3u);
         }
@@ -336,7 +375,8 @@ public final class Iptv {
             JSONArray a = new JSONArray();
             for (Channel c : list) {
                 a.put(new JSONObject().put("i", c.id).put("n", c.name).put("l", c.logo).put("g", c.group)
-                        .put("e", c.epgId).put("u", c.url).put("c", c.num));
+                        .put("e", c.epgId).put("u", c.url).put("c", c.num).put("a", c.archiveDays)
+                        .put("cm", c.catchup).put("cs", c.catchupSource));
             }
             java.io.File f = file(s, "channels"), tmp = new java.io.File(f.getPath() + ".tmp");
             try (java.io.FileOutputStream out = new java.io.FileOutputStream(tmp)) { out.write(a.toString().getBytes(StandardCharsets.UTF_8)); }
@@ -360,6 +400,7 @@ public final class Iptv {
                 Channel c = new Channel();
                 c.id = o.optString("i"); c.name = o.optString("n"); c.logo = o.optString("l"); c.group = o.optString("g");
                 c.epgId = o.optString("e"); c.url = o.optString("u"); c.num = o.optString("c");
+                c.archiveDays = o.optInt("a"); c.catchup = o.optString("cm"); c.catchupSource = o.optString("cs");
                 out.add(c);
             }
             return out;
@@ -371,7 +412,7 @@ public final class Iptv {
     public static List<Channel> channelsIn(Source s, String categoryId) throws Exception {
         List<Channel> out = new ArrayList<>();
         for (Channel c : channels(s)) {
-            String g = s.xtream() ? c.group : (c.group.isEmpty() ? "Channels" : c.group);
+            String g = s.groupsById() ? c.group : (c.group.isEmpty() ? "Channels" : c.group);
             if (categoryId == null || categoryId.equals(g)) out.add(c);
         }
         return out;
@@ -379,6 +420,7 @@ public final class Iptv {
 
     /** Stream address. Xtream: MPEG-TS by default, HLS (.m3u8) as the fallback. */
     public static String liveUrl(Source s, Channel c, boolean hls) {
+        if (s.stalker()) return "fluxiptv://stalker/" + android.net.Uri.encode(s.id) + "/" + android.net.Uri.encode(c.id);
         if (!s.xtream()) return c.url;
         return s.url + "/live/" + Http.enc(s.user) + "/" + Http.enc(s.pass) + "/" + c.id + (hls ? ".m3u8" : ".ts");
     }
@@ -399,6 +441,16 @@ public final class Iptv {
                     pending.logo = attr(line, "tvg-logo");
                     pending.group = attr(line, "group-title");
                     pending.num = attr(line, "tvg-chno");
+                    String cu = attr(line, "catchup");
+                    if (cu.isEmpty()) cu = attr(line, "catchup-type");
+                    if (cu.isEmpty() && !attr(line, "timeshift").isEmpty()) cu = "shift";
+                    String days = attr(line, "catchup-days");
+                    if (days.isEmpty()) days = attr(line, "timeshift");
+                    if (!cu.isEmpty() || !attr(line, "tvg-rec").isEmpty()) {
+                        pending.catchup = cu.isEmpty() ? "shift" : cu.toLowerCase(Locale.ROOT);
+                        pending.catchupSource = attr(line, "catchup-source");
+                        try { pending.archiveDays = Math.max(1, Integer.parseInt(days.isEmpty() ? attr(line, "tvg-rec") : days)); } catch (Exception e) { pending.archiveDays = 3; }
+                    }
                     int comma = line.lastIndexOf(',');
                     pending.name = comma >= 0 ? line.substring(comma + 1).trim() : attr(line, "tvg-name");
                     if (pending.name.isEmpty()) pending.name = attr(line, "tvg-name");
@@ -490,6 +542,7 @@ public final class Iptv {
     /** XMLTV address: your own EPG link if set, else the Xtream provider's xmltv.php. */
     public static String epgUrl(Source s) {
         if (!s.epg.isEmpty()) return s.epg;
+        if (s.stalker()) return "";
         if (s.xtream()) return s.url + "/xmltv.php?username=" + Http.enc(s.user) + "&password=" + Http.enc(s.pass);
         return "";
     }
@@ -528,7 +581,7 @@ public final class Iptv {
         synchronized (GUIDE_LOCK) {
             String url = epgUrl(s);
             List<String> extras = extraEpgUrls();
-            if (url.isEmpty() && extras.isEmpty()) return new HashMap<>();
+            if (url.isEmpty() && extras.isEmpty() && !s.stalker()) return new HashMap<>();
             List<Channel> chans = new ArrayList<>();
             try { chans = channels(s); } catch (Exception ignored) { }
             // Only keep channels we actually have (providers' guides can be huge).
@@ -536,9 +589,20 @@ public final class Iptv {
             for (Channel c : chans) if (!c.epgId.isEmpty()) { wanted.add(c.epgId); wanted.add(c.epgId.toLowerCase(Locale.ROOT)); }
             Map<String, List<Program>> g = new HashMap<>();
             Exception first = null;
+            boolean archive = false;
+            for (Channel c : chans) if (c.archiveDays > 0) { archive = true; break; }
+            // Keep past programmes when the provider offers catch-up (so they can be replayed from the guide).
+            long from = System.currentTimeMillis() - (archive ? 3L * 24 * 3600_000L : 3 * 3600_000L);
+            if (s.stalker()) {
+                try {
+                    g.putAll(Stalker.guide(s, 48));
+                } catch (Exception e) {
+                    first = e;
+                }
+            }
             if (!url.isEmpty()) {
                 try {
-                    parseXmltv(url, wanted, null, g, null);
+                    parseXmltv(url, wanted, null, g, null, from);
                 } catch (Exception e) {
                     first = e;
                 }
@@ -556,7 +620,7 @@ public final class Iptv {
                 Map<String, List<Program>> eg = new HashMap<>();
                 Map<String, String> nameToId = new HashMap<>();
                 try {
-                    int n = parseXmltv(extra, ids, names, eg, nameToId);
+                    int n = parseXmltv(extra, ids, names, eg, nameToId, from);
                     Store.put("epg_status:" + extra, "OK · " + n + " matching channels · " + new SimpleDateFormat("MMM d, h:mm a", Locale.getDefault()).format(new java.util.Date()));
                 } catch (Exception e) {
                     Store.put("epg_status:" + extra, "Failed: " + e.getMessage());
@@ -590,8 +654,8 @@ public final class Iptv {
      * nameToId receives the matches. Returns the number of channels kept.
      */
     private static int parseXmltv(String url, java.util.Set<String> wanted, java.util.Set<String> names,
-                                  Map<String, List<Program>> out, Map<String, String> nameToId) throws Exception {
-        long now = System.currentTimeMillis(), from = now - 3 * 3600 * 1000L, until = now + 48 * 3600 * 1000L;
+                                  Map<String, List<Program>> out, Map<String, String> nameToId, long from) throws Exception {
+        long now = System.currentTimeMillis(), until = now + 48 * 3600 * 1000L;
         boolean lower = names != null;
         java.util.Set<String> keep = new java.util.HashSet<>(wanted);
         try (InputStream raw0 = Http.open(url)) {
@@ -777,7 +841,7 @@ public final class Iptv {
         for (Source s : sources()) {
             try {
                 List<Channel> list = channels(s);
-                if (s.xtream()) liveCategories(s);
+                if (s.groupsById()) liveCategories(s);
                 loadGuide(s, false);
                 int n = 0;
                 for (Channel c : list) {
@@ -1008,5 +1072,125 @@ public final class Iptv {
         List<Addons.Stream> out = new ArrayList<>();
         out.add(st);
         return out;
+    }
+
+    // ---------------------------------------------------------------- MAC portals, catch-up, link resolving
+
+    public static Source loginStalker(String portal, String mac) throws Exception {
+        return Stalker.login(portal, mac);
+    }
+
+    static byte[] readAll(java.io.File f) throws java.io.IOException {
+        byte[] d = new byte[(int) f.length()];
+        try (java.io.FileInputStream in = new java.io.FileInputStream(f)) {
+            int off = 0, n;
+            while (off < d.length && (n = in.read(d, off, d.length - off)) > 0) off += n;
+        }
+        return d;
+    }
+
+    static Channel channel(Source s, String id) {
+        try {
+            for (Channel c : channels(s)) if (c.id.equals(id)) return c;
+        } catch (Exception ignored) { }
+        return null;
+    }
+
+    /** Turns Flux's own fluxiptv:// addresses (MAC portals, whose links expire) into a real stream address. Blocking. */
+    public static String resolve(String url) throws Exception {
+        if (url == null || !url.startsWith("fluxiptv://")) return url;
+        android.net.Uri u = android.net.Uri.parse(url);
+        List<String> seg = u.getPathSegments();
+        Source s = source(seg.isEmpty() ? "" : seg.get(0));
+        if (s == null) throw new Exception("This provider was removed");
+        if ("stalker".equals(u.getHost())) {
+            Channel c = channel(s, seg.size() > 1 ? seg.get(1) : "");
+            if (c == null) throw new Exception("Channel not found");
+            return Stalker.link(s, c);
+        }
+        if ("archive".equals(u.getHost())) return Stalker.archiveLink(s, seg.size() > 1 ? seg.get(1) : "");
+        return url;
+    }
+
+    /** True if a past programme on this channel can be replayed. */
+    public static boolean canReplay(Channel c, Program p) {
+        if (c == null || p == null || c.archiveDays <= 0) return false;
+        long now = System.currentTimeMillis();
+        return p.end <= now + 60_000 && p.start < now && p.start >= now - c.archiveDays * 86_400_000L - 3600_000L;
+    }
+
+    /** Address to replay a past programme (catch-up / timeshift). Blocking (may ask the provider). */
+    public static String catchupUrl(Source s, Channel c, Program p) throws Exception {
+        long now = System.currentTimeMillis();
+        long durMin = Math.max(1, (Math.min(p.end, now) - p.start + 59_999) / 60_000);
+        if (s.stalker()) {
+            if (p.id.isEmpty()) {
+                for (Program q : Stalker.week(s, c)) if (Math.abs(q.start - p.start) < 120_000) { p.id = q.id; break; }
+            }
+            if (p.id.isEmpty()) throw new Exception("The portal has no replay for this programme");
+            return "fluxiptv://archive/" + android.net.Uri.encode(s.id) + "/" + android.net.Uri.encode(p.id);
+        }
+        if (s.xtream()) {
+            if (s.tz.isEmpty()) {
+                try {
+                    JSONObject si = new JSONObject(Http.get(base(s), null)).optJSONObject("server_info");
+                    if (si != null && !si.optString("timezone").isEmpty()) { s.tz = si.optString("timezone"); save(s); }
+                } catch (Exception ignored) { }
+            }
+            SimpleDateFormat f = new SimpleDateFormat("yyyy-MM-dd:HH-mm", Locale.ROOT);
+            f.setTimeZone(java.util.TimeZone.getTimeZone(s.tz.isEmpty() ? "UTC" : s.tz));
+            return s.url + "/timeshift/" + Http.enc(s.user) + "/" + Http.enc(s.pass) + "/" + durMin + "/" + f.format(new java.util.Date(p.start)) + "/" + c.id + ".ts";
+        }
+        // Playlists: the catchup / catchup-source attributes.
+        String mode = c.catchup.isEmpty() ? "shift" : c.catchup;
+        String src = c.catchupSource;
+        switch (mode) {
+            case "default":
+                return fill(src.isEmpty() ? c.url : src, p, durMin, now);
+            case "append":
+                return c.url + fill(src, p, durMin, now);
+            case "flussonic": case "flussonic-hls": case "flussonic-ts": case "fs": {
+                java.util.regex.Matcher m = Pattern.compile("^(.*)/(?:index|video|mono|tracks-[^/]*)(?:\\.m3u8|\\.ts)?(\\?.*)?$").matcher(c.url);
+                boolean ok = m.find();
+                String base = ok ? m.group(1) : c.url.replaceAll("/[^/]*$", "");
+                String q = ok && m.group(2) != null ? m.group(2) : "";
+                boolean ts = mode.endsWith("ts") || c.url.contains(".ts");
+                return base + "/" + (ts ? "timeshift_abs-" : "index-") + (p.start / 1000) + "-" + (durMin * 60) + (ts ? ".ts" : ".m3u8") + q;
+            }
+            case "xc": {
+                java.util.regex.Matcher m = Pattern.compile("^(https?://[^/]+)/(?:live/)?([^/]+)/([^/]+)/(\\d+)(?:\\.[a-z0-9]+)?$").matcher(c.url);
+                if (m.find()) {
+                    SimpleDateFormat f = new SimpleDateFormat("yyyy-MM-dd:HH-mm", Locale.ROOT);
+                    f.setTimeZone(java.util.TimeZone.getTimeZone("UTC"));
+                    return m.group(1) + "/timeshift/" + m.group(2) + "/" + m.group(3) + "/" + durMin + "/" + f.format(new java.util.Date(p.start)) + "/" + m.group(4) + ".ts";
+                }
+                // fall through to shift
+            }
+            default:
+                return c.url + (c.url.contains("?") ? "&" : "?") + "utc=" + (p.start / 1000) + "&lutc=" + (now / 1000);
+        }
+    }
+
+    /** Fills catch-up placeholders: {utc} {start} {end} {lutc} {now} {duration} {offset} {Y} {m} {d} {H} {M} {S} (also ${…}). */
+    private static String fill(String t, Program p, long durMin, long now) {
+        java.util.Calendar cal = java.util.Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC"));
+        cal.setTimeInMillis(p.start);
+        long startS = p.start / 1000, endS = Math.min(p.end, now) / 1000, nowS = now / 1000;
+        String out = t.replace("${", "{");
+        out = out.replace("{utc}", "" + startS).replace("{start}", "" + startS).replace("{timestamp}", "" + startS)
+                .replace("{utcend}", "" + endS).replace("{end}", "" + endS)
+                .replace("{lutc}", "" + nowS).replace("{now}", "" + nowS)
+                .replace("{duration}", "" + durMin * 60).replace("{offset}", "" + (nowS - startS))
+                .replace("{Y}", String.format(Locale.ROOT, "%04d", cal.get(java.util.Calendar.YEAR)))
+                .replace("{m}", String.format(Locale.ROOT, "%02d", cal.get(java.util.Calendar.MONTH) + 1))
+                .replace("{d}", String.format(Locale.ROOT, "%02d", cal.get(java.util.Calendar.DAY_OF_MONTH)))
+                .replace("{H}", String.format(Locale.ROOT, "%02d", cal.get(java.util.Calendar.HOUR_OF_DAY)))
+                .replace("{M}", String.format(Locale.ROOT, "%02d", cal.get(java.util.Calendar.MINUTE)))
+                .replace("{S}", String.format(Locale.ROOT, "%02d", cal.get(java.util.Calendar.SECOND)));
+        java.util.regex.Matcher m = Pattern.compile("\\{duration:(\\d+)\\}").matcher(out);
+        StringBuffer sb = new StringBuffer();
+        while (m.find()) m.appendReplacement(sb, "" + (durMin * 60 / Math.max(1, Long.parseLong(m.group(1)))));
+        m.appendTail(sb);
+        return sb.toString();
     }
 }

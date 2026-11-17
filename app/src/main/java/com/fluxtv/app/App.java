@@ -23,6 +23,10 @@ public class App extends Application {
     public void onCreate() {
         super.onCreate();
         ctx = this;
+        // Responses servers mark as cacheable (artwork lists, TMDB…) are answered from disk next time.
+        IO.execute(() -> {
+            try { android.net.http.HttpResponseCache.install(new java.io.File(getCacheDir(), "http"), 30L * 1024 * 1024); } catch (Exception ignored) { }
+        });
         Store.init(this);
         Theme.apply();
         ProfileSync.start(this);   // TV-to-TV sync of profiles (does nothing until TVs are linked)

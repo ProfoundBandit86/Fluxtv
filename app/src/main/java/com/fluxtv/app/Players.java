@@ -17,8 +17,18 @@ public final class Players {
                 .setUserAgent("FluxTV/1.0 (Android TV)")
                 .setConnectTimeoutMs(15000)
                 .setReadTimeoutMs(20000);
-        androidx.media3.datasource.DataSource.Factory data = new SmbDataSource.Factory(
-                new androidx.media3.datasource.DefaultDataSource.Factory(c, http));
+        // fluxiptv:// (MAC portal channels and replays) becomes a fresh stream link on the loading thread.
+        androidx.media3.datasource.DataSource.Factory data = new androidx.media3.datasource.ResolvingDataSource.Factory(
+                new SmbDataSource.Factory(new androidx.media3.datasource.DefaultDataSource.Factory(c, http)),
+                spec -> {
+                    String u = spec.uri.toString();
+                    if (!u.startsWith("fluxiptv://")) return spec;
+                    try {
+                        return spec.withUri(android.net.Uri.parse(Iptv.resolve(u)));
+                    } catch (Exception e) {
+                        throw new java.io.IOException(e.getMessage(), e);
+                    }
+                });
         // Play as much as possible in-app:
         //  - the box's own decoders first (hardware, and HDMI passthrough to the receiver for Dolby/DTS),
         //  - FFmpeg software audio when the box can't decode or pass a format through (DTS, TrueHD, E-AC3…),
@@ -29,8 +39,13 @@ public final class Players {
         androidx.media3.extractor.DefaultExtractorsFactory extractors = new androidx.media3.extractor.DefaultExtractorsFactory()
                 .setConstantBitrateSeekingEnabled(true)
                 .setTsExtractorFlags(androidx.media3.extractor.ts.DefaultTsPayloadReaderFactory.FLAG_ENABLE_HDMV_DTS_AUDIO_STREAMS);
+        // Start playing after 1.5 s of video instead of 2.5 s (faster channel changes and starts); a bit more after a stall.
+        androidx.media3.exoplayer.DefaultLoadControl load = new androidx.media3.exoplayer.DefaultLoadControl.Builder()
+                .setBufferDurationsMs(15_000, 50_000, 1_500, 3_000)
+                .build();
         return new ExoPlayer.Builder(c, renderers)
                 .setMediaSourceFactory(new androidx.media3.exoplayer.source.DefaultMediaSourceFactory(data, extractors))
+                .setLoadControl(load)
                 .build();
     }
 }

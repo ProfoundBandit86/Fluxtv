@@ -163,9 +163,14 @@ public final class Http {
             InputStream is = code >= 400 ? c.getErrorStream() : c.getInputStream();
             byte[] out = read(is);
             if (code >= 400) throw new HttpException(code, text(out));
+            // No disconnect(): with the body fully read, the connection goes back to the pool, so the next
+            // request to the same server skips the TCP/TLS handshake.
             return out;
-        } finally {
+        } catch (HttpException e) {
+            throw e;
+        } catch (IOException | RuntimeException e) {
             c.disconnect();
+            throw e;
         }
     }
 

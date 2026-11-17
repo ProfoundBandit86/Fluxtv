@@ -234,7 +234,7 @@ public class LiveActivity extends FluxActivity {
     }
 
     static String groupOf(Iptv.Source s, Iptv.Channel c) {
-        return s.xtream() ? c.group : (c.group.isEmpty() ? "Channels" : c.group);
+        return s.groupsById() ? c.group : (c.group.isEmpty() ? "Channels" : c.group);
     }
 
     /** Channels in a group: "all", "favorites", or "sourceId|groupId". Blocking-safe (channels are cached). */
@@ -405,6 +405,11 @@ public class LiveActivity extends FluxActivity {
 
     private void click(GuideView.Entry e, Iptv.Program p) {
         long now = System.currentTimeMillis();
+        if (p != null && p.end <= now) {
+            if (Iptv.canReplay(e.channel, p)) replay(e, p);
+            else Toast.makeText(this, "This channel has no replays (catch-up) for that time", Toast.LENGTH_SHORT).show();
+            return;
+        }
         if (p == null || p.start <= now) {
             watch(e);
             return;
@@ -439,18 +444,20 @@ public class LiveActivity extends FluxActivity {
         long now = System.currentTimeMillis();
         boolean fav = favorites().contains(e.source.id + "|" + e.channel.id);
         boolean rec = Dvr.recordingNow(e.source, e.channel);
+        boolean startOver = p != null && p.start <= now && Iptv.canReplay(e.channel, p);
         String[] items = {
-                "Watch",
+                startOver ? (p.end <= now ? "Replay this programme" : "Watch from the start") : "Watch",
                 rec ? "Stop recording" : (p != null && p.start > now ? "● Record this programme" : "● Record now"),
                 fav ? "Remove from Favorites" : "Add to Favorites",
                 "Recordings",
+                "Multiview (watch up to 4 channels)",
                 "Refresh the TV guide",
         };
         new AlertDialog.Builder(this)
                 .setTitle(e.channel.name)
                 .setItems(items, (d, w) -> {
                     switch (w) {
-                        case 0: watch(e); break;
+                        case 0: if (startOver) replay(e, p); else watch(e); break;
                         case 1:
                             if (rec) {
                                 for (org.json.JSONObject r : Dvr.all()) if (Dvr.RECORDING.equals(r.optString("status"))
@@ -468,6 +475,11 @@ public class LiveActivity extends FluxActivity {
                             if ("favorites".equals(group)) showGroup(group, false);
                             break;
                         case 3: startActivity(new Intent(this, RecordingsActivity.class)); break;
+                        case 4:
+                            stopPreview();
+                            startActivity(new Intent(this, MultiviewActivity.class).putExtra("group", group)
+                                    .putExtra("source", e.source.id).putExtra("channel", e.channel.id));
+                            break;
                         default:
                             Toast.makeText(this, "Updating the guide…", Toast.LENGTH_SHORT).show();
                             App.async(() -> { Iptv.loadGuide(e.source, true); return true; },
@@ -476,6 +488,18 @@ public class LiveActivity extends FluxActivity {
                     }
                 })
                 .show();
+    }
+
+    /** Catch-up: plays a past programme (or the current one from its start) with a normal seek bar. */
+    private void replay(GuideView.Entry e, Iptv.Program p) {
+        stopPreview();
+        Toast.makeText(this, "Opening " + p.title + "…", Toast.LENGTH_SHORT).show();
+        App.async(() -> Iptv.catchupUrl(e.source, e.channel, p), url -> {
+            String vid = "dvr:cu:" + e.source.id + ":" + e.channel.id + ":" + p.start;
+            PlayInfo pi = PlayInfo.of("movie", vid, vid, p.title, e.channel.logo,
+                    e.channel.name + " · " + new java.text.SimpleDateFormat("EEE MMM d, h:mm a", java.util.Locale.getDefault()).format(new Date(p.start)));
+            startActivity(pi.into(new Intent(this, PlayerActivity.class)).putExtra("url", url));
+        }, err -> Toast.makeText(this, "Replay: " + App.message(err), Toast.LENGTH_LONG).show());
     }
 
     private void watch(GuideView.Entry e) {
@@ -497,6 +521,7 @@ public class LiveActivity extends FluxActivity {
         if (!"all".equals(group)) focus = "favorites".equals(group) ? first : null;
         View recs = Ui.button(this, R.drawable.ic_record, "Recordings", v -> { closeGroups(); startActivity(new Intent(this, RecordingsActivity.class)); });
         groupsList.addView(recs);
+        groupsList.addView(Ui.button(this, R.drawable.ic_sports, "Sports", v -> { closeGroups(); stopPreview(); startActivity(new Intent(this, SportsActivity.class)); }));
         TextView h = Ui.text(this, "GROUPS", 12, Ui.DIM);
         h.setPadding(Ui.dp(this, 10), Ui.dp(this, 14), 0, Ui.dp(this, 6));
         groupsList.addView(h);

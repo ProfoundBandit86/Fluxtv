@@ -44,6 +44,7 @@ adb shell am force-stop $P
 adb logcat -c
 
 # ---------------- fake TMDB + Gemini
+(ffmpeg -loglevel error -y -f lavfi -i testsrc=size=640x360:rate=25 -f lavfi -i sine=frequency=440 -t 90 -c:v libx264 -preset veryfast -pix_fmt yuv420p -c:a aac -f mpegts /tmp/flux-test.ts && echo "== TEST TS: $(ls -la /tmp/flux-test.ts)") || echo "== TEST TS: ffmpeg failed"
 nohup python3 .github/fake_xtream.py > /tmp/fake.log 2>&1 < /dev/null &
 FAKE_PID=$!
 sleep 2
@@ -352,6 +353,30 @@ curl -s -m 20 http://127.0.0.1:8090/ > out/settings-page-epg.html; echo "== WEB 
 adb shell am start -W -n $P/.LiveActivity; sleep 8; shot 97-guide-extra; texts guide-extra 40
 adb shell am start -W -n $P/.SettingsActivity --es category live; sleep 4; key DPAD_RIGHT 1; key DPAD_DOWN 1; key DPAD_DOWN 1; key DPAD_DOWN 1; key DPAD_DOWN 1; key DPAD_DOWN 1; shot 98-settings-epg; texts settings-epg 40
 crashes epg
+# ---------------- v28: MAC portal, catch-up, multiview, sports
+XT=ca0e9097; PORTAL=9b2ad21
+curl -s -m 60 -X POST --data-urlencode "url=http://10.0.2.2:8000/stalker/c/" --data-urlencode "mac=00-1a-79-00-00-01" http://127.0.0.1:8090/iptv-stalker | grep -o "<p class='m'>[^<]*"
+sleep 6
+adb shell am start -W -n $P/.LivePlayerActivity --es group all --es source $PORTAL --es channel 501; sleep 12; top portal-play; shot 100-portal-playing; texts portal-play 12
+key BACK 2
+echo "== PORTAL REQS: $(curl -s http://127.0.0.1:8000/_reqs | python3 -c "import json,sys; r=json.load(sys.stdin); print([x[:90] for x in r if 'stalker' in x][-8:])")"
+adb shell am start -W -n $P/.LiveActivity; sleep 8; texts live-with-portal 30; shot 101-guide-with-portal
+key DPAD_LEFT 2; shot 102-guide-past; texts guide-past 12
+key DPAD_CENTER 10; top catchup; shot 103-catchup-playing; texts catchup 12
+echo "== CATCHUP REQS: $(curl -s http://127.0.0.1:8000/_reqs | python3 -c "import json,sys; r=json.load(sys.stdin); print([x for x in r if 'timeshift' in x or 'archive' in x][-4:])")"
+key BACK 2; key BACK 2
+adb shell am start -W -n $P/.MultiviewActivity --es group all --es source $XT --es channel 1001; sleep 15; shot 104-multiview-2; top multiview
+key DPAD_RIGHT 2; shot 105-multiview-right
+key MENU 2; texts multiview-menu 10; tap "Add a view"; sleep 10; shot 106-multiview-3
+key BACK 2
+crashes portal-catchup-multiview
+curl -s -m 30 -X POST --data-urlencode "tmdb=http://10.0.2.2:8000/3" --data-urlencode "gemini=http://10.0.2.2:8000/gemini/" --data-urlencode "trakt=http://10.0.2.2:8000/trakt" --data-urlencode "sports=http://10.0.2.2:8000/espn" http://127.0.0.1:8090/test-config | grep -o "<p class='m'>[^<]*"
+adb shell am start -W -n $P/.SportsActivity; sleep 15; texts sports 40; shot 107-sports
+tap "Kansas City Chiefs"; sleep 10; top sports-watch; shot 108-sports-watch; key BACK 2
+longtap() { adb shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1; B=$(adb shell cat /sdcard/ui.xml | grep -o "<node[^>]*text=\"$1[^>]*>" | head -1 | grep -o 'bounds="[^"]*"' | grep -o '[0-9]*' | tr '\n' ' '); set -- $B; if [ -n "$4" ]; then adb shell input swipe $(( ($1+$3)/2 )) $(( ($2+$4)/2 )) $(( ($1+$3)/2 )) $(( ($2+$4)/2 )) 1300; else echo "== no element for longtap"; fi; }
+sleep 2; longtap "Kansas City Chiefs"; sleep 2; texts sports-watch-on 12; shot 109-sports-watch-on
+tap "Table"; sleep 5; texts sports-table 30; shot 110-sports-table; key BACK 1
+crashes sports
 adb logcat -d > out/logcat.txt
 kill $FAKE_PID 2>/dev/null
 exit 0

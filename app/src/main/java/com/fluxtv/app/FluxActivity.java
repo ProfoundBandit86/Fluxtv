@@ -95,6 +95,7 @@ public abstract class FluxActivity extends Activity {
         item(R.drawable.ic_movie, "Movies", "movie", () -> home("movie"));
         item(R.drawable.ic_tv, "TV Shows", "series", () -> home("series"));
         if (!Ratings.restricted()) item(R.drawable.ic_live, "Live TV", "live", () -> go(new Intent(this, LiveActivity.class)));
+        if (!Ratings.restricted() && !Iptv.sources().isEmpty()) item(R.drawable.ic_sports, "Sports", "sports", () -> go(new Intent(this, SportsActivity.class)));
         item(R.drawable.ic_heart, "Favorites", "favorites", () -> home("favorites"));
         item(R.drawable.ic_apps, "Apps", "apps", () -> go(new Intent(this, AppsActivity.class)));
         if (SmartHome.configured()) item(R.drawable.ic_bulb, "Smart home", "smarthome", () -> { close(false); startActivity(new Intent(this, SmartPanelActivity.class)); });

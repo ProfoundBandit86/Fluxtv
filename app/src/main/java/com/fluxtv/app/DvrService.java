@@ -177,9 +177,14 @@ public class DvrService extends Service {
 
             String ts = Iptv.liveUrl(s, c, false), hls = s.xtream() ? Iptv.liveUrl(s, c, true) : null;
             int failures = 0;
+            String linkOf = ts;
             boolean useHls = ts.contains(".m3u8");
             while (!j.stop && System.currentTimeMillis() < stopAt) {
                 try {
+                    if (linkOf.startsWith("fluxiptv://")) {   // MAC portal: fresh link each (re)connect
+                        ts = Iptv.resolve(linkOf);
+                        useHls = useHls || ts.contains(".m3u8");
+                    }
                     if (useHls) recordHls(j, ts, out, stopAt);
                     else recordTs(j, ts, out, stopAt);
                     failures = 0;

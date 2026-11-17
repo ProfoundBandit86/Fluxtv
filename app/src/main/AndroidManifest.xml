@@ -206,6 +206,9 @@
         </activity-alias>
         <activity android:name=".RecordingsActivity" android:exported="${testExported}" android:screenOrientation="landscape" />
         <activity android:name=".SmbBrowseActivity" android:exported="${testExported}" android:screenOrientation="landscape" android:windowSoftInputMode="adjustPan" />
+        <activity android:name=".MultiviewActivity" android:exported="${testExported}" android:screenOrientation="landscape"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|keyboard|navigation" />
+        <activity android:name=".SportsActivity" android:exported="${testExported}" android:screenOrientation="landscape" />
         <activity android:name=".LivePlayerActivity" android:exported="${testExported}" android:screenOrientation="landscape"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|keyboard|navigation" />
     </application>

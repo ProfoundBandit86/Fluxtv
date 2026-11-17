@@ -366,6 +366,7 @@ public class LivePlayerActivity extends Activity {
                 fav ? "Remove from Favorites" : "Add to Favorites",
                 "TV guide",
                 "Recordings",
+                "Multiview (watch up to 4 channels)",
         };
         new AlertDialog.Builder(this).setTitle(e.channel.name).setItems(items, (d, w) -> {
             switch (w) {
@@ -387,7 +388,11 @@ public class LivePlayerActivity extends Activity {
                     Toast.makeText(this, LiveActivity.toggleFavorite(e) ? "Added to Favorites" : "Removed from Favorites", Toast.LENGTH_SHORT).show();
                     break;
                 case 5: finish(); break;
-                default: startActivity(new android.content.Intent(this, RecordingsActivity.class));
+                case 6: startActivity(new android.content.Intent(this, RecordingsActivity.class)); break;
+                default:
+                    startActivity(new android.content.Intent(this, MultiviewActivity.class).putExtra("group", group)
+                            .putExtra("source", e.source.id).putExtra("channel", e.channel.id));
+                    finish();
             }
         }).show();
     }

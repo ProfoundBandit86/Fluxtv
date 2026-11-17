@@ -54,6 +54,7 @@ public class IptvActivity extends FluxActivity {
         Button xc = Ui.button(this, R.drawable.ic_plus, "Xtream Codes login", v -> xtreamForm());
         actions.addView(xc);
         actions.addView(Ui.button(this, R.drawable.ic_plus, "M3U playlist", v -> m3uForm()));
+        actions.addView(Ui.button(this, R.drawable.ic_plus, "MAC portal (Stalker)", v -> portalForm()));
         actions.addView(Ui.button(this, R.drawable.ic_tv, "Open Live TV", v -> startActivity(new Intent(this, LiveActivity.class))));
         content.addView(actions);
 
@@ -87,7 +88,7 @@ public class IptvActivity extends FluxActivity {
             lp.setMargins(0, Ui.dp(this, 8), 0, 0);
             item.setLayoutParams(lp);
             item.addView(Ui.heading(this, s.name, 16));
-            item.addView(Ui.text(this, s.xtream() ? "Xtream Codes · " + s.url : "M3U playlist" + (s.epg.isEmpty() ? "" : " + guide"), 12, Ui.MUTED));
+            item.addView(Ui.text(this, s.kindLabel() + (s.epg.isEmpty() ? "" : " + guide"), 12, Ui.MUTED));
             item.addView(Ui.button(this, "Remove", v -> { Iptv.remove(s.id); render(); }));
             content.addView(item);
         }
@@ -126,6 +127,29 @@ public class IptvActivity extends FluxActivity {
         actions.addView(Ui.button(this, "Cancel", v -> render()));
         content.addView(actions);
         server.requestFocus();
+    }
+
+    private void portalForm() {
+        session++;
+        content = Ui.page(this, "MAC portal");
+        content.addView(Ui.text(this, "The portal address and the MAC address your provider registered (MAG / Stalker / Ministra), "
+                + "e.g. http://example.com:8080/c/ and 00:1A:79:12:34:56.", 13, Ui.MUTED));
+        EditText portal = field("Portal address", false);
+        EditText mac = field("MAC address", false);
+        LinearLayout actions = Ui.horizontal(this);
+        actions.addView(Ui.button(this, "Sign in", v -> {
+            String a = portal.getText().toString(), m = mac.getText().toString();
+            Toast.makeText(this, "Connecting to the portal…", Toast.LENGTH_SHORT).show();
+            App.async(() -> Iptv.loginStalker(a, m), s -> {
+                Iptv.save(s);
+                Toast.makeText(this, "Added " + s.name, Toast.LENGTH_SHORT).show();
+                App.IO.execute(Iptv::prefetchAll);
+                render();
+            }, e -> Toast.makeText(this, App.message(e), Toast.LENGTH_LONG).show());
+        }));
+        actions.addView(Ui.button(this, "Cancel", v -> render()));
+        content.addView(actions);
+        portal.requestFocus();
     }
 
     private void m3uForm() {

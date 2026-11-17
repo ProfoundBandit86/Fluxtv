@@ -18,7 +18,16 @@ public final class ImageLoader {
                     return b.getByteCount();
                 }
             };
-    private static final ExecutorService POOL = Executors.newFixedThreadPool(4);
+    /**
+     * Newest request first: when scrolling fast through rows, the posters now on screen load before the ones
+     * already scrolled past.
+     */
+    private static final ExecutorService POOL = new java.util.concurrent.ThreadPoolExecutor(5, 5, 30, java.util.concurrent.TimeUnit.SECONDS,
+            new java.util.concurrent.LinkedBlockingDeque<Runnable>() {
+                @Override public boolean offer(Runnable r) { return super.offerFirst(r); }
+            });
+    /** One download per picture even when several views ask for it at once. */
+    private static final java.util.Map<String, java.util.List<Runnable>> INFLIGHT = new java.util.HashMap<>();
 
     private ImageLoader() { }
 
@@ -40,16 +49,32 @@ public final class ImageLoader {
             return;
         }
         view.setImageDrawable(null);
+        Runnable show = () -> {
+            Bitmap b = CACHE.get(url);
+            if (b != null && url.equals(view.getTag())) {
+                view.setImageBitmap(b);
+                if (onLoaded != null) onLoaded.run();
+            }
+        };
+        synchronized (INFLIGHT) {
+            java.util.List<Runnable> waiting = INFLIGHT.get(url);
+            if (waiting != null) { waiting.add(show); return; }
+            waiting = new java.util.ArrayList<>();
+            waiting.add(show);
+            INFLIGHT.put(url, waiting);
+        }
         POOL.execute(() -> {
+            java.util.List<Runnable> waiting;
+            // Scrolled away before its turn came: skip the work (it is asked for again if it comes back).
+            boolean wanted = url.equals(view.getTag());
+            synchronized (INFLIGHT) {
+                if (!wanted && INFLIGHT.get(url) != null && INFLIGHT.get(url).size() <= 1) { INFLIGHT.remove(url); return; }
+            }
             Bitmap b = fetch(url, targetWidthPx);
-            if (b == null) return;
-            CACHE.put(url, b);
-            App.MAIN.post(() -> {
-                if (url.equals(view.getTag())) {
-                    view.setImageBitmap(b);
-                    if (onLoaded != null) onLoaded.run();
-                }
-            });
+            if (b != null) CACHE.put(url, b);
+            synchronized (INFLIGHT) { waiting = INFLIGHT.remove(url); }
+            if (b == null || waiting == null) return;
+            App.MAIN.post(() -> { for (Runnable r : waiting) r.run(); });
         });
     }
 

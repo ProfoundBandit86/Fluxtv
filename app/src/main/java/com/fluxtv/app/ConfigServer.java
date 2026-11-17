@@ -170,6 +170,12 @@ public final class ConfigServer {
                 Iptv.save(xs);
                 return "Added " + xs.name;
             }
+            case "/iptv-stalker": {
+                Iptv.Source ps = Iptv.loginStalker(f(form, "url"), f(form, "mac"));
+                Iptv.save(ps);
+                App.IO.execute(Iptv::prefetchAll);
+                return "Added " + ps.name;
+            }
             case "/iptv-m3u": {
                 Iptv.Source ms3 = Iptv.addM3u(f(form, "m3u"), f(form, "epg"));
                 Iptv.save(ms3);
@@ -389,6 +395,7 @@ public final class ConfigServer {
                 Store.put("test_gemini", f(form, "gemini"));
                 Store.put("test_trakt", f(form, "trakt"));
                 if (!f(form, "introdb").isEmpty()) Store.put("test_introdb", f(form, "introdb"));
+                if (!f(form, "sports").isEmpty()) Store.put("test_sports", f(form, "sports"));
                 Store.put("gemini_model_t", "0");
                 return "Test endpoints set";
             default:
@@ -664,10 +671,10 @@ public final class ConfigServer {
         sb.append("</details>");
 
         // ---------------- IPTV
-        sb.append("" + section("iptv", "Live TV &amp; IPTV", "Xtream Codes, M3U, Dispatcharr") + "");
+        sb.append("" + section("iptv", "Live TV &amp; IPTV", "Xtream Codes, M3U, MAC portals, Dispatcharr") + "");
         for (Iptv.Source is : Iptv.sources()) {
             sb.append("<div class='a'><b>").append(esc(is.name)).append("</b><div class='u'>")
-              .append(esc(is.xtream() ? "Xtream Codes · " + is.url : "M3U playlist")).append("</div>")
+              .append(esc(is.kindLabel())).append("</div>")
               .append("<form method='post' action='/iptv-epg' class='row'>").append(hidden("id", is.id))
               .append("<input name='epg' value='").append(esc(is.epg)).append("' placeholder='")
               .append(is.xtream() ? "Guide (XMLTV) link · empty = the provider's own guide" : "Guide (XMLTV) link").append("' autocomplete='off'><button>Save guide link</button></form>")
@@ -683,7 +690,11 @@ public final class ConfigServer {
           .append("<h3>M3U playlist</h3><form method='post' action='/iptv-m3u'>")
           .append("<input name='m3u' placeholder='Playlist link (.m3u / get.php)' autocomplete='off'>")
           .append("<input name='epg' placeholder='Guide link (XMLTV), optional' autocomplete='off'>")
-          .append("<button>Add playlist</button></form></details>");
+          .append("<button>Add playlist</button></form>")
+          .append("<h3>MAC portal (Stalker / Ministra)</h3><form method='post' action='/iptv-stalker'>")
+          .append("<input name='url' placeholder='Portal address, e.g. http://example.com:8080/c/' autocomplete='off'>")
+          .append("<input name='mac' placeholder='MAC address, e.g. 00:1A:79:12:34:56' autocomplete='off'>")
+          .append("<button>Sign in</button></form></details>");
 
         // ---------------- Smart home
         sb.append(section("smarthome", "Smart home", "Home Assistant · lights panel over any app"));
