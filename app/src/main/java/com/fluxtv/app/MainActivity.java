@@ -1125,7 +1125,7 @@ public class MainActivity extends Activity {
             // Loaded with its transparency kept: the logo is tinted white, and a picture without transparency
             // would turn into a solid white box, so those keep showing the name instead.
             ImageLoader.bitmap(s.wordmark, Ui.dp(this, 140), b -> {
-                if (!s.wordmark.equals(logo.getTag()) || !hasTransparency(b)) return;
+                if (!s.wordmark.equals(logo.getTag()) || !Ui.hasTransparency(b)) return;
                 logo.setImageBitmap(b);
                 logo.setColorFilter(Color.WHITE, PorterDuff.Mode.SRC_IN);   // monochrome wordmark
                 fallback.setVisibility(View.GONE);
@@ -1143,16 +1143,6 @@ public class MainActivity extends Activity {
         });
         tile.setOnClickListener(v -> startActivity(new Intent(this, ServiceActivity.class).putExtra("service", s.key)));
         return col;
-    }
-
-    /** True when the picture's corners are see-through (a logo on a clear background). */
-    private static boolean hasTransparency(android.graphics.Bitmap b) {
-        if (b == null || !b.hasAlpha() || b.getWidth() < 2 || b.getHeight() < 2) return false;
-        int w = b.getWidth() - 1, h = b.getHeight() - 1;
-        int[] px = {b.getPixel(0, 0), b.getPixel(w, 0), b.getPixel(0, h), b.getPixel(w, h)};
-        int clear = 0;
-        for (int p : px) if (Color.alpha(p) < 40) clear++;
-        return clear >= 3;
     }
 
     // ------------------------------------------------------------ featured area

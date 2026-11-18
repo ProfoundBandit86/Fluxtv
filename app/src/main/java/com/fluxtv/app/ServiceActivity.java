@@ -54,8 +54,11 @@ public class ServiceActivity extends FluxActivity {
             }
             title.setText(s.name);
             if (!s.wordmark.isEmpty()) {
-                logo.setColorFilter(Color.WHITE, PorterDuff.Mode.SRC_IN);
-                ImageLoader.load(logo, s.wordmark, Ui.dp(this, 220), () -> {
+                // Kept with its transparency and tinted white; a logo without a clear background keeps the name.
+                ImageLoader.bitmap(s.wordmark, Ui.dp(this, 220), b -> {
+                    if (!Ui.hasTransparency(b)) return;
+                    logo.setImageBitmap(b);
+                    logo.setColorFilter(Color.WHITE, PorterDuff.Mode.SRC_IN);
                     logo.setVisibility(View.VISIBLE);
                     title.setVisibility(View.GONE);
                 });

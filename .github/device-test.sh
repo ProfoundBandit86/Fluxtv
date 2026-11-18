@@ -324,6 +324,18 @@ key DPAD_CENTER 8; top play-recording; shot 72-play-recording; key BACK 2
 adb shell am start -W -a android.intent.action.VIEW -d "fluxtv://live/201"; sleep 8; top deeplink-live-201; texts deeplink-live 12; key BACK 2
 adb shell am start -W -n $P/.MainActivity; sleep 8; nudge; key DPAD_DOWN 1; shot 73-home-row-1; key DPAD_DOWN 1; shot 74-home-row-2; key DPAD_DOWN 1; shot 75-home-row-3; texts home-live-row 40
 crashes live
+# ---------------- Which channels show: countries from group names ("US| News", "UK| Sports"), guide download indicator
+adb shell am start -W -n $P/.SettingsActivity --es category live; sleep 6
+curl -s -m 20 -X POST --data-urlencode "regions=US" --data-urlencode "unknown=show" http://127.0.0.1:8090/iptv-regions | grep -o "<p class='m'>[^<]*"
+adb shell am start -W -n $P/.LiveActivity; sleep 6; texts live-us-only 40; shot 76-live-us-only
+adb shell am start -W -n $P/.SettingsActivity --es category live; sleep 6
+(curl -s -m 60 -X POST http://127.0.0.1:8090/dvr-guide > /dev/null &) ; sleep 1.5; shot 77-settings-guide-downloading
+sleep 8; for i in 1 2 3 4 5 6 7 8 9 10 11 12; do key DPAD_DOWN 0; done; sleep 2; texts settings-live-channels 50; shot 78-settings-live-channels
+adb shell am start -W -n $P/.IptvFilterActivity; sleep 4; texts iptv-filter 30; shot 79-iptv-filter
+key DPAD_CENTER 2; texts iptv-filter-hidden 10; key DPAD_CENTER 2; texts iptv-filter-shown-again 10
+adb shell am start -W -n $P/.SettingsActivity --es category live; sleep 6
+curl -s -m 20 -X POST --data-urlencode "regions=" --data-urlencode "unknown=show" http://127.0.0.1:8090/iptv-regions | grep -o "<p class='m'>[^<]*"
+crashes channel-filters
 fi
 if want theme-place; then
 # ---------------- Settings keeps your place after choosing a theme
@@ -441,7 +453,10 @@ adb shell am start -W -n $P/.LiveActivity; sleep 8; texts live-with-portal 30; s
 key DPAD_LEFT 2; shot 102-guide-past; texts guide-past 12
 key DPAD_CENTER 10; top catchup; shot 103-catchup-playing; texts catchup 12
 key BACK 2; key BACK 2
-adb shell am start -W -n $P/.LiveActivity; sleep 6; key DPAD_DOWN 1; key DPAD_DOWN 1; key DPAD_LEFT 2; texts guide-past-xtream 12; shot 103b-guide-past-xtream
+adb shell am start -W -n $P/.LiveActivity; sleep 6
+# move down to the Xtream channel that keeps replays ("Flux News", tv_archive 3 days)
+for i in 1 2 3 4 5 6 7 8; do T=$(texts guide-find 4); echo "$T"; case "$T" in *"Flux News"*) break;; esac; key DPAD_DOWN 1; done
+key DPAD_LEFT 2; texts guide-past-xtream 12; shot 103b-guide-past-xtream
 key DPAD_CENTER 10; top catchup-xtream; shot 103c-catchup-xtream
 echo "== CATCHUP REQS: $(curl -s http://127.0.0.1:8000/_reqs | python3 -c "import json,sys; r=json.load(sys.stdin); print([x for x in r if 'timeshift' in x or 'archive' in x][-4:])")"
 key BACK 2; key BACK 2

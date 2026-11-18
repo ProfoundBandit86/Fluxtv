@@ -107,6 +107,13 @@ public class LiveActivity extends FluxActivity {
         progDesc.setEllipsize(TextUtils.TruncateAt.END);
         progDesc.setPadding(0, Ui.dp(this, 10), Ui.dp(this, 20), 0);
         info.addView(progDesc);
+        guideStatus = Ui.single(Ui.text(this, "", 13, Ui.TEXT));
+        guideStatus.setBackground(Ui.rounded(this, Ui.alpha(Ui.ACCENT, 0.22f), 0, 999));
+        guideStatus.setPadding(Ui.dp(this, 12), Ui.dp(this, 5), Ui.dp(this, 14), Ui.dp(this, 5));
+        guideStatus.setVisibility(View.GONE);
+        LinearLayout.LayoutParams gsl = new LinearLayout.LayoutParams(-2, -2);
+        gsl.setMargins(0, Ui.dp(this, 10), 0, 0);
+        info.addView(guideStatus, gsl);
         topRow.addView(info, new LinearLayout.LayoutParams(0, -1, 1f));
 
         previewBox = new FrameLayout(this);
@@ -190,6 +197,28 @@ public class LiveActivity extends FluxActivity {
         }, null);
     }
 
+    // ------------------------------------------------------------ guide download indicator
+
+    private TextView guideStatus;
+    private boolean guideWasBusy;
+
+    /** Shows "⟳ Updating the TV guide…" while a guide downloads; redraws the guide when it's done. */
+    private final Runnable guideWatch = new Runnable() {
+        @Override public void run() {
+            if (guideStatus == null) return;
+            boolean busy = Iptv.guideBusy();
+            if (busy) guideStatus.setText("⟳  " + Iptv.guideStatus());
+            guideStatus.setVisibility(busy ? View.VISIBLE : View.GONE);
+            if (guideWasBusy && !busy && guide != null) {
+                guide.invalidate();
+                GuideView.Entry e = guide.selected();
+                if (e != null) showInfo(e, GuideView.at(Iptv.programs(e.source, e.channel), System.currentTimeMillis()));
+            }
+            guideWasBusy = busy;
+            App.MAIN.postDelayed(this, busy ? 1000 : 3000);
+        }
+    };
+
     // ------------------------------------------------------------ data
 
     private Map<String, String> groupNames = new LinkedHashMap<>();
@@ -210,7 +239,7 @@ public class LiveActivity extends FluxActivity {
             for (Iptv.Source s : sources) {
                 Map<String, String> cats = new LinkedHashMap<>();
                 try { for (Iptv.Category c : Iptv.liveCategories(s)) cats.put(c.id, c.name); } catch (Exception ignored) { }
-                for (Iptv.Channel c : Iptv.channels(s)) {
+                for (Iptv.Channel c : Iptv.shownChannels(s)) {
                     String gid = s.id + "|" + groupOf(s, c);
                     String nm = cats.containsKey(groupOf(s, c)) ? cats.get(groupOf(s, c)) : groupOf(s, c);
                     names.put(gid, (sources.size() > 1 ? s.name + " · " : "") + nm);
@@ -234,7 +263,13 @@ public class LiveActivity extends FluxActivity {
     }
 
     static String groupOf(Iptv.Source s, Iptv.Channel c) {
-        return s.groupsById() ? c.group : (c.group.isEmpty() ? "Channels" : c.group);
+        return Iptv.groupKey(s, c);
+    }
+
+    /** After hiding a channel or group: rebuild the group list and the guide. */
+    private void reloadAfterFilter() {
+        if (!"all".equals(group) && !"favorites".equals(group)) group = "all";
+        load();
     }
 
     /** Channels in a group: "all", "favorites", or "sourceId|groupId". Blocking-safe (channels are cached). */
@@ -245,8 +280,9 @@ public class LiveActivity extends FluxActivity {
             List<Iptv.Channel> list;
             try { list = Iptv.channels(s); } catch (Exception e) { continue; }
             for (Iptv.Channel c : list) {
-                boolean in = "all".equals(group) || ("favorites".equals(group) ? favs.contains(s.id + "|" + c.id)
-                        : group.equals(s.id + "|" + groupOf(s, c)));
+                // Favorites always show; elsewhere channels hidden in Settings (country, group, one by one) don't.
+                boolean in = "favorites".equals(group) ? favs.contains(s.id + "|" + c.id)
+                        : Iptv.shown(s, c) && ("all".equals(group) || group.equals(s.id + "|" + groupOf(s, c)));
                 if (in) out.add(new GuideView.Entry(s, c));
             }
         }
@@ -286,7 +322,7 @@ public class LiveActivity extends FluxActivity {
             try { for (Iptv.Channel c : Iptv.channels(s)) all.put(s.id + "|" + c.id, new GuideView.Entry(s, c)); } catch (Exception ignored) { }
         }
         for (String k : keys) if (all.containsKey(k) && out.size() < 16) out.add(all.get(k));
-        if (out.isEmpty()) for (GuideView.Entry e : all.values()) { if (out.size() >= 10) break; out.add(e); }
+        if (out.isEmpty()) for (GuideView.Entry e : all.values()) { if (out.size() >= 10) break; if (Iptv.shown(e.source, e.channel)) out.add(e); }
         return out;
     }
 
@@ -458,6 +494,9 @@ public class LiveActivity extends FluxActivity {
                 "Recordings",
                 "Multiview (watch up to 4 channels)",
                 "Refresh the TV guide",
+                "Hide this channel",
+                "Hide the group \u201C" + Iptv.groupName(e.source, groupOf(e.source, e.channel)) + "\u201D",
+                "Choose which channels show…",
         };
         new AlertDialog.Builder(this)
                 .setTitle(e.channel.name)
@@ -485,6 +524,20 @@ public class LiveActivity extends FluxActivity {
                             stopPreview();
                             startActivity(new Intent(this, MultiviewActivity.class).putExtra("group", group)
                                     .putExtra("source", e.source.id).putExtra("channel", e.channel.id));
+                            break;
+                        case 6:
+                            Iptv.setChannelHidden(e.source, e.channel, true);
+                            Toast.makeText(this, e.channel.name + " hidden. Show it again in Settings → Live TV → Channels.", Toast.LENGTH_LONG).show();
+                            reloadAfterFilter();
+                            break;
+                        case 7:
+                            Iptv.setGroupHidden(e.source, groupOf(e.source, e.channel), true);
+                            Toast.makeText(this, "Group hidden. Show it again in Settings → Live TV → Channels.", Toast.LENGTH_LONG).show();
+                            reloadAfterFilter();
+                            break;
+                        case 8:
+                            stopPreview();
+                            startActivity(new Intent(this, IptvFilterActivity.class));
                             break;
                         default:
                             Toast.makeText(this, "Updating the guide…", Toast.LENGTH_SHORT).show();
@@ -638,6 +691,8 @@ public class LiveActivity extends FluxActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        App.MAIN.removeCallbacks(guideWatch);
+        guideWatch.run();
         if (guide != null) {
             guide.invalidate();
             App.MAIN.postDelayed(tick, 30000);
@@ -650,6 +705,7 @@ public class LiveActivity extends FluxActivity {
     protected void onPause() {
         super.onPause();
         App.MAIN.removeCallbacks(tick);
+        App.MAIN.removeCallbacks(guideWatch);
         stopPreview();
     }
 }

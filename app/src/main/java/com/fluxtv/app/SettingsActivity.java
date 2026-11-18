@@ -83,6 +83,7 @@ public class SettingsActivity extends FluxActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        liveShown = null;   // channel counts may have changed (hidden in the guide or the filter screen)
         if (!ConfigServer.running()) ConfigServer.start(() -> { if (!isFinishing()) render(); });
         updatePhoneHint();
         if (pendingFocus >= 0) {
@@ -514,16 +515,39 @@ public class SettingsActivity extends FluxActivity {
         content.addView(label(g.length() == 0 ? "Add a provider first." : g.toString().trim()
                 + "\nChannels, the guide and logos are saved on this TV and refreshed in the background every few hours, so Live TV opens instantly."));
         LinearLayout gr = buttonRow();
-        gr.addView(Ui.button(this, R.drawable.ic_update, "Download guides now", v -> {
-            Toast.makeText(this, "Downloading TV guides…", Toast.LENGTH_SHORT).show();
+        gr.setGravity(Gravity.CENTER_VERTICAL);
+        boolean busy = Iptv.guideBusy();
+        gr.addView(Ui.button(this, R.drawable.ic_update, busy ? "Downloading…" : "Download guides now", v -> {
+            if (Iptv.guideBusy()) return;
             App.async(Iptv::downloadAllGuides,
                     msg -> { Toast.makeText(this, msg, Toast.LENGTH_LONG).show(); render(true); },
                     e -> Toast.makeText(this, "Guide: " + App.message(e), Toast.LENGTH_LONG).show());
+            App.MAIN.postDelayed(() -> render(true), 300);
         }));
+        // While a guide downloads (from here or in the background): a spinner and what it's doing.
+        LinearLayout prog = Ui.horizontal(this);
+        prog.setGravity(Gravity.CENTER_VERTICAL);
+        android.widget.ProgressBar spin = new android.widget.ProgressBar(this);
+        spin.setIndeterminate(true);
+        spin.setIndeterminateTintList(ColorStateList.valueOf(Ui.ACCENT));
+        prog.addView(spin, new LinearLayout.LayoutParams(Ui.dp(this, 22), Ui.dp(this, 22)));
+        TextView pt = Ui.text(this, Iptv.guideStatus(), 14, Ui.TEXT);
+        pt.setPadding(Ui.dp(this, 12), 0, 0, 0);
+        prog.addView(pt);
+        prog.setPadding(0, Ui.dp(this, 6), 0, Ui.dp(this, 4));
+        prog.setVisibility(busy ? View.VISIBLE : View.GONE);
+        content.addView(prog);
+        guideProgress = pt;
+        guideProgressRow = prog;
+        App.MAIN.removeCallbacks(guideWatch);
+        App.MAIN.postDelayed(guideWatch, 1000);
         String last = Store.get("epg_last");
         if (!last.isEmpty()) content.addView(label("Last download: " + last));
         content.addView(label("Download every"));
         content.addView(choices(new String[]{"3 hours", "6 hours", "12 hours", "Day"}, "epg_refresh", 0));
+
+        section("Channels");
+        paneLiveChannels();
 
         section("Extra guide sources");
         content.addView(label("XMLTV links (.xml or .xml.gz) that fill in channels your provider's guide is missing. "
@@ -606,6 +630,96 @@ public class SettingsActivity extends FluxActivity {
                 }
             }));
         }
+    }
+
+    private TextView guideProgress;
+    private View guideProgressRow;
+    private boolean guideWasBusy;
+
+    /** Keeps the guide download line up to date while Live TV settings are open. */
+    private final Runnable guideWatch = new Runnable() {
+        @Override public void run() {
+            if (!"live".equals(cat) || guideProgress == null || isFinishing()) return;
+            boolean busy = Iptv.guideBusy();
+            guideProgress.setText(Iptv.guideStatus());
+            guideProgressRow.setVisibility(busy ? View.VISIBLE : View.GONE);
+            if (guideWasBusy && !busy) { guideWasBusy = false; render(true); return; }
+            guideWasBusy = busy;
+            App.MAIN.postDelayed(this, 1000);
+        }
+    };
+
+    /** [code → channel count] across providers, and [shown, total]; worked out in the background. */
+    private Map<String, Integer> liveRegions;
+    private int[] liveShown;
+
+    private void paneLiveChannels() {
+        if (Iptv.sources().isEmpty()) {
+            content.addView(label("Add a provider first."));
+            return;
+        }
+        if (liveRegions == null || liveShown == null) {
+            content.addView(label("Counting channels…"));
+            App.async(() -> {
+                Map<String, Integer> counts = new LinkedHashMap<>();
+                int shown = 0, total = 0;
+                for (Iptv.Source s : Iptv.sources()) {
+                    for (Iptv.Channel c : Iptv.channels(s)) {
+                        total++;
+                        if (Iptv.shown(s, c)) shown++;
+                        String r = Iptv.regionOf(s, c);
+                        if (!r.isEmpty()) counts.put(r, counts.containsKey(r) ? counts.get(r) + 1 : 1);
+                    }
+                }
+                List<Map.Entry<String, Integer>> sorted = new ArrayList<>(counts.entrySet());
+                java.util.Collections.sort(sorted, (a, b) -> b.getValue() - a.getValue());
+                Map<String, Integer> out = new LinkedHashMap<>();
+                for (Map.Entry<String, Integer> e : sorted) out.put(e.getKey(), e.getValue());
+                return new Object[]{out, new int[]{shown, total}};
+            }, r -> {
+                @SuppressWarnings("unchecked") Map<String, Integer> m = (Map<String, Integer>) r[0];
+                liveRegions = m;
+                liveShown = (int[]) r[1];
+                if ("live".equals(cat)) render(true);
+            }, e -> content.addView(label("Couldn't load channels: " + App.message(e))));
+            return;
+        }
+        content.addView(label(String.format(java.util.Locale.getDefault(), "Live TV shows %,d of %,d channels.", liveShown[0], liveShown[1])));
+        java.util.Set<String> chosen = Iptv.regions();
+        if (!liveRegions.isEmpty()) {
+            content.addView(label("Only show channels from these countries (read from the group and channel names, e.g. \"US| ESPN\"):"));
+            LinearLayout row = buttonRow();
+            row.addView(Ui.pill(this, "All countries", chosen.isEmpty(), v -> { Iptv.setRegions(new ArrayList<>()); liveShown = null; render(); }));
+            int n = 1;
+            for (Map.Entry<String, Integer> e : liveRegions.entrySet()) {
+                if (n++ % 6 == 0) row = buttonRow();
+                String code = e.getKey();
+                boolean on = chosen.contains(code);
+                String name = Iptv.COUNTRIES.containsKey(code) ? Iptv.COUNTRIES.get(code) : code;
+                row.addView(Ui.pill(this, (on ? "✓ " : "") + name + " · " + String.format(java.util.Locale.getDefault(), "%,d", e.getValue()), on, v -> {
+                    java.util.Set<String> now = Iptv.regions();
+                    if (on) now.remove(code); else now.add(code);
+                    Iptv.setRegions(now);
+                    liveShown = null;
+                    render();
+                }));
+            }
+            if (!chosen.isEmpty()) {
+                content.addView(label("Channels with no country in their name"));
+                LinearLayout u = buttonRow();
+                boolean hide = Iptv.hideUnknownRegion();
+                u.addView(Ui.pill(this, "Show them", !hide, v -> { Iptv.setHideUnknownRegion(false); liveShown = null; render(); }));
+                u.addView(Ui.pill(this, "Hide them", hide, v -> { Iptv.setHideUnknownRegion(true); liveShown = null; render(); }));
+            }
+        } else {
+            content.addView(label("Your provider's channel names don't say which country they're from, so hide groups instead."));
+        }
+        LinearLayout b = buttonRow();
+        b.addView(Ui.button(this, R.drawable.ic_list, "Hide groups and channels…", v -> startActivity(new Intent(this, IptvFilterActivity.class))));
+        if (Iptv.hiddenCount() > 0 || !chosen.isEmpty()) {
+            b.addView(Ui.button(this, "Show everything again", v -> { Iptv.showEverything(); liveShown = null; render(); }));
+        }
+        content.addView(label("Tip: in the TV guide, press ⋮ (or hold OK) on a channel to hide it or its whole group."));
     }
 
     private void paneAppearance() {

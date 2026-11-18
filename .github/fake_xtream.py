@@ -12,7 +12,7 @@ def b64(s):
     return base64.b64encode(s.encode()).decode()
 
 
-CATS = [{"category_id": "1", "category_name": "News"}, {"category_id": "2", "category_name": "Sports"}]
+CATS = [{"category_id": "1", "category_name": "US| News"}, {"category_id": "2", "category_name": "UK| Sports"}]
 LIVE = [
     {"num": 101, "name": "Flux News", "stream_id": 1001, "stream_icon": "", "epg_channel_id": "news.flux", "category_id": "1", "tv_archive": 1, "tv_archive_duration": 3},
     {"num": 102, "name": "World Report", "stream_id": 1002, "stream_icon": "", "epg_channel_id": "world.flux", "category_id": "1"},

@@ -501,6 +501,9 @@ public final class Ui {
         scroll.setBackgroundColor(BG);
         LinearLayout content = vertical(a);
         content.setPadding(dp(a, 56), dp(a, 36), dp(a, 56), dp(a, 48));
+        // Rows reach a little into the page's margin so a highlighted first card isn't cut off on the left.
+        content.setClipChildren(false);
+        content.setClipToPadding(false);
         scroll.addView(content);
         a.setContentView(scroll);
         if (title != null) {
@@ -509,6 +512,16 @@ public final class Ui {
             content.addView(h);
         }
         return content;
+    }
+
+    /** True when the picture's corners are see-through (a logo on a clear background). */
+    public static boolean hasTransparency(android.graphics.Bitmap b) {
+        if (b == null || !b.hasAlpha() || b.getWidth() < 2 || b.getHeight() < 2) return false;
+        int w = b.getWidth() - 1, h = b.getHeight() - 1;
+        int[] px = {b.getPixel(0, 0), b.getPixel(w, 0), b.getPixel(0, h), b.getPixel(w, h)};
+        int clear = 0;
+        for (int p : px) if (Color.alpha(p) < 40) clear++;
+        return clear >= 3;
     }
 
     public static String time(long ms) {

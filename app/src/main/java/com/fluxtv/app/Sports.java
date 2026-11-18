@@ -269,7 +269,7 @@ final class Sports {
         for (Iptv.Source s : Iptv.sources()) {
             try {
                 Iptv.loadGuide(s, false);
-                for (Iptv.Channel c : Iptv.channels(s)) all.add(new GuideView.Entry(s, c));
+                for (Iptv.Channel c : Iptv.shownChannels(s)) all.add(new GuideView.Entry(s, c));
             } catch (Exception ignored) { }
         }
         if (all.isEmpty()) return;

@@ -37,6 +37,11 @@ public final class Store {
         return changes;
     }
 
+    /** Something shown on Home / Live TV changed (e.g. which channels show). */
+    public static void bumpChanges() {
+        changes++;
+    }
+
     private Store() { }
 
     static void init(Context c) {

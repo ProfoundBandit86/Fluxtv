@@ -310,6 +310,176 @@ public final class Iptv {
         return out;
     }
 
+    // ------------------------------------------------------------ which channels show (Settings → Live TV → Channels)
+
+    /** Country / language codes found at the start of IPTV group and channel names ("US| ESPN", "UK: Sky", "[CA] CBC"). */
+    public static final Map<String, String> COUNTRIES = new LinkedHashMap<>();
+    static {
+        String[] list = {"US", "United States", "UK", "United Kingdom", "CA", "Canada", "AU", "Australia", "NZ", "New Zealand",
+                "IE", "Ireland", "DE", "Germany", "FR", "France", "ES", "Spain", "IT", "Italy", "NL", "Netherlands", "BE", "Belgium",
+                "PT", "Portugal", "CH", "Switzerland", "AT", "Austria", "SE", "Sweden", "NO", "Norway", "DK", "Denmark",
+                "FI", "Finland", "PL", "Poland", "GR", "Greece", "TR", "Turkey", "RU", "Russia", "UA", "Ukraine", "RO", "Romania",
+                "HU", "Hungary", "CZ", "Czechia", "BG", "Bulgaria", "RS", "Serbia", "HR", "Croatia", "AL", "Albania",
+                "MX", "Mexico", "BR", "Brazil", "AR", "Arabic", "LAT", "Latino", "IN", "India", "PK", "Pakistan", "BD", "Bangladesh",
+                "PH", "Philippines", "JP", "Japan", "KR", "Korea", "CN", "China", "AF", "Africa", "ZA", "South Africa",
+                "EX", "Ex-Yugoslavia", "CARIB", "Caribbean"};
+        for (int i = 0; i + 1 < list.length; i += 2) COUNTRIES.put(list[i], list[i + 1]);
+    }
+    private static final Map<String, String> ALIASES = new HashMap<>();
+    static {
+        String[][] a = {{"USA", "US"}, {"UNITED STATES", "US"}, {"AMERICA", "US"}, {"GB", "UK"}, {"UNITED KINGDOM", "UK"},
+                {"ENGLAND", "UK"}, {"CAN", "CA"}, {"CANADA", "CA"}, {"AUS", "AU"}, {"AUSTRALIA", "AU"}, {"IRL", "IE"},
+                {"IRELAND", "IE"}, {"GER", "DE"}, {"GERMANY", "DE"}, {"DEUTSCHLAND", "DE"}, {"FRA", "FR"}, {"FRANCE", "FR"},
+                {"ESP", "ES"}, {"SPAIN", "ES"}, {"ITA", "IT"}, {"ITALY", "IT"}, {"HOLLAND", "NL"}, {"NETHERLANDS", "NL"},
+                {"MEX", "MX"}, {"MEXICO", "MX"}, {"BRA", "BR"}, {"BRAZIL", "BR"}, {"ARABIC", "AR"}, {"ARAB", "AR"},
+                {"LATINO", "LAT"}, {"LATIN", "LAT"}, {"IND", "IN"}, {"INDIA", "IN"}, {"POR", "PT"}, {"PORTUGAL", "PT"},
+                {"TUR", "TR"}, {"TURKEY", "TR"}, {"POL", "PL"}, {"POLAND", "PL"}, {"SWE", "SE"}, {"SWEDEN", "SE"},
+                {"NOR", "NO"}, {"NORWAY", "NO"}, {"DEN", "DK"}, {"DENMARK", "DK"}, {"FIN", "FI"}, {"GRE", "GR"},
+                {"RUS", "RU"}, {"AFRICA", "AF"}, {"CARIBBEAN", "CARIB"}, {"EXYU", "EX"}, {"EX-YU", "EX"}, {"PHILIPPINES", "PH"}};
+        for (String[] x : a) ALIASES.put(x[0], x[1]);
+    }
+    private static final Pattern REGION_PREFIX = Pattern.compile(
+            "^[\\s\\[\\(|#*▎┃•-]*([A-Za-z][A-Za-z -]{1,15}?)\\s*(?:[\\]\\)|:▎┃•/]|\\s[-–—|]|-\\s|$)");
+
+    /** The country code at the start of a name ("US| ESPN" → "US"), or "". */
+    public static String regionOf(String name) {
+        if (name == null) return "";
+        java.util.regex.Matcher m = REGION_PREFIX.matcher(name.trim());
+        if (!m.find()) return "";
+        String w = m.group(1).toUpperCase(Locale.ROOT);
+        if (ALIASES.containsKey(w)) return ALIASES.get(w);
+        return COUNTRIES.containsKey(w) ? w : "";
+    }
+
+    private static final Map<String, Map<String, String>> catNames = new ConcurrentHashMap<>();
+
+    /** The group (category) key a channel belongs to. */
+    public static String groupKey(Source s, Channel c) {
+        return s.groupsById() ? c.group : (c.group.isEmpty() ? "Channels" : c.group);
+    }
+
+    /** A group's display name (Xtream/portal groups are numbers; their names come from the category list). */
+    public static String groupName(Source s, String key) {
+        if (!s.groupsById()) return key;
+        Map<String, String> m = catNames.get(s.id);
+        if (m == null) {
+            m = new HashMap<>();
+            try { for (Category c : liveCategories(s)) m.put(c.id, c.name); } catch (Exception ignored) { }
+            catNames.put(s.id, m);
+        }
+        String n = m.get(key);
+        return n == null ? key : n;
+    }
+
+    /** A channel's country: from its group's name first, then its own name. */
+    public static String regionOf(Source s, Channel c) {
+        String r = regionOf(groupName(s, groupKey(s, c)));
+        return r.isEmpty() ? regionOf(c.name) : r;
+    }
+
+    private static int filterVersion = -1;
+    private static java.util.Set<String> fRegions = new java.util.HashSet<>(), fHiddenGroups = new java.util.HashSet<>(),
+            fHiddenChannels = new java.util.HashSet<>();
+    private static boolean fHideUnknown;
+
+    private static synchronized void loadFilters() {
+        if (filterVersion == Store.changes()) return;
+        fRegions = new java.util.HashSet<>();
+        for (String r : Store.get("iptv_regions").split(",")) if (!r.trim().isEmpty()) fRegions.add(r.trim().toUpperCase(Locale.ROOT));
+        fHiddenGroups = jsonSet("iptv_hidden_groups");
+        fHiddenChannels = jsonSet("iptv_hidden_channels");
+        fHideUnknown = "hide".equals(Store.get("iptv_region_unknown"));
+        filterVersion = Store.changes();
+    }
+
+    private static java.util.Set<String> jsonSet(String key) {
+        java.util.Set<String> out = new java.util.HashSet<>();
+        try {
+            JSONArray a = new JSONArray(Store.get(key).isEmpty() ? "[]" : Store.get(key));
+            for (int i = 0; i < a.length(); i++) out.add(a.optString(i));
+        } catch (Exception ignored) { }
+        return out;
+    }
+
+    private static void saveSet(String key, java.util.Set<String> set) {
+        Store.put(key, new JSONArray(new ArrayList<>(set)).toString());
+        Store.bumpChanges();
+        epgCache.clear();
+    }
+
+    /** Countries chosen in Settings (empty = all). */
+    public static java.util.Set<String> regions() {
+        loadFilters();
+        return new java.util.HashSet<>(fRegions);
+    }
+
+    public static void setRegions(java.util.Collection<String> codes) {
+        Store.put("iptv_regions", android.text.TextUtils.join(",", codes));
+        Store.bumpChanges();
+    }
+
+    public static boolean hideUnknownRegion() {
+        loadFilters();
+        return fHideUnknown;
+    }
+
+    public static void setHideUnknownRegion(boolean hide) {
+        Store.put("iptv_region_unknown", hide ? "hide" : "");
+        Store.bumpChanges();
+    }
+
+    public static boolean groupHidden(Source s, String groupKey) {
+        loadFilters();
+        return fHiddenGroups.contains(s.id + "|" + groupKey);
+    }
+
+    public static void setGroupHidden(Source s, String groupKey, boolean hidden) {
+        java.util.Set<String> set = jsonSet("iptv_hidden_groups");
+        if (hidden) set.add(s.id + "|" + groupKey); else set.remove(s.id + "|" + groupKey);
+        saveSet("iptv_hidden_groups", set);
+    }
+
+    public static boolean channelHidden(Source s, Channel c) {
+        loadFilters();
+        return fHiddenChannels.contains(s.id + "|" + c.id);
+    }
+
+    public static void setChannelHidden(Source s, Channel c, boolean hidden) {
+        java.util.Set<String> set = jsonSet("iptv_hidden_channels");
+        if (hidden) set.add(s.id + "|" + c.id); else set.remove(s.id + "|" + c.id);
+        saveSet("iptv_hidden_channels", set);
+    }
+
+    public static int hiddenCount() {
+        loadFilters();
+        return fHiddenGroups.size() + fHiddenChannels.size();
+    }
+
+    public static void showEverything() {
+        Store.put("iptv_hidden_groups", "[]");
+        Store.put("iptv_hidden_channels", "[]");
+        Store.put("iptv_regions", "");
+        Store.put("iptv_region_unknown", "");
+        Store.bumpChanges();
+    }
+
+    /** False for channels hidden in Settings: hidden one by one, in a hidden group, or from another country. */
+    public static boolean shown(Source s, Channel c) {
+        loadFilters();
+        if (!fHiddenChannels.isEmpty() && fHiddenChannels.contains(s.id + "|" + c.id)) return false;
+        if (!fHiddenGroups.isEmpty() && fHiddenGroups.contains(s.id + "|" + groupKey(s, c))) return false;
+        if (fRegions.isEmpty()) return true;
+        String r = regionOf(s, c);
+        return r.isEmpty() ? !fHideUnknown : fRegions.contains(r);
+    }
+
+    /** The channels Live TV shows for a source (Settings filters applied). */
+    public static List<Channel> shownChannels(Source s) throws Exception {
+        List<Channel> all = channels(s), out = new ArrayList<>(all.size());
+        for (Channel c : all) if (shown(s, c)) out.add(c);
+        return out;
+    }
+
     /** Every live channel for the source (cached for 30 minutes). */
     public static List<Channel> channels(Source s) throws Exception {
         Long t = channelTime.get(s.id);
@@ -411,7 +581,7 @@ public final class Iptv {
 
     public static List<Channel> channelsIn(Source s, String categoryId) throws Exception {
         List<Channel> out = new ArrayList<>();
-        for (Channel c : channels(s)) {
+        for (Channel c : shownChannels(s)) {
             String g = s.groupsById() ? c.group : (c.group.isEmpty() ? "Channels" : c.group);
             if (categoryId == null || categoryId.equals(g)) out.add(c);
         }
@@ -577,8 +747,37 @@ public final class Iptv {
 
     private static final Object GUIDE_LOCK = new Object();
 
+    // What the guide downloader is doing right now (shown in Settings and on the Live TV guide).
+    private static final java.util.concurrent.atomic.AtomicInteger guideJobs = new java.util.concurrent.atomic.AtomicInteger();
+    private static volatile String guideStep = "";
+    private static volatile int guideRead;
+
+    /** True while a TV guide is downloading. */
+    public static boolean guideBusy() {
+        return guideJobs.get() > 0;
+    }
+
+    /** e.g. "Downloading the guide for My IPTV · 12,400 programmes read", or "" when idle. */
+    public static String guideStatus() {
+        if (guideJobs.get() == 0) return "";
+        int n = guideRead;
+        return (guideStep.isEmpty() ? "Downloading the TV guide" : guideStep)
+                + (n > 0 ? " · " + String.format(Locale.getDefault(), "%,d", n) + " programmes read" : "…");
+    }
+
     private static Map<String, List<Program>> downloadGuide(Source s) throws Exception {
+        guideJobs.incrementAndGet();
+        try {
+            return downloadGuideNow(s);
+        } finally {
+            guideJobs.decrementAndGet();
+        }
+    }
+
+    private static Map<String, List<Program>> downloadGuideNow(Source s) throws Exception {
         synchronized (GUIDE_LOCK) {
+            guideStep = "Downloading the guide for " + s.name;
+            guideRead = 0;
             String url = epgUrl(s);
             List<String> extras = extraEpgUrls();
             if (url.isEmpty() && extras.isEmpty() && !s.stalker()) return new HashMap<>();
@@ -610,8 +809,11 @@ public final class Iptv {
             // Extra guides fill in channels the provider's guide misses: matched by id, then by name.
             List<Channel> missing = new ArrayList<>();
             for (Channel c : chans) if (lookup(g, c) == null) missing.add(c);
+            int extraNo = 0;
             for (String extra : extras) {
                 if (missing.isEmpty()) break;
+                extraNo++;
+                guideStep = "Extra guide " + extraNo + " of " + extras.size() + " for " + s.name;
                 java.util.Set<String> ids = new java.util.HashSet<>(), names = new java.util.HashSet<>();
                 for (Channel c : missing) {
                     if (!c.epgId.isEmpty()) ids.add(c.epgId.toLowerCase(Locale.ROOT));
@@ -676,6 +878,7 @@ public final class Iptv {
                     } else if ("display-name".equals(tag) && chanId != null && names != null) {
                         field = "name";
                     } else if ("programme".equals(tag)) {
+                        guideRead++;
                         channel = x.getAttributeValue(null, "channel");
                         if (channel != null && lower) channel = channel.toLowerCase(Locale.ROOT);
                         long st = xmlDate(x.getAttributeValue(null, "start"));

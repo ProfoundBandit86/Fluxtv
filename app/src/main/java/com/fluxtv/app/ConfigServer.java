@@ -191,6 +191,13 @@ public final class ConfigServer {
             }
             case "/dvr-guide":
                 return Iptv.downloadAllGuides();
+            case "/iptv-regions": {
+                List<String> codes = new ArrayList<>();
+                for (String c : f(form, "regions").toUpperCase(java.util.Locale.ROOT).split("[,\\s]+")) if (!c.isEmpty()) codes.add(c);
+                Iptv.setRegions(codes);
+                Iptv.setHideUnknownRegion("hide".equals(f(form, "unknown")));
+                return codes.isEmpty() ? "Showing channels from every country" : "Showing channels from " + android.text.TextUtils.join(", ", codes);
+            }
             case "/epg-extra": {
                 List<String> l = new ArrayList<>();
                 for (String line : f(form, "urls").split("[\\r\\n]+")) {
@@ -775,6 +782,13 @@ public final class ConfigServer {
           .append("Download every").append(select("refresh", new String[]{"3 hours", "6 hours", "12 hours", "Day"}, PlayerActivity.intPref("epg_refresh", 0)))
           .append("<button>Save guide sources</button></form>")
           .append(est.length() == 0 ? "" : "<p class='u'>" + est + "</p>");
+        sb.append("<form method='post' action='/iptv-regions'><b>Only show channels from these countries</b><p class='u'>Country codes "
+                + "as your provider writes them at the start of group or channel names, e.g. US, UK, CA (empty = every country). "
+                + "Hide single groups and channels on the TV: Settings → Live TV → Channels.</p>")
+          .append("<input name='regions' placeholder='US, UK' value='").append(esc(android.text.TextUtils.join(", ", Iptv.regions()))).append("'>")
+          .append("Channels with no country in their name").append("<select name='unknown'><option value='show'>Show them</option><option value='hide'")
+          .append(Iptv.hideUnknownRegion() ? " selected" : "").append(">Hide them</option></select>")
+          .append("<button>Save countries</button></form>");
         sb.append("<form method='post' action='/dvr-preview' class='row'><b>Preview while browsing the guide</b>")
           .append(select("preview", new String[]{"on", "off"}, new String[]{"On", "Off (one-connection providers)"}, "off".equals(Store.get("live_preview")) ? "off" : "on"))
           .append("<button>Save</button></form>");
