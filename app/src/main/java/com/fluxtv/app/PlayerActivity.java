@@ -262,100 +262,147 @@ public class PlayerActivity extends Activity {
 
         View topScrim = new View(this);
         topScrim.setBackground(new android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM,
-                new int[]{Ui.alpha(Color.BLACK, 0.85f), Color.TRANSPARENT}));
-        controls.addView(topScrim, new FrameLayout.LayoutParams(-1, Ui.dp(this, 170), Gravity.TOP));
-        View bottomScrim = new View(this);
-        bottomScrim.setBackground(new android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.BOTTOM_TOP,
-                new int[]{Ui.alpha(Color.BLACK, 0.95f), Ui.alpha(Color.BLACK, 0.6f), Color.TRANSPARENT}));
-        controls.addView(bottomScrim, new FrameLayout.LayoutParams(-1, Ui.dp(this, 300), Gravity.BOTTOM));
+                new int[]{Ui.alpha(Color.BLACK, 0.8f), Color.TRANSPARENT}));
+        controls.addView(topScrim, new FrameLayout.LayoutParams(-1, Ui.dp(this, 160), Gravity.TOP));
 
-        // Top: title on the left, format badges and the clock on the right.
+        // Top: title on the left; the weather + clock badge, "Ends at" and format badges on the right.
         LinearLayout top = Ui.horizontal(this);
         top.setGravity(Gravity.TOP);
         LinearLayout titles = Ui.vertical(this);
         TextView eyebrow = Ui.text(this, info.label.isEmpty() ? "" : info.name.toUpperCase(Locale.ROOT), 13, Ui.ACCENT);
-        eyebrow.setLetterSpacing(0.08f);
+        eyebrow.setLetterSpacing(0.12f);
+        eyebrow.setTypeface(android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL));
         titles.addView(eyebrow);
-        titles.addView(Ui.single(Ui.heading(this, info.label.isEmpty() ? info.name : info.label, 26)));
+        TextView name = Ui.single(Ui.heading(this, info.label.isEmpty() ? info.name : info.label, 26));
+        name.setShadowLayer(Ui.dp(this, 6), 0, Ui.dp(this, 1), 0xCC000000);
+        titles.addView(name);
         top.addView(titles, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        LinearLayout right = Ui.vertical(this);
+        right.setGravity(Gravity.END);
+        right.addView(new ClockBadge(this), new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, Ui.dp(this, 36)));
+        clock = Ui.text(this, "", 14, Color.parseColor("#D5DBE3"));   // "Ends at 9:12 PM"
+        clock.setPadding(0, Ui.dp(this, 8), Ui.dp(this, 4), 0);
+        clock.setShadowLayer(Ui.dp(this, 4), 0, Ui.dp(this, 1), 0xCC000000);
+        right.addView(clock);
         badges = Ui.horizontal(this);
         badges.setGravity(Gravity.CENTER_VERTICAL);
-        top.addView(badges);
-        clock = Ui.heading(this, "", 20);
-        clock.setPadding(Ui.dp(this, 14), 0, 0, 0);
-        top.addView(clock);
+        badges.setPadding(0, Ui.dp(this, 8), 0, 0);
+        right.addView(badges);
+        top.addView(right);
         FrameLayout.LayoutParams tl = new FrameLayout.LayoutParams(-1, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP);
-        tl.setMargins(Ui.dp(this, 56), Ui.dp(this, 36), Ui.dp(this, 56), 0);
+        tl.setMargins(Ui.dp(this, 48), Ui.dp(this, 28), Ui.dp(this, 32), 0);
         controls.addView(top, tl);
 
-        // Bottom: progress, times, then the buttons and options in one bar.
+        // Bottom: one dark glass panel with the progress line and the buttons, so everything reads over any picture.
         LinearLayout bottom = Ui.vertical(this);
+        android.graphics.drawable.GradientDrawable glass = new android.graphics.drawable.GradientDrawable();
+        glass.setColor(Ui.alpha(Color.parseColor("#06080C"), 0.8f));
+        glass.setCornerRadius(Ui.dp(this, 24));
+        glass.setStroke(Math.max(1, Ui.dp(this, 1)), Ui.alpha(Color.WHITE, 0.1f));
+        bottom.setBackground(glass);
+        bottom.setPadding(Ui.dp(this, 22), Ui.dp(this, 18), Ui.dp(this, 22), Ui.dp(this, 16));
+
+        LinearLayout progress = Ui.horizontal(this);
+        progress.setGravity(Gravity.CENTER_VERTICAL);
+        timeNow = Ui.heading(this, "0:00", 15);
+        timeNow.setMinWidth(Ui.dp(this, 56));
+        progress.addView(timeNow);
         track = new FrameLayout(this);
         track.setClipChildren(false);
         View base = new View(this);
-        base.setBackground(Ui.rounded(this, Ui.alpha(Color.WHITE, 0.18f), 0, 99));
-        track.addView(base, new FrameLayout.LayoutParams(-1, Ui.dp(this, 6), Gravity.CENTER_VERTICAL));
+        base.setBackground(Ui.rounded(this, Ui.alpha(Color.WHITE, 0.2f), 0, 99));
+        track.addView(base, new FrameLayout.LayoutParams(-1, Ui.dp(this, 5), Gravity.CENTER_VERTICAL));
         buffered = new View(this);
         buffered.setBackground(Ui.rounded(this, Ui.alpha(Color.WHITE, 0.3f), 0, 99));
-        track.addView(buffered, new FrameLayout.LayoutParams(0, Ui.dp(this, 6), Gravity.CENTER_VERTICAL));
+        track.addView(buffered, new FrameLayout.LayoutParams(0, Ui.dp(this, 5), Gravity.CENTER_VERTICAL));
         played = new View(this);
         played.setBackground(Ui.rounded(this, Ui.ACCENT, 0, 99));
-        track.addView(played, new FrameLayout.LayoutParams(0, Ui.dp(this, 6), Gravity.CENTER_VERTICAL));
+        track.addView(played, new FrameLayout.LayoutParams(0, Ui.dp(this, 5), Gravity.CENTER_VERTICAL));
         knob = new View(this);
         knob.setBackground(Ui.rounded(this, Color.WHITE, 0, 99));
-        track.addView(knob, new FrameLayout.LayoutParams(Ui.dp(this, 16), Ui.dp(this, 16), Gravity.CENTER_VERTICAL));
-        bottom.addView(track, new LinearLayout.LayoutParams(-1, Ui.dp(this, 18)));
-        LinearLayout times = Ui.horizontal(this);
-        timeNow = Ui.heading(this, "0:00", 15);
+        track.addView(knob, new FrameLayout.LayoutParams(Ui.dp(this, 14), Ui.dp(this, 14), Gravity.CENTER_VERTICAL));
+        LinearLayout.LayoutParams trl = new LinearLayout.LayoutParams(0, Ui.dp(this, 18), 1f);
+        trl.setMargins(Ui.dp(this, 10), 0, Ui.dp(this, 14), 0);
+        progress.addView(track, trl);
         timeLeft = Ui.heading(this, "", 15);
+        timeLeft.setTextColor(Color.parseColor("#D5DBE3"));
+        timeLeft.setMinWidth(Ui.dp(this, 56));
         timeLeft.setGravity(Gravity.END);
-        times.addView(timeNow, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        times.addView(timeLeft, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        times.setPadding(0, Ui.dp(this, 4), 0, Ui.dp(this, 12));
-        bottom.addView(times);
+        progress.addView(timeLeft);
+        bottom.addView(progress);
 
+        // Buttons: Ask Gemini · −10  ⏯  +30 · Subtitles  Audio  ⋮
         LinearLayout bar = Ui.horizontal(this);
         bar.setGravity(Gravity.CENTER_VERTICAL);
         bar.setBaselineAligned(false);
+        bar.setPadding(0, Ui.dp(this, 14), 0, 0);
+        LinearLayout leftSide = Ui.horizontal(this);
+        leftSide.setGravity(Gravity.CENTER_VERTICAL | Gravity.START);
+        android.widget.Button ask = Ui.button(this, R.drawable.ic_gemini, "Ask Gemini", v -> openGemini());
+        ask.setAllCaps(false);
+        ask.setTextSize(14);
+        ask.setBackground(pillBg(Ui.alpha(Color.WHITE, 0.1f)));
+        ask.setOnFocusChangeListener((v, has) -> { if (has) bumpHide(); });
+        LinearLayout.LayoutParams al = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, Ui.dp(this, 46));
+        leftSide.addView(ask, al);
+        bar.addView(leftSide, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+        LinearLayout middle = Ui.horizontal(this);
+        middle.setGravity(Gravity.CENTER_VERTICAL);
+        android.widget.Button back10 = roundButton(R.drawable.ic_back10, false, v -> skip(-10_000));
+        back10.setContentDescription("Back 10 seconds");
+        middle.addView(back10);
         playPause = roundButton(R.drawable.ic_pause, true, v -> togglePlay());
-        bar.addView(playPause);
-        bar.addView(roundButton(R.drawable.ic_back10, false, v -> skip(-10_000)));
-        bar.addView(roundButton(R.drawable.ic_fwd30, false, v -> skip(30_000)));
-        bar.addView(new View(this), new LinearLayout.LayoutParams(0, 1, 1f));
-        // Kept simple: Ask Gemini, and everything else (audio, subtitles, quality, speed, picture…) under ⋮.
+        playPause.setContentDescription("Play or pause");
+        middle.addView(playPause);
+        android.widget.Button fwd30 = roundButton(R.drawable.ic_fwd30, false, v -> skip(30_000));
+        fwd30.setContentDescription("Forward 30 seconds");
+        middle.addView(fwd30);
+        bar.addView(middle);
+
+        LinearLayout rightSide = Ui.horizontal(this);
+        rightSide.setGravity(Gravity.CENTER_VERTICAL | Gravity.END);
+        // Kept simple: subtitles and audio one press away, everything else (quality, speed, picture…) under ⋮.
         chip("audio", "Audio");
         chip("subs", "Subtitles");
         chip("quality", "Quality");
         chip("speed", "Speed");
         chip("zoom", "Picture");
         chip("more", "More");
-        android.widget.Button ask = Ui.button(this, R.drawable.ic_gemini, "Ask Gemini", v -> openGemini());
-        ask.setAllCaps(false);
-        ask.setTextSize(14);
-        ask.setBackground(Ui.focusable(this, Ui.alpha(Color.WHITE, 0.14f), Color.WHITE, 0));
-        ask.setOnFocusChangeListener((v, has) -> { if (has) bumpHide(); });
-        LinearLayout.LayoutParams al = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, Ui.dp(this, 48));
-        al.setMargins(0, 0, Ui.dp(this, 10), 0);
-        bar.addView(ask, al);
+        android.widget.Button subsButton = roundButton(R.drawable.ic_subtitles, false, v -> { lastChip = null; showPopover("subs", v); });
+        subsButton.setContentDescription("Subtitles");
+        rightSide.addView(subsButton);
+        android.widget.Button audioButton = roundButton(R.drawable.ic_sound, false, v -> { lastChip = null; showPopover("audio", v); });
+        audioButton.setContentDescription("Audio");
+        rightSide.addView(audioButton);
         moreButton = roundButton(R.drawable.ic_more, false, v -> { lastChip = null; showPopover("main", v); });
         moreButton.setContentDescription("More options");
         moreButton.setOnFocusChangeListener((v, has) -> { if (has) bumpHide(); });
-        bar.addView(moreButton);
+        ((LinearLayout.LayoutParams) moreButton.getLayoutParams()).rightMargin = 0;
+        rightSide.addView(moreButton);
+        bar.addView(rightSide, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
         bottom.addView(bar);
-        TextView hint = Ui.text(this, "← → skip 10 s   ·   OK pause   ·   Back hides controls", 12, Ui.DIM);
-        hint.setPadding(0, Ui.dp(this, 10), 0, 0);
-        bottom.addView(hint);
+
         FrameLayout.LayoutParams bl = new FrameLayout.LayoutParams(-1, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM);
-        bl.setMargins(Ui.dp(this, 56), 0, Ui.dp(this, 56), Ui.dp(this, 22));
+        bl.setMargins(Ui.dp(this, 32), 0, Ui.dp(this, 32), Ui.dp(this, 24));
         controls.addView(bottom, bl);
         root.addView(controls, new FrameLayout.LayoutParams(-1, -1));
     }
 
+    /** A pill-shaped button background: translucent, the highlight colour when selected. */
+    private android.graphics.drawable.Drawable pillBg(int normal) {
+        android.graphics.drawable.StateListDrawable s = new android.graphics.drawable.StateListDrawable();
+        s.addState(new int[]{android.R.attr.state_focused}, Ui.rounded(this, Ui.FOCUS, 0, 999));
+        s.addState(new int[]{}, Ui.rounded(this, normal, 0, 999));
+        return s;
+    }
+
     private android.widget.Button moreButton;
+    private View popoverAnchor;   // the button that opened the open option list (focus goes back to it)
 
     private android.widget.Button roundButton(int icon, boolean main, View.OnClickListener click) {
         android.widget.Button b = new android.widget.Button(this);
-        int size = Ui.dp(this, main ? 56 : 48);
+        int size = Ui.dp(this, main ? 58 : 46);
         android.graphics.drawable.Drawable d = getResources().getDrawable(icon, getTheme()).mutate();
         int is = Ui.dp(this, main ? 26 : 24);
         d.setBounds(0, 0, is, is);
@@ -366,10 +413,10 @@ public class PlayerActivity extends Activity {
         android.graphics.drawable.GradientDrawable focused = new android.graphics.drawable.GradientDrawable();
         focused.setShape(android.graphics.drawable.GradientDrawable.OVAL);
         focused.setColor(Ui.FOCUS);
-        focused.setStroke(Ui.dp(this, 3), Ui.ACCENT);
+        focused.setStroke(Ui.dp(this, 3), Ui.alpha(Color.WHITE, 0.2f));
         android.graphics.drawable.GradientDrawable normal = new android.graphics.drawable.GradientDrawable();
         normal.setShape(android.graphics.drawable.GradientDrawable.OVAL);
-        normal.setColor(main ? Color.parseColor("#E9E9EF") : Ui.alpha(Color.WHITE, 0.14f));
+        normal.setColor(main ? Color.parseColor("#E9E9EF") : Ui.alpha(Color.WHITE, 0.1f));
         bg.addState(new int[]{android.R.attr.state_focused}, focused);
         bg.addState(new int[]{}, normal);
         b.setBackground(bg);
@@ -378,7 +425,7 @@ public class PlayerActivity extends Activity {
         b.setOnClickListener(click);
         b.setOnFocusChangeListener((v, has) -> { if (has) bumpHide(); });
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(size, size);
-        lp.setMargins(0, 0, Ui.dp(this, 12), 0);
+        lp.setMargins(Ui.dp(this, 6), 0, Ui.dp(this, 6), 0);
         b.setLayoutParams(lp);
         return b;
     }
@@ -466,10 +513,12 @@ public class PlayerActivity extends Activity {
         double f = dur > 0 ? Math.min(1, (double) pos / dur) : 0, fb = dur > 0 ? Math.min(1, (double) buf / dur) : 0;
         setWidth(played, (int) (w * f));
         setWidth(buffered, (int) (w * fb));
-        knob.setTranslationX((float) (w * f) - Ui.dp(this, 8));
+        knob.setTranslationX((float) (w * f) - Ui.dp(this, 7));
         timeNow.setText(Ui.time(pos));
         timeLeft.setText(dur > 0 ? "−" + Ui.time(Math.max(0, dur - pos)) : "");
-        clock.setText(android.text.format.DateFormat.getTimeFormat(this).format(new java.util.Date()));
+        float speed = player.getPlaybackParameters().speed;
+        clock.setText(dur > 0 ? "Ends at " + android.text.format.DateFormat.getTimeFormat(this).format(
+                new java.util.Date(System.currentTimeMillis() + (long) (Math.max(0, dur - pos) / Math.max(0.1f, speed)))) : "");
         playPause.setCompoundDrawables(icon(player.getPlayWhenReady() ? R.drawable.ic_pause : R.drawable.ic_play, 26), null, null, null);
     }
 
@@ -530,6 +579,7 @@ public class PlayerActivity extends Activity {
     private void showPopover(String page, View anchor) {
         if (anchor == null) anchor = chips.get(page.equals("main") ? "more" : page);
         if (anchor == null || anchor.getParent() == null || anchor.getVisibility() != View.VISIBLE) anchor = moreButton;
+        popoverAnchor = anchor;
         showControls(null);
         App.MAIN.removeCallbacks(autoHide);
         panel.setBackground(Ui.rounded(this, Ui.alpha(Ui.PANEL, 0.97f), 0, 18));
@@ -549,7 +599,7 @@ public class PlayerActivity extends Activity {
         int h = Math.min(maxH, panelList.getMeasuredHeight());
         FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(width, h, Gravity.BOTTOM | Gravity.START);
         lp.leftMargin = left;
-        lp.bottomMargin = Ui.dp(this, 150);
+        lp.bottomMargin = Ui.dp(this, 168);
         panel.setLayoutParams(lp);
         panel.bringToFront();
     }
@@ -790,24 +840,98 @@ public class PlayerActivity extends Activity {
         nextShowing = false;
         shownCue = null;
         if (cueBox != null && cueBox.getVisibility() == View.VISIBLE) cueBox.setVisibility(View.GONE);
+        if (nextCard != null && nextCard.getVisibility() == View.VISIBLE) nextCard.setVisibility(View.GONE);
     }
 
     private boolean cueShowing() {
-        return cueBox != null && cueBox.getVisibility() == View.VISIBLE;
+        return cueBox != null && cueBox.getVisibility() == View.VISIBLE
+                || nextCard != null && nextCard.getVisibility() == View.VISIBLE;
     }
+
+    // The "Up next" card in the bottom right during the end credits: picture, episode, countdown.
+    private LinearLayout nextCard;
+    private TextView nextTitle, nextCount;
+    private View nextBar;
+    private int countFrom;
 
     private void showNext() {
         nextShowing = true;
         int mode = playNextMode();
         countLeft = mode == 1 ? 10 : mode == 2 ? 5 : -1;
+        countFrom = countLeft;
+        if (cueBox != null) cueBox.setVisibility(View.GONE);
+        if (nextCard == null) buildNextCard();
+        String label = nextUp.label;
+        nextTitle.setText(label);
         updateNextText();
+        if (nextCard.getVisibility() != View.VISIBLE) {
+            nextCard.setVisibility(View.VISIBLE);
+            nextCard.setAlpha(0f);
+            nextCard.setTranslationX(Ui.dp(this, 40));
+            nextCard.animate().alpha(1f).translationX(0).setDuration(240).start();
+        }
         App.MAIN.removeCallbacks(countdown);
         if (countLeft > 0) App.MAIN.postDelayed(countdown, 1000);
     }
 
+    private void buildNextCard() {
+        nextCard = Ui.vertical(this);
+        android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
+        bg.setColor(Ui.alpha(Color.parseColor("#06080C"), 0.88f));
+        bg.setCornerRadius(Ui.dp(this, 18));
+        bg.setStroke(Ui.dp(this, 3), Ui.FOCUS);   // it's what OK presses, so it wears the highlight
+        nextCard.setBackground(bg);
+        nextCard.setClipToOutline(true);
+        FrameLayout pic = new FrameLayout(this);
+        android.widget.ImageView img = Ui.image(this, Ui.BUTTON, 14);
+        pic.addView(img, new FrameLayout.LayoutParams(-1, -1));
+        String art = nextUp.background != null && !nextUp.background.isEmpty() ? nextUp.background : nextUp.poster;
+        ImageLoader.load(img, art, Ui.dp(this, 300));
+        TextView tag = Ui.text(this, "UP NEXT", 12, Ui.ON_FOCUS);
+        tag.setLetterSpacing(0.14f);
+        tag.setTypeface(android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.BOLD));
+        tag.setBackground(Ui.rounded(this, Ui.FOCUS, 0, 999));
+        tag.setPadding(Ui.dp(this, 10), Ui.dp(this, 4), Ui.dp(this, 10), Ui.dp(this, 4));
+        FrameLayout.LayoutParams tgl = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.START);
+        tgl.setMargins(Ui.dp(this, 12), Ui.dp(this, 12), 0, 0);
+        pic.addView(tag, tgl);
+        nextCount = Ui.heading(this, "", 18);
+        nextCount.setTextColor(Color.WHITE);
+        nextCount.setGravity(Gravity.CENTER);
+        nextCount.setBackground(Ui.rounded(this, Ui.alpha(Color.BLACK, 0.6f), 0, 999));
+        FrameLayout.LayoutParams ncl = new FrameLayout.LayoutParams(Ui.dp(this, 40), Ui.dp(this, 40), Gravity.BOTTOM | Gravity.END);
+        ncl.setMargins(0, 0, Ui.dp(this, 12), Ui.dp(this, 12));
+        pic.addView(nextCount, ncl);
+        nextBar = new View(this);
+        nextBar.setBackgroundColor(Ui.ACCENT);
+        pic.addView(nextBar, new FrameLayout.LayoutParams(-1, Ui.dp(this, 4), Gravity.BOTTOM));
+        nextCard.addView(pic, new LinearLayout.LayoutParams(-1, Ui.dp(this, 160)));
+        LinearLayout text = Ui.vertical(this);
+        text.setPadding(Ui.dp(this, 18), Ui.dp(this, 14), Ui.dp(this, 18), Ui.dp(this, 16));
+        nextTitle = Ui.heading(this, "", 18);
+        nextTitle.setTextColor(Color.WHITE);
+        nextTitle.setMaxLines(2);
+        nextTitle.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        text.addView(nextTitle);
+        TextView how = Ui.text(this, "OK  play now      Back  watch the credits", 13, Color.parseColor("#D5DBE3"));
+        how.setPadding(0, Ui.dp(this, 8), 0, 0);
+        text.addView(how);
+        nextCard.addView(text);
+        nextCard.setVisibility(View.GONE);
+        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(Ui.dp(this, 300), ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM | Gravity.END);
+        lp.setMargins(0, 0, Ui.dp(this, 40), Ui.dp(this, 48));
+        root.addView(nextCard, lp);
+    }
+
     private void updateNextText() {
-        String sub = nextUp.label + (countLeft > 0 ? "   ·   starts in " + countLeft + " s" : "");
-        showCue("Next episode", sub);
+        if (nextCard == null) return;
+        nextCount.setVisibility(countLeft > 0 ? View.VISIBLE : View.GONE);
+        nextCount.setText(String.valueOf(Math.max(0, countLeft)));
+        // The line along the picture's bottom shrinks as the countdown runs.
+        float f = countFrom > 0 ? Math.max(0f, countLeft / (float) countFrom) : 1f;
+        nextBar.setPivotX(0);
+        nextBar.animate().scaleX(Math.max(0f, f - (countFrom > 0 ? 1f / countFrom : 0))).setDuration(countLeft > 0 ? 1000 : 0)
+                .setInterpolator(new android.view.animation.LinearInterpolator()).start();
     }
 
     private final Runnable countdown = new Runnable() {
@@ -868,11 +992,19 @@ public class PlayerActivity extends Activity {
 
     // ------------------------------------------------------------ Ask Gemini about what's on screen
 
-    private static final int REQ_VOICE = 4711;
+    // Opens straight into listening on a dark glass screen over the paused picture: say the question, OK when done,
+    // the answer appears in big text; "Ask something else" listens again (follow-ups keep the conversation).
+    private static final int REQ_VOICE = 4711, MIC_PERMISSION = 4712;
     private FrameLayout geminiPanel;
-    private LinearLayout chat, askRow;
-    private ScrollView chatScroll;
-    private android.widget.EditText askField;
+    private TextView gState, gQuestion, gHeard, gAnswer, gHints, gSub;
+    private android.widget.ImageView gStar;
+    private ScrollView gAnswerScroll;
+    private VoiceWave gWave;
+    private LinearLayout gButtons;
+    private android.widget.Button gAgain;
+    private android.speech.SpeechRecognizer recognizer;
+    private boolean listening;
+    private long listenStarted;
     private byte[] frame;
     private boolean resumeAfterGemini, asking;
     private final List<String[]> history = new ArrayList<>();
@@ -891,107 +1023,248 @@ public class PlayerActivity extends Activity {
         hideControls();
         if (geminiPanel == null) buildGemini();
         history.clear();
-        chat.removeAllViews();
         frame = null;
         captureFrame();
         long pos = player == null ? 0 : player.getCurrentPosition();
-        chat.addView(Ui.text(this, "Paused at " + Ui.time(pos) + ". Ask anything about " + (info.name.isEmpty() ? "this" : info.name) + ".", 14, Ui.MUTED));
-        addSuggestions();
+        gSub.setText("Paused at " + Ui.time(pos) + "  ·  No spoilers past this point");
         geminiPanel.setVisibility(View.VISIBLE);
         geminiPanel.setAlpha(0f);
-        geminiPanel.setTranslationX(Ui.dp(this, 60));
-        geminiPanel.animate().alpha(1f).translationX(0).setDuration(200).start();
+        geminiPanel.animate().alpha(1f).setDuration(180).start();
         geminiPanel.bringToFront();
-        App.MAIN.postDelayed(() -> { View first = chat.findViewWithTag("suggest0"); if (first != null) first.requestFocus(); }, 50);
+        listen();
     }
 
     private void closeGemini() {
         if (geminiPanel == null) return;
+        stopRecognizer();
         geminiPanel.setVisibility(View.GONE);
-        if (askField != null) askField.setVisibility(View.GONE);
         if (resumeAfterGemini && player != null) player.setPlayWhenReady(true);
         root.requestFocus();
     }
 
     private void buildGemini() {
         geminiPanel = new FrameLayout(this);
-        // A solid panel on the right with a soft fade into the picture on its left edge.
-        View fade = new View(this);
-        fade.setBackground(new android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT,
-                new int[]{Ui.alpha(Ui.PANEL, 0f), Ui.alpha(Ui.PANEL, 0.97f)}));
-        geminiPanel.addView(fade, new FrameLayout.LayoutParams(Ui.dp(this, 90), -1, Gravity.START));
+        geminiPanel.setBackgroundColor(Ui.alpha(Color.parseColor("#06080C"), 0.86f));
+        geminiPanel.setClickable(true);
+
+        LinearLayout top = Ui.horizontal(this);
+        top.setGravity(Gravity.TOP);
+        LinearLayout titles = Ui.vertical(this);
+        TextView t = Ui.single(Ui.heading(this, info.title(), 20));
+        t.setTextColor(Color.WHITE);
+        titles.addView(t);
+        gSub = Ui.single(Ui.text(this, "", 15, Color.parseColor("#D5DBE3")));
+        gSub.setPadding(0, Ui.dp(this, 4), 0, 0);
+        titles.addView(gSub);
+        top.addView(titles, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        top.addView(new ClockBadge(this), new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, Ui.dp(this, 36)));
+        FrameLayout.LayoutParams tl = new FrameLayout.LayoutParams(-1, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP);
+        tl.setMargins(Ui.dp(this, 48), Ui.dp(this, 28), Ui.dp(this, 32), 0);
+        geminiPanel.addView(top, tl);
+
         LinearLayout col = Ui.vertical(this);
-        col.setBackgroundColor(Ui.alpha(Ui.PANEL, 0.97f));
-        col.setPadding(Ui.dp(this, 36), Ui.dp(this, 36), Ui.dp(this, 48), Ui.dp(this, 28));
-        LinearLayout head = Ui.horizontal(this);
-        head.setGravity(Gravity.CENTER_VERTICAL);
-        android.widget.ImageView star = new android.widget.ImageView(this);
-        star.setImageResource(R.drawable.ic_gemini);
-        star.setImageTintList(android.content.res.ColorStateList.valueOf(Ui.ACCENT));
-        head.addView(star, new LinearLayout.LayoutParams(Ui.dp(this, 24), Ui.dp(this, 24)));
-        TextView h = Ui.heading(this, "Ask Gemini", 24);
-        h.setPadding(Ui.dp(this, 12), 0, 0, 0);
-        head.addView(h);
-        col.addView(head);
-        TextView sub = Ui.single(Ui.text(this, info.title(), 13, Ui.MUTED));
-        sub.setPadding(0, Ui.dp(this, 4), 0, Ui.dp(this, 14));
-        col.addView(sub);
-        chatScroll = new FocusScroll.Vertical(this);
-        chat = Ui.vertical(this);
-        chatScroll.addView(chat);
-        col.addView(chatScroll, new LinearLayout.LayoutParams(-1, 0, 1f));
-        askRow = Ui.horizontal(this);
-        askRow.setPadding(0, Ui.dp(this, 12), 0, 0);
-        askRow.setFocusable(false);
-        askRow.addView(Ui.button(this, R.drawable.ic_mic, "Ask out loud", v -> voiceQuestion()));
-        android.widget.Button type = Ui.button(this, "Type a question", v -> {
-            askField.setVisibility(View.VISIBLE);
-            askField.requestFocus();
-            android.view.inputmethod.InputMethodManager im = (android.view.inputmethod.InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
-            if (im != null) im.showSoftInput(askField, 0);
-        });
-        LinearLayout.LayoutParams tl = new LinearLayout.LayoutParams(-2, -2);
-        tl.setMargins(Ui.dp(this, 10), 0, 0, 0);
-        askRow.addView(type, tl);
-        col.addView(askRow);
-        askField = new android.widget.EditText(this);
-        askField.setSingleLine(true);
-        askField.setHint("Who is that? What did I miss?…");
-        askField.setTextColor(Ui.TEXT);
-        askField.setHintTextColor(Ui.DIM);
-        askField.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_SEND);
-        askField.setOnEditorActionListener((v, id, ev) -> {
-            String q = askField.getText().toString().trim();
-            if (!q.isEmpty()) { askField.setText(""); askField.setVisibility(View.GONE); ask(q); }
-            return true;
-        });
-        askField.setVisibility(View.GONE);
-        col.addView(askField, new LinearLayout.LayoutParams(-1, -2));
-        geminiPanel.addView(col, new FrameLayout.LayoutParams(Ui.dp(this, 620), -1, Gravity.END));
+        col.setGravity(Gravity.CENTER_HORIZONTAL);
+        LinearLayout state = Ui.horizontal(this);
+        state.setGravity(Gravity.CENTER_VERTICAL);
+        gStar = new android.widget.ImageView(this);
+        gStar.setImageResource(R.drawable.ic_gemini);
+        gStar.setImageTintList(android.content.res.ColorStateList.valueOf(Ui.ACCENT));
+        state.addView(gStar, new LinearLayout.LayoutParams(Ui.dp(this, 22), Ui.dp(this, 22)));
+        gState = Ui.text(this, "", 14, Ui.ACCENT);
+        gState.setLetterSpacing(0.14f);
+        gState.setTypeface(android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL));
+        gState.setPadding(Ui.dp(this, 10), 0, 0, 0);
+        state.addView(gState);
+        col.addView(state);
+        gQuestion = Ui.text(this, "", 18, Color.parseColor("#D5DBE3"));
+        gQuestion.setGravity(Gravity.CENTER);
+        gQuestion.setPadding(0, Ui.dp(this, 22), 0, 0);
+        col.addView(gQuestion);
+        gHeard = Ui.heading(this, "", 32);
+        gHeard.setTextColor(Color.WHITE);
+        gHeard.setGravity(Gravity.CENTER);
+        gHeard.setLineSpacing(0, 1.15f);
+        gHeard.setPadding(0, Ui.dp(this, 18), 0, 0);
+        col.addView(gHeard);
+        gWave = new VoiceWave(this);
+        LinearLayout.LayoutParams wl = new LinearLayout.LayoutParams(Ui.dp(this, 120), Ui.dp(this, 56));
+        wl.setMargins(0, Ui.dp(this, 26), 0, 0);
+        col.addView(gWave, wl);
+        gAnswerScroll = new FocusScroll.Vertical(this);
+        gAnswerScroll.setVerticalScrollBarEnabled(false);
+        gAnswer = Ui.text(this, "", 24, Color.WHITE);
+        gAnswer.setLineSpacing(0, 1.35f);
+        gAnswerScroll.addView(gAnswer);
+        LinearLayout.LayoutParams asl = new LinearLayout.LayoutParams(-1, ViewGroup.LayoutParams.WRAP_CONTENT);
+        asl.setMargins(0, Ui.dp(this, 18), 0, 0);
+        col.addView(gAnswerScroll, asl);
+        gButtons = Ui.horizontal(this);
+        gButtons.setGravity(Gravity.CENTER);
+        gButtons.setPadding(0, Ui.dp(this, 26), 0, 0);
+        gAgain = Ui.button(this, R.drawable.ic_mic, "Ask something else", v -> listen());
+        gAgain.setBackground(pillBg(Ui.alpha(Color.WHITE, 0.12f)));
+        gAgain.setMinHeight(Ui.dp(this, 52));
+        gAgain.setTextSize(16);
+        gButtons.addView(gAgain, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, Ui.dp(this, 52)));
+        android.widget.Button resume = Ui.button(this, R.drawable.ic_play, "Resume", v -> closeGemini());
+        resume.setBackground(pillBg(Ui.alpha(Color.WHITE, 0.12f)));
+        resume.setTextSize(16);
+        LinearLayout.LayoutParams rl = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, Ui.dp(this, 52));
+        rl.setMargins(Ui.dp(this, 14), 0, 0, 0);
+        gButtons.addView(resume, rl);
+        col.addView(gButtons);
+        FrameLayout.LayoutParams cl = new FrameLayout.LayoutParams(-1, -1);
+        cl.setMargins(Ui.dp(this, 140), Ui.dp(this, 128), Ui.dp(this, 140), Ui.dp(this, 70));
+        geminiPanel.addView(col, cl);
+
+        gHints = Ui.text(this, "OK  done talking        Back  resume the video", 15, Color.parseColor("#D5DBE3"));
+        gHints.setGravity(Gravity.CENTER);
+        FrameLayout.LayoutParams hl = new FrameLayout.LayoutParams(-1, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM);
+        hl.bottomMargin = Ui.dp(this, 34);
+        geminiPanel.addView(gHints, hl);
         geminiPanel.setVisibility(View.GONE);
-        root.addView(geminiPanel, new FrameLayout.LayoutParams(Ui.dp(this, 710), -1, Gravity.END));
+        root.addView(geminiPanel, new FrameLayout.LayoutParams(-1, -1));
     }
 
-    private void addSuggestions() {
-        boolean series = "series".equals(info.type);
-        String[] qs = {
-                "Who is on screen right now?",
-                "What's happening in this scene?",
-                series ? "Recap the story so far (no spoilers)" : "Recap the movie so far (no spoilers)",
-                "What song or music is this?",
-                "Fun facts about making this scene",
-        };
-        LinearLayout box = Ui.vertical(this);
-        box.setTag("suggestions");
-        box.setPadding(0, Ui.dp(this, 10), 0, 0);
-        for (int i = 0; i < qs.length; i++) {
-            String q = qs[i];
-            android.widget.Button b = Ui.listButton(this, q, v -> ask(q));
-            b.setTag("suggest" + i);
-            b.setTextSize(15);
-            box.addView(b);
+    /** Switches the Ask Gemini screen between listening / thinking / answer. */
+    private void gShow(String state, String question, String big, String answer, boolean wave, boolean buttons) {
+        gState.setText(state.toUpperCase(Locale.ROOT));
+        gQuestion.setText(question == null ? "" : question);
+        gQuestion.setVisibility(question == null ? View.GONE : View.VISIBLE);
+        gHeard.setTextColor(Color.WHITE);
+        gHeard.setText(big == null ? "" : big);
+        gHeard.setVisibility(big == null ? View.GONE : View.VISIBLE);
+        gAnswer.setText(answer == null ? "" : answer);
+        gAnswerScroll.setVisibility(answer == null ? View.GONE : View.VISIBLE);
+        gAnswerScroll.scrollTo(0, 0);
+        gWave.setVisibility(wave ? View.VISIBLE : View.GONE);
+        gWave.setActive(wave);
+        gButtons.setVisibility(buttons ? View.VISIBLE : View.GONE);
+        gHints.setVisibility(wave ? View.VISIBLE : View.GONE);
+        if (buttons) gAgain.post(gAgain::requestFocus);
+        else geminiPanel.requestFocus();
+    }
+
+    /** Listens for a question (Flux's own listening screen; the TV's voice screen if that isn't possible). */
+    private void listen() {
+        if (asking) return;
+        String test = BuildConfig.TEST_BUILD ? getIntent().getStringExtra("gemini_test_question") : null;
+        gShow("Listening", null, "Ask anything about " + (info.name.isEmpty() ? "this" : info.name) + "…", null, true, false);
+        gHeard.setTextColor(Color.parseColor("#8C96A5"));
+        if (test != null) {   // emulator tests: no microphone, so a fixed question "is said"
+            listening = true;
+            App.MAIN.postDelayed(() -> heard(test.replace("\\ ", " "), false), 800);
+            App.MAIN.postDelayed(() -> { if (listening) { listening = false; ask(test.replace("\\ ", " ")); } }, 1800);
+            return;
         }
-        chat.addView(box);
+        if (Store.get("voice_ui").equals("system") || !android.speech.SpeechRecognizer.isRecognitionAvailable(this)) {
+            systemVoice();
+            return;
+        }
+        if (android.os.Build.VERSION.SDK_INT >= 23
+                && checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{android.Manifest.permission.RECORD_AUDIO}, MIC_PERMISSION);
+            return;
+        }
+        startRecognizer();
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int code, String[] perms, int[] res) {
+        super.onRequestPermissionsResult(code, perms, res);
+        if (code != MIC_PERMISSION || !geminiOpen()) return;
+        if (res.length > 0 && res[0] == android.content.pm.PackageManager.PERMISSION_GRANTED) startRecognizer();
+        else systemVoice();
+    }
+
+    private void startRecognizer() {
+        if (recognizer == null) {
+            recognizer = android.speech.SpeechRecognizer.createSpeechRecognizer(this);
+            recognizer.setRecognitionListener(new android.speech.RecognitionListener() {
+                @Override public void onReadyForSpeech(Bundle b) { }
+                @Override public void onBeginningOfSpeech() { }
+                @Override public void onRmsChanged(float rms) { gWave.setLevel(rms); }
+                @Override public void onBufferReceived(byte[] b) { }
+                @Override public void onEndOfSpeech() { gWave.setActive(false); }
+                @Override public void onError(int error) { voiceError(error); }
+                @Override public void onResults(Bundle b) {
+                    ArrayList<String> said = b.getStringArrayList(android.speech.SpeechRecognizer.RESULTS_RECOGNITION);
+                    if (said == null || said.isEmpty() || said.get(0).trim().isEmpty()) { voiceError(android.speech.SpeechRecognizer.ERROR_NO_MATCH); return; }
+                    listening = false;
+                    ask(said.get(0));
+                }
+                @Override public void onPartialResults(Bundle b) {
+                    ArrayList<String> said = b.getStringArrayList(android.speech.SpeechRecognizer.RESULTS_RECOGNITION);
+                    if (said != null && !said.isEmpty() && !said.get(0).isEmpty()) heard(said.get(0), true);
+                }
+                @Override public void onEvent(int t, Bundle b) { }
+            });
+        }
+        Intent i = new Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+                .putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                .putExtra(android.speech.RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+                .putExtra(android.speech.RecognizerIntent.EXTRA_CALLING_PACKAGE, getPackageName());
+        listening = true;
+        listenStarted = System.currentTimeMillis();
+        try {
+            recognizer.startListening(i);
+        } catch (Exception e) {
+            listening = false;
+            systemVoice();
+        }
+    }
+
+    /** Words heard so far, shown big while listening. */
+    private void heard(String text, boolean partial) {
+        if (!geminiOpen()) return;
+        gHeard.setTextColor(Color.WHITE);
+        gHeard.setText(text + (partial ? "…" : ""));
+    }
+
+    private void voiceError(int error) {
+        if (!listening) return;
+        listening = false;
+        boolean early = System.currentTimeMillis() - listenStarted < 1500;
+        // The TV's recogniser can't be used directly (busy, no remote mic access…): use its own voice screen.
+        if (early && (error == android.speech.SpeechRecognizer.ERROR_AUDIO || error == android.speech.SpeechRecognizer.ERROR_CLIENT
+                || error == android.speech.SpeechRecognizer.ERROR_RECOGNIZER_BUSY
+                || error == android.speech.SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS)) {
+            systemVoice();
+            return;
+        }
+        gShow("Ask Gemini", null, error == android.speech.SpeechRecognizer.ERROR_NETWORK || error == android.speech.SpeechRecognizer.ERROR_NETWORK_TIMEOUT
+                ? "Couldn't reach the voice service" : "Didn't catch that", null, false, true);
+        gAgain.setText("Try again");
+    }
+
+    private void stopRecognizer() {
+        listening = false;
+        if (recognizer != null) {
+            try { recognizer.cancel(); } catch (Exception ignored) { }
+        }
+    }
+
+    /** The TV's own voice screen (when Flux can't listen itself, or chosen in Settings → Search). */
+    private void systemVoice() {
+        listening = false;
+        Intent i = new Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+                .putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                .putExtra(android.speech.RecognizerIntent.EXTRA_PROMPT, "Ask about " + info.name);
+        try {
+            startActivityForResult(i, REQ_VOICE);
+        } catch (ActivityNotFoundException e) {
+            gShow("Ask Gemini", null, "Voice isn't available on this TV", null, false, true);
+        }
+    }
+
+    @Override
+    protected void onActivityResult(int req, int result, Intent data) {
+        super.onActivityResult(req, result, data);
+        if (req != REQ_VOICE || !geminiOpen()) return;
+        java.util.ArrayList<String> said = result == RESULT_OK && data != null
+                ? data.getStringArrayListExtra(android.speech.RecognizerIntent.EXTRA_RESULTS) : null;
+        if (said != null && !said.isEmpty()) ask(said.get(0));
+        else gShow("Ask Gemini", null, "Didn't catch that", null, false, true);
     }
 
     /** The picture on screen right now, as a small JPEG for Gemini (not possible for DRM-protected video). */
@@ -1027,58 +1300,26 @@ public class PlayerActivity extends Activity {
     }
 
     private void ask(String question) {
-        if (asking) return;
+        if (asking || !geminiOpen()) return;
         asking = true;
-        View sug = chat.findViewWithTag("suggestions");
-        if (sug != null) chat.removeView(sug);
-        askRow.getChildAt(0).requestFocus();
-        TextView q = Ui.heading(this, question, 17);
-        q.setPadding(0, Ui.dp(this, 16), 0, Ui.dp(this, 6));
-        chat.addView(q);
-        TextView a = Ui.text(this, "Thinking…", 16, Ui.MUTED);
-        a.setLineSpacing(0, 1.15f);
-        chat.addView(a);
-        chatScroll.post(() -> chatScroll.fullScroll(View.FOCUS_DOWN));
+        stopRecognizer();
+        gShow("Thinking", null, question, null, false, false);
         String ctx = context();
         List<String[]> past = new ArrayList<>(history);
-        byte[] pic = history.isEmpty() ? waitForFrame() : null;   // the picture goes with the first question
+        byte[] pic = history.isEmpty() ? frame : null;   // the picture goes with the first question
         App.async(() -> Gemini.askAboutScreen(ctx, past, question, pic), answer -> {
             asking = false;
             history.add(new String[]{"user", question});
             history.add(new String[]{"model", answer});
-            a.setText(answer);
-            a.setTextColor(Ui.TEXT);
-            chatScroll.post(() -> chatScroll.fullScroll(View.FOCUS_DOWN));
-            askRow.getChildAt(0).post(() -> askRow.getChildAt(0).requestFocus());
+            if (!geminiOpen()) return;
+            gShow("Gemini", "\u201C" + question + "\u201D", null, answer, false, true);
+            gAgain.setText("Ask something else");
         }, e -> {
             asking = false;
-            a.setText(App.message(e));
-            a.setTextColor(Ui.WARN);
-            askRow.getChildAt(0).post(() -> askRow.getChildAt(0).requestFocus());
+            if (!geminiOpen()) return;
+            gShow("Ask Gemini", "\u201C" + question + "\u201D", null, App.message(e), false, true);
+            gAgain.setText("Try again");
         });
-    }
-
-    private byte[] waitForFrame() {
-        return frame;
-    }
-
-    private void voiceQuestion() {
-        Intent i = new Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
-                .putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                .putExtra(android.speech.RecognizerIntent.EXTRA_PROMPT, "Ask about " + info.name);
-        try {
-            startActivityForResult(i, REQ_VOICE);
-        } catch (ActivityNotFoundException e) {
-            Toast.makeText(this, "Voice input isn't available; use Type a question", Toast.LENGTH_LONG).show();
-        }
-    }
-
-    @Override
-    protected void onActivityResult(int req, int result, Intent data) {
-        super.onActivityResult(req, result, data);
-        if (req != REQ_VOICE || result != RESULT_OK || data == null) return;
-        java.util.ArrayList<String> said = data.getStringArrayListExtra(android.speech.RecognizerIntent.EXTRA_RESULTS);
-        if (said != null && !said.isEmpty() && geminiOpen()) ask(said.get(0));
     }
 
     // ------------------------------------------------------------ preferences
@@ -1187,7 +1428,8 @@ public class PlayerActivity extends Activity {
         panelPage = null;
         if (!live) {
             refreshChips();
-            showControls(moreButton != null ? moreButton : playPause);
+            View back = popoverAnchor != null && popoverAnchor.isAttachedToWindow() ? popoverAnchor : moreButton;
+            showControls(back != null ? back : playPause);
             return;
         }
         view.requestFocus();
@@ -1664,11 +1906,15 @@ public class PlayerActivity extends Activity {
     public boolean dispatchKeyEvent(KeyEvent e) {
         int k = e.getKeyCode();
         if (geminiOpen()) {
-            if ((k == KeyEvent.KEYCODE_BACK || k == KeyEvent.KEYCODE_ESCAPE) && e.getAction() == KeyEvent.ACTION_UP) {
-                if (askField != null && askField.hasFocus() && askField.getText().length() == 0) { askRow.requestFocus(); return true; }
-                closeGemini();
-            }
+            if ((k == KeyEvent.KEYCODE_BACK || k == KeyEvent.KEYCODE_ESCAPE) && e.getAction() == KeyEvent.ACTION_UP) closeGemini();
             if (k == KeyEvent.KEYCODE_BACK || k == KeyEvent.KEYCODE_ESCAPE) return true;
+            // OK while listening: done talking.
+            if (listening && (k == KeyEvent.KEYCODE_DPAD_CENTER || k == KeyEvent.KEYCODE_ENTER)) {
+                if (e.getAction() == KeyEvent.ACTION_UP && recognizer != null) {
+                    try { recognizer.stopListening(); } catch (Exception ignored) { }
+                }
+                return true;
+            }
             return super.dispatchKeyEvent(e);
         }
         if (!live && cueKey(e)) return true;
@@ -1760,11 +2006,20 @@ public class PlayerActivity extends Activity {
             scrobbling = false;
         }
         if (player != null) player.setPlayWhenReady(false);
+        if (listening && geminiOpen()) {   // left mid-question (Home, another app): stop the mic
+            stopRecognizer();
+            gShow("Ask Gemini", null, "Didn't catch that", null, false, true);
+            gAgain.setText("Try again");
+        }
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        if (recognizer != null) {
+            try { recognizer.destroy(); } catch (Exception ignored) { }
+            recognizer = null;
+        }
         if (player != null) {
             player.release();
             player = null;

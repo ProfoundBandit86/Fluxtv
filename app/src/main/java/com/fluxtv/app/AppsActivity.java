@@ -82,7 +82,7 @@ public class AppsActivity extends FluxActivity {
         t.setClickable(true);
         int p = Ui.dp(this, 8);
         t.setPadding(p, p, p, p);
-        t.setBackground(Ui.focusable(this, Ui.PANEL, Ui.BUTTON, Ui.ACCENT));
+        t.setBackground(Ui.focusable(this, Ui.PANEL, Ui.BUTTON, Ui.FOCUS));
         // Columns share the screen width, so the grid always fits whatever the TV's resolution/zoom.
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
         lp.setMargins(Ui.dp(this, 8), Ui.dp(this, 8), Ui.dp(this, 8), Ui.dp(this, 8));

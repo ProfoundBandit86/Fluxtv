@@ -19,6 +19,12 @@ public class App extends Application {
     public interface Ok<T> { void run(T value); }
     public interface Err { void run(Exception e); }
 
+    /** Screens that show the weather + clock badge in the top right corner (the player draws its own). */
+    static final java.util.Set<String> BADGE_SCREENS = new java.util.HashSet<>(java.util.Arrays.asList(
+            "MainActivity", "DetailActivity", "SettingsActivity", "ServiceActivity", "GenreActivity", "AppsActivity",
+            "ProfilesActivity", "DownloadsActivity", "RecordingsActivity", "SportsActivity", "PersonActivity",
+            "HomeRowsActivity"));
+
     @Override
     public void onCreate() {
         super.onCreate();
@@ -35,7 +41,10 @@ public class App extends Application {
         registerActivityLifecycleCallbacks(new ActivityLifecycleCallbacks() {
             @Override public void onActivityCreated(android.app.Activity a, android.os.Bundle b) { }
             @Override public void onActivityStarted(android.app.Activity a) { }
-            @Override public void onActivityResumed(android.app.Activity a) { fullScreen(a); }
+            @Override public void onActivityResumed(android.app.Activity a) {
+                fullScreen(a);
+                if (BADGE_SCREENS.contains(a.getClass().getSimpleName())) ClockBadge.attach(a);
+            }
             @Override public void onActivityPaused(android.app.Activity a) { }
             @Override public void onActivityStopped(android.app.Activity a) { }
             @Override public void onActivitySaveInstanceState(android.app.Activity a, android.os.Bundle b) { }

@@ -182,7 +182,7 @@ public class DownloadsActivity extends FluxActivity {
         LinearLayout row = Ui.vertical(this);
         row.setFocusable(true);
         row.setClickable(true);
-        row.setBackground(Ui.focusable(this, Ui.PANEL, Ui.BUTTON, Ui.ACCENT));
+        row.setBackground(Ui.focusable(this, Ui.PANEL, Ui.BUTTON, Ui.FOCUS));
         row.setPadding(Ui.dp(this, 18), Ui.dp(this, 11), Ui.dp(this, 18), Ui.dp(this, 11));
         if (click != null) row.setOnClickListener(click);
         row.addView(Ui.single(Ui.heading(this, title, 16)));

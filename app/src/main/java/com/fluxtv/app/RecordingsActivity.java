@@ -115,7 +115,7 @@ public class RecordingsActivity extends FluxActivity {
         row.setFocusable(true);
         row.setClickable(true);
         row.setTag(r.optString("id"));
-        row.setBackground(Ui.focusable(this, Ui.PANEL, Ui.BUTTON, Ui.ACCENT));
+        row.setBackground(Ui.focusable(this, Ui.PANEL, Ui.BUTTON, Ui.FOCUS));
         row.setPadding(Ui.dp(this, 16), Ui.dp(this, 10), Ui.dp(this, 16), Ui.dp(this, 10));
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
         lp.setMargins(0, Ui.dp(this, 4), 0, Ui.dp(this, 4));

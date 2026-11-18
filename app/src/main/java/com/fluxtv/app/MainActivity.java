@@ -90,14 +90,97 @@ public class MainActivity extends Activity {
         root.addView(contentRoot, new FrameLayout.LayoutParams(-1, -1));
         buildContent();
 
+        buildDrawer();
+        buildRail();   // mirrors the menu's entries, so after buildDrawer
+        root.addView(rail, new FrameLayout.LayoutParams(Ui.dp(this, RAIL_DP), ViewGroup.LayoutParams.MATCH_PARENT));
+
         dim = new View(this);
         dim.setBackgroundColor(Ui.alpha(Color.BLACK, 0.55f));
         dim.setAlpha(0f);
         dim.setVisibility(View.GONE);
         root.addView(dim, new FrameLayout.LayoutParams(-1, -1));
-        buildDrawer();
         root.addView(drawerPanel, new FrameLayout.LayoutParams(Ui.dp(this, 250), ViewGroup.LayoutParams.MATCH_PARENT));
         setContentView(root);
+        syncRail();
+    }
+
+    // ------------------------------------------------------------ the dock (always on screen; ← opens the full menu)
+
+    /** Width of the always-visible dock on the left, and where Home's content starts. */
+    private static final int RAIL_DP = 76, START_DP = RAIL_DP + 44;
+    private LinearLayout rail;
+    private TextView railAvatar;
+    private final Map<View, View> railFor = new HashMap<>();
+
+    private void buildRail() {
+        rail = Ui.vertical(this);
+        rail.setGravity(Gravity.CENTER_HORIZONTAL);
+        rail.setFocusable(false);
+        rail.setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);
+        rail.setPadding(Ui.dp(this, 6), Ui.dp(this, 18), Ui.dp(this, 6), Ui.dp(this, 12));
+        GradientDrawable bg = new GradientDrawable();
+        bg.setColor(Ui.alpha(Ui.BG, 0.8f));
+        GradientDrawable edge = new GradientDrawable();   // a thin line on the right edge
+        edge.setColor(Ui.alpha(Color.WHITE, 0.07f));
+        android.graphics.drawable.LayerDrawable layers = new android.graphics.drawable.LayerDrawable(new android.graphics.drawable.Drawable[]{bg, edge});
+        layers.setLayerInset(1, Ui.dp(this, RAIL_DP) - Math.max(1, Ui.dp(this, 1)), 0, 0, 0);
+        rail.setBackground(layers);
+        rail.setContentDescription("Menu. Press left to open it.");
+        railAvatar = Ui.heading(this, "", 14);
+        railAvatar.setGravity(Gravity.CENTER);
+        railAvatar.setBackground(Ui.rounded(this, Ui.ACCENT, 0, 999));
+        railAvatar.setTextColor(Ui.BG);
+        LinearLayout.LayoutParams al = new LinearLayout.LayoutParams(Ui.dp(this, 32), Ui.dp(this, 32));
+        al.setMargins(0, 0, 0, Ui.dp(this, 10));
+        rail.addView(railAvatar, al);
+        // Entries are added alongside the full menu's (drawerItem), so both always match.
+        for (int i = 0; i < drawer.getChildCount(); i++) {
+            View d = drawer.getChildAt(i);
+            View r = railEntryFor(d);
+            if (r != null) rail.addView(r);
+            else if (d.getLayoutParams() instanceof LinearLayout.LayoutParams && ((LinearLayout.LayoutParams) d.getLayoutParams()).weight > 0) {
+                rail.addView(new View(this), new LinearLayout.LayoutParams(1, 0, 1f));   // pushes Settings to the bottom
+            }
+        }
+    }
+
+    private View railEntryFor(View drawerRow) {
+        String label = String.valueOf(drawerRow.getTag(R.id.rail_label) == null ? "" : drawerRow.getTag(R.id.rail_label));
+        Object icon = drawerRow.getTag(R.id.rail_icon);
+        if (label.isEmpty() || !(icon instanceof Integer)) return null;
+        LinearLayout e = Ui.vertical(this);
+        e.setGravity(Gravity.CENTER);
+        StateListDrawable bg = new StateListDrawable();
+        bg.addState(new int[]{android.R.attr.state_selected}, Ui.rounded(this, Ui.alpha(Color.WHITE, 0.11f), 0, 14));
+        bg.addState(new int[]{}, Ui.rounded(this, Color.TRANSPARENT, 0, 14));
+        e.setBackground(bg);
+        ImageView ic = new ImageView(this);
+        ic.setImageResource((Integer) icon);
+        ic.setImageTintList(new ColorStateList(new int[][]{{android.R.attr.state_selected}, {}}, new int[]{Ui.ACCENT, Ui.MUTED}));
+        ic.setImageTintMode(PorterDuff.Mode.SRC_IN);
+        ic.setDuplicateParentStateEnabled(true);
+        e.addView(ic, new LinearLayout.LayoutParams(Ui.dp(this, 20), Ui.dp(this, 20)));
+        TextView t = Ui.single(Ui.text(this, label, 10, Ui.MUTED));
+        t.setTextColor(new ColorStateList(new int[][]{{android.R.attr.state_selected}, {}}, new int[]{Ui.TEXT, Ui.MUTED}));
+        t.setDuplicateParentStateEnabled(true);
+        t.setPadding(0, Ui.dp(this, 4), 0, 0);
+        e.addView(t);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 46));
+        lp.setMargins(0, Ui.dp(this, 1), 0, Ui.dp(this, 1));
+        e.setLayoutParams(lp);
+        railFor.put(drawerRow, e);
+        return e;
+    }
+
+    /** The dock mirrors the menu: same entries shown, current section marked. */
+    private void syncRail() {
+        if (rail == null) return;
+        for (Map.Entry<View, View> e : railFor.entrySet()) {
+            e.getValue().setVisibility(e.getKey().getVisibility());
+            e.getValue().setSelected(e.getKey().isSelected());
+        }
+        String name = Store.profile();
+        railAvatar.setText(name.isEmpty() ? "?" : name.substring(0, 1).toUpperCase());
     }
 
     // ------------------------------------------------------------ layout
@@ -124,17 +207,17 @@ public class MainActivity extends Activity {
 
         LinearLayout top = Ui.horizontal(this);
         top.setGravity(Gravity.CENTER_VERTICAL);
-        top.setPadding(Ui.dp(this, 56), Ui.dp(this, 22), Ui.dp(this, 40), 0);
-        status = Ui.text(this, "", 12, Ui.MUTED);
+        top.setPadding(Ui.dp(this, START_DP), Ui.dp(this, 28), Ui.dp(this, 230), 0);   // right: room for the clock badge
+        status = Ui.single(Ui.text(this, "", 13, Ui.MUTED));
         top.addView(status, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        clock = Ui.heading(this, "", 15);
-        top.addView(clock);
+        clock = Ui.heading(this, "", 15);   // the time now shows in the clock badge (top right)
         contentRoot.addView(top, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         LinearLayout hero = Ui.vertical(this);
-        hero.setPadding(Ui.dp(this, 56), Ui.dp(this, 64), 0, 0);
+        hero.setPadding(Ui.dp(this, START_DP), Ui.dp(this, 66), 0, 0);
         heroEyebrow = Ui.eyebrow(this, "");
-        heroTitle = Ui.single(Ui.heading(this, "Flux", 36));
+        heroTitle = Ui.single(Ui.heading(this, "Flux", 40));
+        heroTitle.setLetterSpacing(-0.02f);
         heroTitle.setPadding(0, Ui.dp(this, 8), 0, Ui.dp(this, 8));
         heroMeta = Ui.single(Ui.text(this, "", 13, Ui.MUTED));
         heroText = Ui.text(this, "", 14, Ui.alpha(Ui.TEXT, 0.82f));
@@ -147,13 +230,13 @@ public class MainActivity extends Activity {
         hero.addView(heroTitle);
         hero.addView(heroMeta);
         hero.addView(heroText);
-        contentRoot.addView(hero, new FrameLayout.LayoutParams(Ui.dp(this, 600), ViewGroup.LayoutParams.WRAP_CONTENT));
+        contentRoot.addView(hero, new FrameLayout.LayoutParams(Ui.dp(this, 600 + START_DP), ViewGroup.LayoutParams.WRAP_CONTENT));
 
         scroll = new FocusScroll.Vertical(this);
         rows = Ui.vertical(this);
         rows.setClipChildren(false);
         rows.setClipToPadding(false);
-        rows.setPadding(Ui.dp(this, 56), 0, 0, Ui.dp(this, 200));
+        rows.setPadding(Ui.dp(this, START_DP), 0, 0, Ui.dp(this, 200));
         scroll.addView(rows);
         float heightDp = getResources().getDisplayMetrics().heightPixels / getResources().getDisplayMetrics().density;
         int rowsTop = heightDp >= 520 ? 236 : 186;
@@ -255,6 +338,8 @@ public class MainActivity extends Activity {
         ic.setDuplicateParentStateEnabled(true);
         item.addView(ic, new LinearLayout.LayoutParams(Ui.dp(this, 20), Ui.dp(this, 20)));
         item.addView(label(text));
+        item.setTag(R.id.rail_icon, icon);
+        item.setTag(R.id.rail_label, text.equals("Smart home") ? "Smart" : text);
         item.setOnClickListener(v -> {
             closeDrawer(sectionKey != null);
             action.run();
@@ -390,6 +475,7 @@ public class MainActivity extends Activity {
         String name = Store.profile();
         if (liveItem != null) liveItem.setVisibility(Ratings.restricted() ? View.GONE : View.VISIBLE);
         if (smartItem != null) smartItem.setVisibility(SmartHome.configured() ? View.VISIBLE : View.GONE);
+        syncRail();
         avatarText.setText(name.isEmpty() ? "?" : name.substring(0, 1).toUpperCase());
         View pl = drawer.findViewWithTag("profileLabel");
         if (pl instanceof TextView) ((TextView) pl).setText(name);
@@ -450,7 +536,7 @@ public class MainActivity extends Activity {
         for (MediaServer s : Store.servers()) parts.add("● " + s.name);
         if (RealDebrid.isSignedIn()) parts.add("● Real-Debrid");
         if (!Iptv.sources().isEmpty()) parts.add("● IPTV");
-        String hello = "Hi, " + Store.profile() + "   ·   ← for menu";
+        String hello = "Hi, " + Store.profile();
         status.setText(parts.isEmpty() ? hello : hello + "      " + TextUtils.join("     ", parts));
     }
 
@@ -638,12 +724,14 @@ public class MainActivity extends Activity {
             renderSection();
         }
         for (Map.Entry<String, View> e : drawerItems.entrySet()) e.getValue().setSelected(e.getKey().equals(section));
+        syncRail();
         rows.post(this::focusContent);
     }
 
     private void renderSection() {
         renderedChanges = Store.changes();
         for (Map.Entry<String, View> e : drawerItems.entrySet()) e.getValue().setSelected(e.getKey().equals(section));
+        syncRail();
         if (home == null) return;
         sectionGen++;
         rows.removeAllViews();
@@ -900,7 +988,7 @@ public class MainActivity extends Activity {
         t.setOnClickListener(click);
         int p = Ui.dp(this, 8);
         t.setPadding(p, p, p, p);
-        t.setBackground(Ui.focusable(this, Ui.PANEL, Ui.BUTTON, Ui.ACCENT));
+        t.setBackground(Ui.focusable(this, Ui.PANEL, Ui.BUTTON, Ui.FOCUS));
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(Ui.dp(this, 170), ViewGroup.LayoutParams.WRAP_CONTENT);
         lp.setMargins(0, Ui.dp(this, 6), Ui.dp(this, 14), Ui.dp(this, 6));
         t.setLayoutParams(lp);
@@ -1020,7 +1108,7 @@ public class MainActivity extends Activity {
         tile.setClickable(true);
         tile.setContentDescription(s.name);
         StateListDrawable bg = new StateListDrawable();
-        bg.addState(new int[]{android.R.attr.state_focused}, Ui.rounded(this, Ui.BUTTON, Ui.ACCENT, 14));
+        bg.addState(new int[]{android.R.attr.state_focused}, Ui.rounded(this, Ui.BUTTON, Ui.FOCUS, 14));
         bg.addState(new int[]{}, Ui.rounded(this, Ui.alpha(Color.WHITE, 0.07f), Ui.alpha(Color.WHITE, 0.08f), 14));
         tile.setBackground(bg);
         TextView fallback = Ui.heading(this, s.name, 20);
@@ -1030,11 +1118,18 @@ public class MainActivity extends Activity {
         if (!s.wordmark.isEmpty()) {
             ImageView logo = new ImageView(this);
             logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
-            logo.setColorFilter(Color.WHITE, PorterDuff.Mode.SRC_IN);   // monochrome wordmark
             FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(-1, -1);
             lp.setMargins(Ui.dp(this, 22), Ui.dp(this, 22), Ui.dp(this, 22), Ui.dp(this, 22));
             tile.addView(logo, lp);
-            ImageLoader.load(logo, s.wordmark, Ui.dp(this, 140), () -> fallback.setVisibility(View.GONE));
+            logo.setTag(s.wordmark);
+            // Loaded with its transparency kept: the logo is tinted white, and a picture without transparency
+            // would turn into a solid white box, so those keep showing the name instead.
+            ImageLoader.bitmap(s.wordmark, Ui.dp(this, 140), b -> {
+                if (!s.wordmark.equals(logo.getTag()) || !hasTransparency(b)) return;
+                logo.setImageBitmap(b);
+                logo.setColorFilter(Color.WHITE, PorterDuff.Mode.SRC_IN);   // monochrome wordmark
+                fallback.setVisibility(View.GONE);
+            });
         }
         // No white wordmark: the name itself stands in (never the coloured app icon, so all tiles match).
         col.addView(tile, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 98)));
@@ -1048,6 +1143,16 @@ public class MainActivity extends Activity {
         });
         tile.setOnClickListener(v -> startActivity(new Intent(this, ServiceActivity.class).putExtra("service", s.key)));
         return col;
+    }
+
+    /** True when the picture's corners are see-through (a logo on a clear background). */
+    private static boolean hasTransparency(android.graphics.Bitmap b) {
+        if (b == null || !b.hasAlpha() || b.getWidth() < 2 || b.getHeight() < 2) return false;
+        int w = b.getWidth() - 1, h = b.getHeight() - 1;
+        int[] px = {b.getPixel(0, 0), b.getPixel(w, 0), b.getPixel(0, h), b.getPixel(w, h)};
+        int clear = 0;
+        for (int p : px) if (Color.alpha(p) < 40) clear++;
+        return clear >= 3;
     }
 
     // ------------------------------------------------------------ featured area
@@ -1142,6 +1247,7 @@ public class MainActivity extends Activity {
         View pl = drawer.findViewWithTag("profileLabel");
         if (pl instanceof TextView) ((TextView) pl).setText(name);
         updateStatus();
+        syncRail();
         load();
     }
 }

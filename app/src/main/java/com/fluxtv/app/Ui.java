@@ -99,6 +99,17 @@ public final class Ui {
         return d;
     }
 
+    /** Like focusable, but fully rounded ends (buttons). */
+    public static Drawable focusablePill(Context c, int normal, int focused, int focusStroke) {
+        StateListDrawable s = new StateListDrawable();
+        s.addState(new int[]{android.R.attr.state_focused}, rounded(c, focused, focusStroke, 999));
+        s.addState(new int[]{android.R.attr.state_pressed}, rounded(c, focused, focusStroke, 999));
+        GradientDrawable n = rounded(c, normal, 0, 999);
+        n.setStroke(Math.max(1, dp(c, 1)), alpha(Color.WHITE, 0.08f));   // a faint edge so buttons read on any picture
+        s.addState(new int[]{}, n);
+        return s;
+    }
+
     public static Drawable focusable(Context c, int normal, int focused, int focusStroke) {
         StateListDrawable s = new StateListDrawable();
         s.addState(new int[]{android.R.attr.state_focused}, rounded(c, focused, focusStroke));
@@ -142,8 +153,8 @@ public final class Ui {
         b.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
         b.setTextColor(onFocusDark(TEXT));
         b.setFocusable(true);
-        b.setBackground(focusable(c, GLASS, FOCUS, 0));
-        b.setPadding(dp(c, 20), 0, dp(c, 20), 0);
+        b.setBackground(focusablePill(c, GLASS, FOCUS, 0));
+        b.setPadding(dp(c, 22), 0, dp(c, 22), 0);
         b.setMinHeight(dp(c, 46));
         b.setMinimumHeight(dp(c, 46));
         b.setStateListAnimator(null);
@@ -183,7 +194,7 @@ public final class Ui {
         b.setTextColor(BG);
         b.setCompoundDrawableTintList(ColorStateList.valueOf(BG));
         b.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
-        b.setBackground(focusable(c, Color.parseColor("#E9E9EF"), FOCUS, ACCENT));
+        b.setBackground(focusablePill(c, Color.parseColor("#E9E9EF"), FOCUS, alpha(Color.WHITE, 0.25f)));
         b.setPadding(dp(c, 24), 0, dp(c, 30), 0);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(c, 64));
         lp.setMargins(0, dp(c, 4), dp(c, 12), dp(c, 4));
@@ -209,30 +220,30 @@ public final class Ui {
         Button b = new Button(c);
         b.setText(label);
         b.setAllCaps(false);
-        b.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
+        b.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
         b.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
         b.setTextColor(onFocusDark(TEXT));
         b.setSingleLine(true);
         b.setEllipsize(android.text.TextUtils.TruncateAt.END);
         b.setFocusable(true);
-        b.setBackground(focusable(c, GLASS, FOCUS, 0));
+        b.setBackground(focusablePill(c, GLASS, FOCUS, 0));
         b.setStateListAnimator(null);
         b.setGravity(Gravity.CENTER_VERTICAL);
-        b.setPadding(dp(c, 14), 0, dp(c, 16), 0);
+        b.setPadding(dp(c, 16), 0, dp(c, 18), 0);
         b.setMinHeight(0);
         b.setMinimumHeight(0);
         b.setMinWidth(0);
         b.setMinimumWidth(0);
         Drawable d = c.getResources().getDrawable(iconRes, c.getTheme()).mutate();
-        int sz = dp(c, 16);
+        int sz = dp(c, 18);
         d.setBounds(0, 0, sz, sz);
         b.setCompoundDrawables(d, null, null, null);
-        b.setCompoundDrawablePadding(dp(c, 8));
+        b.setCompoundDrawablePadding(dp(c, 9));
         b.setCompoundDrawableTintList(onFocusDark(TEXT));
         b.setOnClickListener(click);
         b.setContentDescription(label);
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(c, 40));
-        lp.setMargins(0, dp(c, 4), dp(c, 8), dp(c, 4));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(c, 46));
+        lp.setMargins(0, dp(c, 4), dp(c, 10), dp(c, 4));
         lp.gravity = Gravity.CENTER_VERTICAL;
         b.setLayoutParams(lp);
         return b;
@@ -242,7 +253,7 @@ public final class Ui {
     public static Button listButton(Context c, CharSequence label, View.OnClickListener click) {
         Button b = button(c, label, click);
         b.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
-        b.setBackground(focusable(c, BUTTON, TEXT, 0));
+        b.setBackground(focusable(c, BUTTON, FOCUS, 0));
         b.setPadding(dp(c, 18), dp(c, 12), dp(c, 18), dp(c, 12));
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT);

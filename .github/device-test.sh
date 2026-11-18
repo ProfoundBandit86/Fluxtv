@@ -104,6 +104,9 @@ curl -s -m 30 -X POST --data-urlencode "tmdb=http://10.0.2.2:8000/3" --data-urle
 curl -s -m 60 -X POST --data-urlencode "url=http://10.0.2.2:8000/subs/manifest.json" http://127.0.0.1:8090/install | grep -o "<p class='m'>[^<]*"
 curl -s -m 30 -X POST --data-urlencode "id=fakeClientId" http://127.0.0.1:8090/trakt-app | grep -o "<p class='m'>[^<]*"
 curl -s -m 30 -X POST --data-urlencode "name=Default" http://127.0.0.1:8090/trakt-link | grep -o "<p class='m'>[^<]*"
+# Weather for the clock badge (fake Open-Meteo)
+curl -s -m 30 -X POST --data-urlencode "tmdb=http://10.0.2.2:8000/3" --data-urlencode "gemini=http://10.0.2.2:8000/gemini/" --data-urlencode "trakt=http://10.0.2.2:8000/trakt" --data-urlencode "weather=http://10.0.2.2:8000/weather" http://127.0.0.1:8090/test-config | grep -o "<p class='m'>[^<]*"
+curl -s -m 30 -X POST --data-urlencode "place=Chicago" http://127.0.0.1:8090/weather | grep -o "<p class='m'>[^<]*"
 sleep 8
 curl -s -m 30 http://127.0.0.1:8090/ > out/settings-page.html
 echo "== SETTINGS PAGE: $(grep -o '<summary>[^<]*' out/settings-page.html | tr '\n' ' ')"
@@ -457,14 +460,16 @@ crashes sports
 fi
 if want gemini; then
 # ---------------- v29: simpler player bar (Ask Gemini + ⋮), Ask Gemini about the screen
-adb shell am start -W -n $P/.PlayerActivity --es url "http://10.0.2.2:8000/timeshift/test/test/60/x/1001.ts" --es pi_type movie --es pi_meta tt0133093 --es pi_video tt0133093 --es pi_name "The\ Matrix"
+adb shell am start -W -n $P/.PlayerActivity --es url "http://10.0.2.2:8000/timeshift/test/test/60/x/1001.ts" --es pi_type movie --es pi_meta tt0133093 --es pi_video tt0133093 --es pi_name "The\ Matrix" --es gemini_test_question "Who\ is\ on\ screen\ right\ now"
 sleep 10; key DPAD_UP 1; shot 120-player-bar
 key DPAD_RIGHT 0; key DPAD_RIGHT 0; key DPAD_RIGHT 0; key DPAD_RIGHT 1; key DPAD_CENTER 2; texts more-menu 20; shot 121-more-menu
 key DPAD_CENTER 2; texts more-audio 12; shot 122-more-audio
 key BACK 2; texts more-back 12; key BACK 2
-key DPAD_LEFT 1; key DPAD_CENTER 3; texts gemini-open 20; shot 123-gemini-open
-key DPAD_CENTER 6; texts gemini-answer 20; shot 124-gemini-answer
-key DPAD_RIGHT 1; key DPAD_CENTER 3; shot 125-gemini-type; adb shell input text "Who%sdirected%sthis"; key ENTER 6; texts gemini-followup 20; shot 126-gemini-followup
+# Ask Gemini opens straight into listening (the test build "hears" a fixed question), then shows the answer
+key DPAD_UP 1; for i in 1 2 3 4 5 6; do key DPAD_LEFT 0; done; shot 122b-gemini-button
+key DPAD_CENTER 0; sleep 0.4; shot 123-gemini-listening; sleep 0.8; shot 123b-gemini-heard
+sleep 6; texts gemini-answer 20; shot 124-gemini-answer
+key DPAD_CENTER 1; shot 125-gemini-listening-again; sleep 7; texts gemini-followup 20; shot 126-gemini-followup
 echo "== SCREEN ASKS: $(curl -s http://127.0.0.1:8000/_screen)"
 key BACK 1; key BACK 2; texts gemini-closed 8; top gemini-closed; key BACK 2
 crashes gemini

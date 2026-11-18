@@ -48,7 +48,8 @@ public class SettingsActivity extends FluxActivity {
             R.drawable.ic_addons, R.drawable.ic_live, R.drawable.ic_bulb, R.drawable.ic_download, R.drawable.ic_search, R.drawable.ic_settings};
 
     private String cat = "profiles";
-    private LinearLayout content;
+    /** The right-hand list. Each section() starts a card in it, and content points at the card being filled. */
+    private LinearLayout pane, content;
     private ScrollView paneScroll;
     private TextView phoneHint;
     private final Map<String, View> catRows = new LinkedHashMap<>();
@@ -75,7 +76,7 @@ public class SettingsActivity extends FluxActivity {
         super.onSaveInstanceState(out);
         out.putString("cat", cat);
         View f = getCurrentFocus();
-        out.putInt("focus", f == null || content == null ? -1 : content.getFocusables(View.FOCUS_DOWN).indexOf(f));
+        out.putInt("focus", f == null || pane == null ? -1 : pane.getFocusables(View.FOCUS_DOWN).indexOf(f));
         out.putInt("scroll", paneScroll == null ? 0 : paneScroll.getScrollY());
     }
 
@@ -90,7 +91,7 @@ public class SettingsActivity extends FluxActivity {
             render(false);
             rebuilding = true;
             paneScroll.post(() -> {
-                ArrayList<View> all = content.getFocusables(View.FOCUS_DOWN);
+                ArrayList<View> all = pane.getFocusables(View.FOCUS_DOWN);
                 paneScroll.scrollTo(0, y);
                 if (!all.isEmpty()) all.get(Math.min(idx, all.size() - 1)).requestFocus();
                 paneScroll.post(() -> rebuilding = false);
@@ -113,9 +114,10 @@ public class SettingsActivity extends FluxActivity {
 
         LinearLayout left = Ui.vertical(this);
         left.setBackgroundColor(Ui.PANEL);
-        left.setPadding(Ui.dp(this, 28), Ui.dp(this, 36), Ui.dp(this, 20), Ui.dp(this, 24));
-        TextView title = Ui.heading(this, "Settings", 28);
-        title.setPadding(Ui.dp(this, 12), 0, 0, Ui.dp(this, 18));
+        left.setPadding(Ui.dp(this, 28), Ui.dp(this, 32), Ui.dp(this, 20), Ui.dp(this, 24));
+        TextView title = Ui.heading(this, "Settings", 30);
+        title.setLetterSpacing(-0.01f);
+        title.setPadding(Ui.dp(this, 12), 0, 0, Ui.dp(this, 20));
         left.addView(title);
         for (int i = 0; i < CATEGORIES.length; i++) left.addView(catRow(ICONS[i], CATEGORIES[i]));
         left.addView(new View(this), new LinearLayout.LayoutParams(1, 0, 1f));
@@ -128,9 +130,11 @@ public class SettingsActivity extends FluxActivity {
         root.addView(leftScroll, new LinearLayout.LayoutParams(Ui.dp(this, 300), ViewGroup.LayoutParams.MATCH_PARENT));
 
         paneScroll = new FocusScroll.Vertical(this);
-        content = Ui.vertical(this);
-        content.setPadding(Ui.dp(this, 48), Ui.dp(this, 36), Ui.dp(this, 48), Ui.dp(this, 60));
-        paneScroll.addView(content);
+        paneScroll.setVerticalScrollBarEnabled(false);
+        pane = Ui.vertical(this);
+        pane.setPadding(Ui.dp(this, 48), Ui.dp(this, 36), Ui.dp(this, 64), Ui.dp(this, 60));
+        paneScroll.addView(pane);
+        content = pane;
         root.addView(paneScroll, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f));
         setContentView(root);
         built = true;
@@ -158,11 +162,11 @@ public class SettingsActivity extends FluxActivity {
         row.setGravity(Gravity.CENTER_VERTICAL);
         row.setFocusable(true);
         row.setClickable(true);
-        row.setPadding(Ui.dp(this, 12), Ui.dp(this, 8), Ui.dp(this, 12), Ui.dp(this, 8));
+        row.setPadding(Ui.dp(this, 14), Ui.dp(this, 9), Ui.dp(this, 12), Ui.dp(this, 9));
         StateListDrawable bg = new StateListDrawable();
-        bg.addState(new int[]{android.R.attr.state_focused}, Ui.rounded(this, Ui.FOCUS, 0, 12));
-        bg.addState(new int[]{android.R.attr.state_selected}, Ui.rounded(this, Ui.BUTTON, 0, 12));
-        bg.addState(new int[]{}, Ui.rounded(this, Color.TRANSPARENT, 0, 12));
+        bg.addState(new int[]{android.R.attr.state_focused}, Ui.rounded(this, Ui.FOCUS, 0, 14));
+        bg.addState(new int[]{android.R.attr.state_selected}, Ui.rounded(this, Ui.alpha(Color.WHITE, 0.08f), 0, 14));
+        bg.addState(new int[]{}, Ui.rounded(this, Color.TRANSPARENT, 0, 14));
         row.setBackground(bg);
         ImageView ic = new ImageView(this);
         ic.setImageResource(icon);
@@ -176,7 +180,7 @@ public class SettingsActivity extends FluxActivity {
         TextView t = Ui.single(Ui.text(this, c[1], 15, Ui.TEXT));
         t.setTextColor(new ColorStateList(new int[][]{{android.R.attr.state_focused}, {}}, new int[]{Ui.ON_FOCUS, Ui.TEXT}));
         t.setDuplicateParentStateEnabled(true);
-        TextView d = Ui.single(Ui.text(this, c[2], 11, Ui.DIM));
+        TextView d = Ui.single(Ui.text(this, c[2], 12, Ui.DIM));
         d.setTextColor(new ColorStateList(new int[][]{{android.R.attr.state_focused}, {}}, new int[]{Ui.alpha(Ui.ON_FOCUS, 0.7f), Ui.DIM}));
         d.setDuplicateParentStateEnabled(true);
         names.addView(t);
@@ -190,7 +194,7 @@ public class SettingsActivity extends FluxActivity {
         row.setOnFocusChangeListener((v, has) -> { if (has && !rebuilding && !key.equals(cat)) { cat = key; render(false); } });
         row.setOnClickListener(v -> {
             if ("profiles".equals(key)) { startActivity(new Intent(this, ProfilesActivity.class)); return; }
-            java.util.ArrayList<View> f = content.getFocusables(View.FOCUS_DOWN);
+            java.util.ArrayList<View> f = pane.getFocusables(View.FOCUS_DOWN);
             if (!f.isEmpty()) f.get(0).requestFocus();
         });
         catRows.put(key, row);
@@ -206,13 +210,14 @@ public class SettingsActivity extends FluxActivity {
         if (!built) return;
         int keep = -1;
         View cur = getCurrentFocus();
-        if (keepFocus && cur != null && !(cur instanceof android.widget.EditText)) keep = content.getFocusables(View.FOCUS_DOWN).indexOf(cur);
+        if (keepFocus && cur != null && !(cur instanceof android.widget.EditText)) keep = pane.getFocusables(View.FOCUS_DOWN).indexOf(cur);
         for (Map.Entry<String, View> e : catRows.entrySet()) e.getValue().setSelected(e.getKey().equals(cat));
         int scroll = keep >= 0 ? paneScroll.getScrollY() : 0;
         // While the pane is rebuilt the focused control disappears and Android moves focus to the nearest
         // view — often a category on the left, which would switch panes. Ignore that until we're done.
         rebuilding = true;
-        content.removeAllViews();
+        pane.removeAllViews();
+        content = pane;
         switch (cat) {
             case "home": paneHome(); break;
             case "appearance": paneAppearance(); break;
@@ -225,9 +230,10 @@ public class SettingsActivity extends FluxActivity {
             case "system": paneSystem(); break;
             default: paneProfiles(); break;
         }
+        styleFields(pane);
         paneScroll.scrollTo(0, scroll);
         if (keep >= 0) {
-            ArrayList<View> all = content.getFocusables(View.FOCUS_DOWN);
+            ArrayList<View> all = pane.getFocusables(View.FOCUS_DOWN);
             View f = keep < all.size() ? all.get(keep) : (all.isEmpty() ? null : all.get(all.size() - 1));
             if (f != null) {
                 f.requestFocus();
@@ -241,12 +247,15 @@ public class SettingsActivity extends FluxActivity {
     private boolean rebuilding;
 
     private void heading(String title, String sub) {
-        TextView t = Ui.heading(this, title, 26);
-        content.addView(t);
+        content = pane;
+        TextView t = Ui.heading(this, title, 30);
+        t.setLetterSpacing(-0.01f);
+        pane.addView(t);
         if (sub != null) {
-            TextView s = Ui.text(this, sub, 14, Ui.MUTED);
-            s.setPadding(0, Ui.dp(this, 4), 0, Ui.dp(this, 6));
-            content.addView(s);
+            TextView s = Ui.text(this, sub, 15, Ui.MUTED);
+            s.setPadding(0, Ui.dp(this, 6), 0, Ui.dp(this, 4));
+            s.setMaxWidth(Ui.dp(this, 640));
+            pane.addView(s);
         }
     }
 
@@ -261,6 +270,7 @@ public class SettingsActivity extends FluxActivity {
 
     private void paneProfiles() {
         heading("Profiles & Trakt", "Each profile has its own Favorites, Continue watching and Trakt account.");
+        section("Who's watching");
         String user = Trakt.user(Store.profile());
         content.addView(label("Watching now: " + Store.profile() + (Trakt.signedIn() ? " · Trakt: " + (user.isEmpty() ? "linked" : user) : " · Trakt not linked")));
         buttonRow().addView(Ui.button(this, R.drawable.ic_account, "Manage profiles & Trakt", v -> startActivity(new Intent(this, ProfilesActivity.class))));
@@ -268,7 +278,7 @@ public class SettingsActivity extends FluxActivity {
 
     private void paneHome() {
         heading("Home screen", null);
-        content.addView(section("Home button"));
+        section("Home button");
         boolean isHome = HomeButtonService.isDefaultHome(this), running = HomeButtonService.running(this);
         TextView st = Ui.text(this, HomeButtonService.status(this), 15, isHome || (running && HomeButtonService.enabled(this)) ? Ui.GOOD : Ui.WARN);
         st.setPadding(0, 0, 0, Ui.dp(this, 6));
@@ -300,7 +310,7 @@ public class SettingsActivity extends FluxActivity {
                 }
             }
         }
-        content.addView(section("Continue watching shows items from"));
+        section("Continue watching shows items from");
         content.addView(label("Apps appear here once they've added something to Continue watching."));
         java.util.Set<String> hiddenApps = ContinueWatching.hidden();
         LinearLayout cwRow = null;
@@ -310,10 +320,38 @@ public class SettingsActivity extends FluxActivity {
             boolean on = !hiddenApps.contains(src[0]);
             cwRow.addView(Ui.pill(this, (on ? "✓ " : "") + src[1], on, v -> { ContinueWatching.setHidden(src[0], on); render(); }));
         }
-        content.addView(section("Rows"));
+        section("Rows");
         content.addView(label("Choose which rows show on Home, and their order."));
         buttonRow().addView(Ui.button(this, R.drawable.ic_home, "Customize Home", v -> startActivity(new Intent(this, HomeRowsActivity.class))));
-        content.addView(section("Region for streaming services"));
+        section("Weather");
+        String wp = Weather.place(), wl = Weather.placeLabel();
+        content.addView(label(wp.isEmpty() ? "Shows the weather next to the clock at the top right. Enter a ZIP code or a city."
+                : "Weather for " + (wl.isEmpty() ? wp : wl) + " shows next to the clock."));
+        LinearLayout wr = buttonRow();
+        wr.setGravity(Gravity.CENTER_VERTICAL);
+        android.widget.EditText place = new android.widget.EditText(this);
+        place.setSingleLine(true);
+        place.setHint("ZIP code or city, e.g. 60601 or Chicago");
+        place.setText(wp);
+        place.setTextColor(Ui.TEXT);
+        place.setHintTextColor(Ui.DIM);
+        place.setTextSize(15);
+        wr.addView(place, new LinearLayout.LayoutParams(Ui.dp(this, 360), ViewGroup.LayoutParams.WRAP_CONTENT));
+        wr.addView(Ui.button(this, "Save", v -> {
+            String p = place.getText().toString().trim();
+            Weather.setPlace(p);
+            if (p.isEmpty()) { render(); return; }
+            App.async(Weather::now, w -> {
+                Toast.makeText(this, w == null ? "Saved" : Weather.describe(w) + " in " + w.place, Toast.LENGTH_LONG).show();
+                refreshBadge();
+                render();
+            }, e -> Toast.makeText(this, "Couldn't find that place: " + App.message(e), Toast.LENGTH_LONG).show());
+        }));
+        if (!wp.isEmpty()) wr.addView(Ui.button(this, "Remove", v -> { Weather.setPlace(""); refreshBadge(); render(); }));
+        LinearLayout units = buttonRow();
+        units.addView(Ui.pill(this, "°F", Weather.fahrenheit(), v -> { Store.put("weather_unit", "f"); Weather.setPlace(Weather.place()); refreshBadge(); render(); }));
+        units.addView(Ui.pill(this, "°C", !Weather.fahrenheit(), v -> { Store.put("weather_unit", "c"); Weather.setPlace(Weather.place()); refreshBadge(); render(); }));
+        section("Region for streaming services");
         LinearLayout regions = buttonRow();
         String current = Tmdb.region();
         for (String r : new String[]{"US", "CA", "GB", "AU", "IE", "DE", "FR", "NL"}) {
@@ -325,12 +363,18 @@ public class SettingsActivity extends FluxActivity {
         }
     }
 
+    /** The clock badge picks up a new weather place straight away. */
+    private void refreshBadge() {
+        View b = getWindow().getDecorView().findViewWithTag(ClockBadge.TAG);
+        if (b instanceof ClockBadge) ((ClockBadge) b).refreshWeather(true);
+    }
+
     private List<SmartHome.Device> shDevices;
     private String shError;
 
     private void paneSmartHome() {
         heading("Smart home", "A panel for your lights and devices that opens over anything you're watching.");
-        content.addView(section("Home Assistant"));
+        section("Home Assistant");
         if (HomeAssistant.configured()) {
             content.addView(label("Connected to " + HomeAssistant.url()));
             LinearLayout b = buttonRow();
@@ -357,7 +401,7 @@ public class SettingsActivity extends FluxActivity {
                     n -> { Toast.makeText(this, "Connected: " + n, Toast.LENGTH_LONG).show(); shDevices = null; render(); },
                     e -> Toast.makeText(this, "Couldn't connect: " + App.message(e), Toast.LENGTH_LONG).show())));
         }
-        content.addView(section("Google Home (through the TV's Google Assistant)"));
+        section("Google Home (through the TV's Google Assistant)");
         content.addView(label("Add lights and switches by the exact names they have in the Google Home app. Flux sends the "
                 + "same words you'd say to the Assistant (\"turn off Kitchen light\", \"set Lamp to 40 percent\"). "
                 + "Try a command first to see if your TV carries it out."));
@@ -403,7 +447,7 @@ public class SettingsActivity extends FluxActivity {
             r.addView(Ui.pill(this, "Remove", false, v -> { GoogleCommands.remove(n); shDevices = null; render(); }));
         }
 
-        content.addView(section("Show over other apps"));
+        section("Show over other apps");
         boolean acc = HomeButtonService.instance != null;
         boolean perm = android.os.Build.VERSION.SDK_INT >= 23 && android.provider.Settings.canDrawOverlays(this);
         content.addView(label(acc || perm ? "On: the panel slides in over whatever is playing."
@@ -423,7 +467,7 @@ public class SettingsActivity extends FluxActivity {
                 + "(map it to a remote button with Button Mapper), or the link fluxtv://smarthome."));
 
         if (!SmartHome.configured()) return;
-        content.addView(section("Devices on the panel"));
+        section("Devices on the panel");
         if (shDevices == null) {
             content.addView(label(shError != null ? "Couldn't load devices: " + shError : "Loading devices…"));
             if (shError == null) App.async(SmartHome::all, l -> { shDevices = l; shError = null; render(); }, e -> { shError = App.message(e); render(); });
@@ -454,13 +498,13 @@ public class SettingsActivity extends FluxActivity {
 
     private void paneLive() {
         heading("Live TV & DVR", "TV guide, preview and recordings.");
-        content.addView(section("Providers"));
+        section("Providers");
         LinearLayout pr = buttonRow();
         pr.addView(Ui.button(this, R.drawable.ic_live, Iptv.sources().isEmpty() ? "Add an IPTV provider" : "IPTV providers ("
                 + Iptv.sources().size() + ")", v -> startActivity(new Intent(this, IptvActivity.class))));
         pr.addView(Ui.button(this, R.drawable.ic_tv, "Open Live TV", v -> startActivity(new Intent(this, LiveActivity.class))));
 
-        content.addView(section("TV guide"));
+        section("TV guide");
         StringBuilder g = new StringBuilder();
         for (Iptv.Source s : Iptv.sources()) {
             long age = Iptv.guideAge(s);
@@ -481,7 +525,7 @@ public class SettingsActivity extends FluxActivity {
         content.addView(label("Download every"));
         content.addView(choices(new String[]{"3 hours", "6 hours", "12 hours", "Day"}, "epg_refresh", 0));
 
-        content.addView(section("Extra guide sources"));
+        section("Extra guide sources");
         content.addView(label("XMLTV links (.xml or .xml.gz) that fill in channels your provider's guide is missing. "
                 + "Channels are matched by guide id first, then by name. Used for every provider."));
         List<String> extra = Iptv.extraEpgUrls();
@@ -522,14 +566,14 @@ public class SettingsActivity extends FluxActivity {
             if (presets == null) { content.addView(label("Free guides")); presets = buttonRow(); }
             presets.addView(Ui.pill(this, "+ " + k[0], false, v -> addEpg(k[1])));
         }
-        content.addView(section("Preview while browsing the guide"));
+        section("Preview while browsing the guide");
         boolean prev = !"off".equals(Store.get("live_preview"));
         LinearLayout pv = buttonRow();
         pv.addView(Ui.pill(this, "On", prev, v -> { Store.put("live_preview", "on"); render(); }));
         pv.addView(Ui.pill(this, "Off", !prev, v -> { Store.put("live_preview", "off"); render(); }));
         content.addView(label("Turn off if your provider allows only one connection at a time."));
 
-        content.addView(section("Save recordings to"));
+        section("Save recordings to");
         LinearLayout tg = buttonRow();
         String target = Dvr.target();
         for (String[] t : Dvr.localTargets(this)) {
@@ -545,7 +589,7 @@ public class SettingsActivity extends FluxActivity {
                 v -> startActivity(new Intent(this, SmbBrowseActivity.class))));
         sm.addView(Ui.button(this, R.drawable.ic_record, "Recordings", v -> startActivity(new Intent(this, RecordingsActivity.class))));
 
-        content.addView(section("Start early / end late"));
+        section("Start early / end late");
         LinearLayout pad = buttonRow();
         int before = Dvr.padBeforeMin(), after = Dvr.padAfterMin();
         for (int m : new int[]{0, 1, 2, 5}) pad.addView(Ui.pill(this, m + " min early", m == before, v -> { Store.put("dvr_pad_before", String.valueOf(m)); render(); }));
@@ -566,7 +610,7 @@ public class SettingsActivity extends FluxActivity {
 
     private void paneAppearance() {
         heading("Appearance", null);
-        content.addView(section("Themes"));
+        section("Themes");
         LinearLayout grid = null;
         int current = Theme.themeIndex();
         for (int i = 0; i < Theme.THEMES.length; i++) {
@@ -583,7 +627,7 @@ public class SettingsActivity extends FluxActivity {
             }));
         }
         content.addView(label(current >= 0 ? "Theme: " + Theme.THEMES[current][0] : "Custom colours"));
-        content.addView(section("Accent colour"));
+        section("Accent colour");
         LinearLayout accents = buttonRow();
         for (int i = 0; i < Theme.ACCENT_HEX.length; i++) {
             int idx = i;
@@ -593,7 +637,7 @@ public class SettingsActivity extends FluxActivity {
             }));
         }
         content.addView(label(Theme.ACCENT_NAMES[Theme.accentIndex()]));
-        content.addView(section("Highlight colour"));
+        section("Highlight colour");
         content.addView(label("The colour that shows what the remote has selected."));
         LinearLayout highlightModes = buttonRow();
         highlightModes.addView(Ui.pill(this, "White", Theme.highlightIndex() == 0, v -> { Theme.setHighlight(0); recreate(); }));
@@ -607,7 +651,7 @@ public class SettingsActivity extends FluxActivity {
             }));
         }
         content.addView(label("Highlight: " + Theme.highlightName()));
-        content.addView(section("Background"));
+        section("Background");
         LinearLayout bgs = buttonRow();
         for (int i = 0; i < Theme.BG_NAMES.length; i++) {
             int idx = i;
@@ -619,8 +663,8 @@ public class SettingsActivity extends FluxActivity {
     }
 
     private void panePlayer() {
-        heading("Player", "Press OK or ↑ while watching for the controls. Audio, Subtitles, Quality, Speed and Picture are in the bar.");
-        content.addView(section("Subtitles"));
+        heading("Player", "Press OK or ↑ while watching for the controls. Subtitles and Audio are in the bar; everything else is under ⋮.");
+        section("Subtitles");
         LinearLayout subs = buttonRow();
         String mode = Store.get("player_subs");
         String[][] modes = {{"", "When the video says so"}, {"off", "Always off"}, {"on", "Always on"}};
@@ -629,15 +673,15 @@ public class SettingsActivity extends FluxActivity {
         content.addView(choices(PlayerActivity.SUB_SIZES, "player_sub_size", 1));
         content.addView(label("Style"));
         content.addView(choices(PlayerActivity.SUB_STYLES, "player_sub_style", 0));
-        content.addView(section("Picture size"));
+        section("Picture size");
         content.addView(choices(PlayerActivity.ZOOMS, "player_zoom", 0));
-        content.addView(section("Skip intro & credits"));
+        section("Skip intro & credits");
         content.addView(label("Times come from the community databases IntroDB and TheIntroDB, so shows without data get no button."));
         content.addView(choices(PlayerActivity.SKIP_MODES, "player_skip", 0));
-        content.addView(section("Play next episode"));
+        section("Play next episode");
         content.addView(label("Shows the next episode when the credits start (or 30 s before the end)."));
         content.addView(choices(PlayerActivity.NEXT_MODES, "player_next", 1));
-        content.addView(section("Stream size limits"));
+        section("Stream size limits");
         content.addView(label("Bigger streams are hidden and never auto-played. Your own library is never limited."));
         for (int q = 0; q < SizeLimits.QUALITIES.length; q++) {
             String quality = SizeLimits.QUALITIES[q];
@@ -652,7 +696,7 @@ public class SettingsActivity extends FluxActivity {
             }
         }
         String al = Store.get("player_audio_lang"), sl = Store.get("player_sub_lang");
-        content.addView(section("Languages"));
+        section("Languages");
         content.addView(label("Audio: " + (al.isEmpty() ? "no preference" : PlayerActivity.languageName(al))
                 + "   ·   Subtitles: " + (sl.isEmpty() ? "no preference" : PlayerActivity.languageName(sl))
                 + "\nFlux remembers the language you pick while watching. You can also set them on the phone page."));
@@ -660,6 +704,7 @@ public class SettingsActivity extends FluxActivity {
 
     private void paneSources() {
         heading("Sources", "Where Flux finds things to watch.");
+        section("Connected");
         sourceRow(R.drawable.ic_addons, "Add-ons", Store.addonUrls().size() + " installed", AddonsActivity.class);
         sourceRow(R.drawable.ic_servers, "Media servers", Store.servers().isEmpty() ? "Plex, Jellyfin or Emby" : Store.servers().size() + " connected", ServersActivity.class);
         sourceRow(R.drawable.ic_cloud, "Real-Debrid", RealDebrid.isSignedIn() ? "Signed in" : "Not signed in", AccountActivity.class);
@@ -681,12 +726,13 @@ public class SettingsActivity extends FluxActivity {
 
     private void paneDownloads() {
         heading("Downloads", "Radarr, Sonarr and SABnzbd.");
+        section("Connections");
         LinearLayout r = buttonRow();
         r.addView(Ui.button(this, R.drawable.ic_download, Arr.anyConfigured() ? "Connections" : "Connect Radarr, Sonarr, SABnzbd",
                 v -> startActivity(new Intent(this, ArrSetupActivity.class))));
         if (Arr.anyConfigured()) r.addView(Ui.button(this, "Open Downloads", v -> startActivity(new Intent(this, DownloadsActivity.class))));
         if (Arr.RADARR.configured() || Arr.SONARR.configured()) {
-            content.addView(section("When nothing can play"));
+            section("When nothing can play");
             content.addView(label("If a title isn't on your servers or Real-Debrid"));
             LinearLayout fb = buttonRow();
             fb.addView(Ui.pill(this, "Send to Radarr / Sonarr automatically", Arr.fallbackOn(), v -> { Arr.setFallback(true); render(); }));
@@ -696,18 +742,18 @@ public class SettingsActivity extends FluxActivity {
 
     private void paneSearch() {
         heading("Search", null);
-        content.addView(section("Gemini (smart voice search)"));
+        section("Gemini (smart voice search)");
         content.addView(label("API key from aistudio.google.com"));
         content.addView(keyField("gemini_key", "Gemini API key"));
         LinearLayout gs = buttonRow();
         gs.addView(Ui.pill(this, "Fast (Flash-Lite)", Gemini.fast(), v -> { Gemini.setFast(true); render(); }));
         gs.addView(Ui.pill(this, "Smarter (Flash)", !Gemini.fast(), v -> { Gemini.setFast(false); render(); }));
-        content.addView(section("Voice search screen"));
+        section("Voice search screen");
         LinearLayout vs = buttonRow();
         boolean sys = Store.get("voice_ui").equals("system");
         vs.addView(Ui.pill(this, "Flux's own", !sys, v -> { Store.put("voice_ui", ""); render(); }));
         vs.addView(Ui.pill(this, "The TV's built-in one", sys, v -> { Store.put("voice_ui", "system"); render(); }));
-        content.addView(section("TMDB (streaming services, cast & crew)"));
+        section("TMDB (streaming services, cast & crew)");
         content.addView(label("API key or read token from themoviedb.org/settings/api"));
         content.addView(keyField("tmdb_key", "TMDB API key"));
     }
@@ -716,13 +762,13 @@ public class SettingsActivity extends FluxActivity {
         heading("System", null);
         String addr = ConfigServer.running() ? ConfigServer.address() : null;
         if (addr != null) {
-            content.addView(section("Set up from your phone"));
+            section("Set up from your phone");
             TextView a = Ui.heading(this, addr, 22);
             a.setTextColor(Ui.ACCENT);
             content.addView(a);
             content.addView(label("Open this on a phone or computer on the same Wi-Fi while Settings is open. Every setting is there."));
         }
-        content.addView(section("Flux TV " + Updater.currentName(this)));
+        section("Flux TV " + Updater.currentName(this));
         LinearLayout sys = buttonRow();
         sys.addView(Ui.button(this, R.drawable.ic_update, "Check for updates", v -> Updater.check(this, true)));
         sys.addView(Ui.button(this, R.drawable.ic_apps, "All apps", v -> startActivity(new Intent(this, AppsActivity.class))));
@@ -783,16 +829,47 @@ public class SettingsActivity extends FluxActivity {
         return row;
     }
 
-    private TextView section(String s) {
-        TextView t = Ui.heading(this, s, 18);
-        t.setPadding(0, Ui.dp(this, 26), 0, Ui.dp(this, 8));
-        return t;
+    /** Starts a new card titled s; what's added after it (content.addView, buttonRow…) goes inside the card. */
+    private void section(String s) {
+        LinearLayout card = Ui.vertical(this);
+        GradientDrawable bg = new GradientDrawable();
+        bg.setColor(Ui.alpha(Color.WHITE, 0.035f));
+        bg.setCornerRadius(Ui.dp(this, 18));
+        bg.setStroke(Math.max(1, Ui.dp(this, 1)), Ui.alpha(Color.WHITE, 0.06f));
+        card.setBackground(bg);
+        card.setPadding(Ui.dp(this, 22), Ui.dp(this, 18), Ui.dp(this, 22), Ui.dp(this, 16));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        lp.setMargins(0, Ui.dp(this, 16), 0, 0);
+        pane.addView(card, lp);
+        TextView t = Ui.heading(this, s, 17);
+        t.setPadding(0, 0, 0, Ui.dp(this, 6));
+        card.addView(t);
+        content = card;
     }
 
     private TextView label(String s) {
-        TextView t = Ui.text(this, s, 13, Ui.DIM);
+        TextView t = Ui.text(this, s, 14, Ui.MUTED);
+        t.setLineSpacing(0, 1.15f);
         t.setPadding(0, Ui.dp(this, 4), 0, Ui.dp(this, 6));
         return t;
+    }
+
+    /** Text boxes as rounded fields (not bare underlines), outlined in the highlight colour when selected. */
+    private void styleFields(ViewGroup g) {
+        for (int i = 0; i < g.getChildCount(); i++) {
+            View v = g.getChildAt(i);
+            if (v instanceof android.widget.EditText) {
+                StateListDrawable s = new StateListDrawable();
+                s.addState(new int[]{android.R.attr.state_focused}, Ui.rounded(this, Ui.alpha(Color.WHITE, 0.08f), Ui.FOCUS, 12));
+                s.addState(new int[]{}, Ui.rounded(this, Ui.alpha(Color.WHITE, 0.06f), 0, 12));
+                v.setBackground(s);
+                v.setPadding(Ui.dp(this, 16), Ui.dp(this, 11), Ui.dp(this, 16), Ui.dp(this, 11));
+                ViewGroup.LayoutParams lp = v.getLayoutParams();
+                if (lp instanceof ViewGroup.MarginLayoutParams) ((ViewGroup.MarginLayoutParams) lp).setMargins(0, Ui.dp(this, 4), Ui.dp(this, 10), Ui.dp(this, 4));
+            } else if (v instanceof ViewGroup) {
+                styleFields((ViewGroup) v);
+            }
+        }
     }
 
     /** A small preview of a theme: its background, a card, and its accent. */

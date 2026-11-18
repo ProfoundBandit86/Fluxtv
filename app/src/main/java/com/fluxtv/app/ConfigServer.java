@@ -365,6 +365,17 @@ public final class ConfigServer {
                 Store.put("region", f(form, "region"));
                 Store.bumpSources();
                 return "Region saved";
+            case "/weather": {
+                Weather.setPlace(f(form, "place"));
+                if (!f(form, "unit").isEmpty()) Store.put("weather_unit", f(form, "unit"));
+                if (Weather.place().isEmpty()) return "Weather turned off";
+                try {
+                    Weather.Now n = Weather.now();
+                    return "Weather: " + Weather.describe(n) + " in " + n.place;
+                } catch (Exception e) {
+                    return "Couldn't find that place: " + App.message(e);
+                }
+            }
             case "/home-row":
                 homeRow(f(form, "key"), f(form, "action"));
                 return "Home rows saved";
@@ -397,6 +408,7 @@ public final class ConfigServer {
                 Store.put("test_trakt", f(form, "trakt"));
                 if (!f(form, "introdb").isEmpty()) Store.put("test_introdb", f(form, "introdb"));
                 if (!f(form, "sports").isEmpty()) Store.put("test_sports", f(form, "sports"));
+                if (!f(form, "weather").isEmpty()) Store.put("test_weather", f(form, "weather"));
                 Store.put("gemini_model_t", "0");
                 return "Test endpoints set";
             default:
@@ -601,7 +613,12 @@ public final class ConfigServer {
         for (String rg : new String[]{"US", "CA", "GB", "AU", "IE", "DE", "FR", "NL", "ES", "IT", "SE", "NO", "DK", "BR", "MX", "IN", "JP"}) {
             sb.append("<option").append(rg.equals(Tmdb.region()) ? " selected" : "").append(">").append(rg).append("</option>");
         }
-        sb.append("</select><button>Save</button></form></details>");
+        sb.append("</select><button>Save</button></form>");
+        sb.append("<h3>Weather next to the clock</h3><form method='post' action='/weather' class='row'>")
+          .append("<input name='place' placeholder='ZIP code or city' value='").append(esc(Weather.place())).append("'>")
+          .append("<select name='unit'><option value='f'").append(Weather.fahrenheit() ? " selected" : "").append(">°F</option>")
+          .append("<option value='c'").append(Weather.fahrenheit() ? "" : " selected").append(">°C</option></select>")
+          .append("<button>Save</button></form></details>");
 
         // ---------------- appearance
         String[] themeNames = new String[Theme.THEMES.length];
@@ -896,7 +913,7 @@ public final class ConfigServer {
         if (path.startsWith("/profile") || path.startsWith("/trakt")) return "profiles";
         if (path.startsWith("/sync")) return "sync";
         if (path.equals("/appearance")) return "appearance";
-        if (path.equals("/home-row") || path.equals("/cw") || path.equals("/dock") || path.equals("/region")) return "home";
+        if (path.equals("/home-row") || path.equals("/cw") || path.equals("/dock") || path.equals("/region") || path.equals("/weather")) return "home";
         if (path.equals("/player") || path.equals("/size-limits")) return "player";
         if (path.startsWith("/arr")) return "downloads";
         if (path.equals("/install") || path.equals("/remove") || path.equals("/addon-move")) return "addons";

@@ -127,7 +127,9 @@ public class DetailActivity extends FluxActivity {
         logo.setMaxWidth(Ui.dp(this, 380));
         logo.setVisibility(View.GONE);
         hero.addView(logo, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-        title = Ui.heading(this, getIntent().getStringExtra("name"), 42);
+        title = Ui.heading(this, getIntent().getStringExtra("name"), 48);
+        title.setLetterSpacing(-0.02f);
+        title.setShadowLayer(Ui.dp(this, 8), 0, Ui.dp(this, 1), 0x99000000);
         title.setMaxLines(2);
         title.setEllipsize(TextUtils.TruncateAt.END);
         hero.addView(title);
@@ -137,13 +139,13 @@ public class DetailActivity extends FluxActivity {
         chips.setPadding(0, Ui.dp(this, 14), 0, Ui.dp(this, 14));
         hero.addView(chips);
 
-        description = Ui.text(this, "Loading…", 15, Ui.alpha(Ui.TEXT, 0.86f));
+        description = Ui.text(this, "Loading…", 16, Ui.alpha(Ui.TEXT, 0.9f));
         description.setMaxLines(4);
         description.setMaxWidth(Ui.dp(this, 640));
         description.setEllipsize(TextUtils.TruncateAt.END);
         description.setLineSpacing(0, 1.3f);
         hero.addView(description);
-        credits = Ui.text(this, "", 12, Ui.MUTED);
+        credits = Ui.text(this, "", 13, Ui.MUTED);
         credits.setPadding(0, Ui.dp(this, 12), 0, 0);
         credits.setMaxLines(2);
         hero.addView(credits);
@@ -151,7 +153,7 @@ public class DetailActivity extends FluxActivity {
         buttons = Ui.horizontal(this);
         buttons.setBaselineAligned(false);   // two-line Play button would otherwise be pushed down and clipped
         buttons.setGravity(android.view.Gravity.CENTER_VERTICAL);
-        buttons.setPadding(0, Ui.dp(this, 22), Ui.dp(this, 40), Ui.dp(this, 10));
+        buttons.setPadding(0, Ui.dp(this, 26), Ui.dp(this, 40), Ui.dp(this, 10));
         android.widget.HorizontalScrollView buttonScroll = new FocusScroll.Horizontal(this);
         buttonScroll.addView(buttons);
         hero.addView(buttonScroll);
@@ -422,12 +424,12 @@ public class DetailActivity extends FluxActivity {
             String[] best = bestCache.get(vid);
             android.widget.Button play = Ui.primary(this, R.drawable.ic_play, ttl, null, v -> openStreams(vid, lbl, true));
             play.setTag("play");
-            play.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 14);
+            play.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 15);
             play.setMinHeight(0);
             play.setMinimumHeight(0);
-            play.setPadding(Ui.dp(this, 18), 0, Ui.dp(this, 22), 0);
-            LinearLayout.LayoutParams pl = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, Ui.dp(this, 44));
-            pl.setMargins(0, Ui.dp(this, 4), Ui.dp(this, 8), Ui.dp(this, 4));
+            play.setPadding(Ui.dp(this, 22), 0, Ui.dp(this, 26), 0);
+            LinearLayout.LayoutParams pl = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, Ui.dp(this, 52));
+            pl.setMargins(0, Ui.dp(this, 4), Ui.dp(this, 12), Ui.dp(this, 4));
             pl.gravity = Gravity.CENTER_VERTICAL;
             play.setLayoutParams(pl);
             buttons.addView(play);

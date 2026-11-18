@@ -281,6 +281,10 @@ class H(BaseHTTPRequestHandler):
             return self.send(200, json.dumps({"children": [
                 {"name": "AFC", "standings": {"entries": [entry("Kansas City Chiefs", 9, 2), entry("Buffalo Bills", 8, 3)]}},
                 {"name": "NFC", "standings": {"entries": [entry("Philadelphia Eagles", 9, 2), entry("Dallas Cowboys", 5, 6)]}}]}))
+        if p.startswith("/weather/v1/search"):
+            return self.send(200, json.dumps({"results": [{"name": "Chicago", "admin1": "Illinois", "latitude": 41.85, "longitude": -87.65}]}))
+        if p.startswith("/weather/v1/forecast"):
+            return self.send(200, json.dumps({"current": {"temperature_2m": 47.6, "weather_code": 2, "is_day": 1}}))
         if p.startswith("/introdb/segments"):
             q = parse_qs(urlparse(self.path).query)
             if q.get("imdb_id", [""])[0] == "tt0903747":

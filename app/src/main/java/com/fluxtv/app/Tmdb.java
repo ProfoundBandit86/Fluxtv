@@ -100,26 +100,33 @@ public final class Tmdb {
      * Cached, since it never changes.
      */
     static String companyLogo(String name) {
-        String key = "logo_company:" + name;
+        String key = "logo_company2:" + name;   // v2: exact names only (v1 sometimes picked an unrelated company)
         String cached = Store.get(key);
         if (!cached.isEmpty()) return cached.equals("-") ? "" : cached;
         String found = "";
         try {
             JSONArray r = get("/search/company", "query=" + Http.enc(name)).optJSONArray("results");
+            String want = name.toLowerCase(Locale.ROOT).replace("+", "").replace(" ", "");
             if (r != null) {
                 for (int i = 0; i < r.length() && found.isEmpty(); i++) {
                     JSONObject c = r.optJSONObject(i);
-                    if (c.optString("name").equalsIgnoreCase(name) && !c.optString("logo_path").isEmpty()) found = IMG + "w500" + c.optString("logo_path");
-                }
-                for (int i = 0; i < r.length() && found.isEmpty(); i++) {
-                    JSONObject c = r.optJSONObject(i);
-                    if (c.optString("name").toLowerCase(Locale.ROOT).startsWith(name.toLowerCase(Locale.ROOT))
-                            && !c.optString("logo_path").isEmpty()) found = IMG + "w500" + c.optString("logo_path");
+                    String n = c.optString("name").toLowerCase(Locale.ROOT).replace("+", "").replace(" ", "");
+                    if (n.equals(want) && !c.optString("logo_path").isEmpty()) found = logoUrl(c.optString("logo_path"));
                 }
             }
             Store.put(key, found.isEmpty() ? "-" : found);
         } catch (Exception ignored) { }
         return found;
+    }
+
+    /**
+     * TMDB keeps many network/company logos as SVG, which Android can't draw; its image server hands out the
+     * same logo as a PNG when asked for ".png".
+     */
+    static String logoUrl(String path) {
+        if (path == null || path.isEmpty()) return "";
+        if (path.endsWith(".svg")) path = path.substring(0, path.length() - 4) + ".png";
+        return IMG + "w500" + path;
     }
 
     public static List<Service> services() {
@@ -158,7 +165,7 @@ public final class Tmdb {
                     for (String w : (def[1] + "|" + def[2]).toLowerCase(Locale.ROOT).split("[|+ ]")) {
                         if (w.length() >= 3 && nn.contains(w)) matches = true;
                     }
-                    if (matches && !n.optString("logo_path").isEmpty()) s.wordmark = IMG + "w500" + n.optString("logo_path");
+                    if (matches && !n.optString("logo_path").isEmpty()) s.wordmark = logoUrl(n.optString("logo_path"));
                 } catch (Exception ignored) { }
             }
             if (s.wordmark.isEmpty() && enabled()) s.wordmark = companyLogo(s.name);

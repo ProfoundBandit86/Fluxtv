@@ -154,7 +154,7 @@ public class SportsActivity extends FluxActivity {
         c.setTag("ev:" + e.id);
         c.setFocusable(true);
         c.setGravity(Gravity.CENTER_VERTICAL);
-        c.setBackground(Ui.focusable(this, Ui.GLASS, Ui.alpha(Color.WHITE, 0.16f), Ui.ACCENT));
+        c.setBackground(Ui.focusable(this, Ui.GLASS, Ui.alpha(Color.WHITE, 0.16f), Ui.FOCUS));
         c.setPadding(Ui.dp(this, 18), Ui.dp(this, 12), Ui.dp(this, 18), Ui.dp(this, 12));
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         lp.setMargins(0, Ui.dp(this, 5), 0, Ui.dp(this, 5));
