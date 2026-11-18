@@ -154,7 +154,7 @@ crashes home
 adb shell am start -W -n $P/.MainActivity; sleep 6; nudge; key DPAD_DOWN 1; key DPAD_DOWN 1; sleep 1; shot 02c-home-rows-up; texts home-rows-up 30
 adb shell am start -W -f 0x10008000 -n $P/.SettingsActivity --es category categories; sleep 6; texts settings-categories 60; shot 14c-settings-categories
 for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14; do key DPAD_DOWN 0; done; sleep 2; shot 14d-settings-categories-mdblist; texts settings-mdblist 40
-adb shell am start -W -f 0x10008000 -n $P/.SettingsActivity --es category home; sleep 5; key DPAD_RIGHT 1; for i in 1 2 3 4 5 6 7 8 9 10 11 12; do key DPAD_DOWN 0; done; sleep 1; shot 14e-settings-dock-items; texts settings-dock-items 40
+adb shell am start -W -f 0x10008000 -n $P/.SettingsActivity --es category home; sleep 5; key DPAD_DOWN 1; key DPAD_RIGHT 1; key DPAD_RIGHT 1; for i in 1 2 3 4 5 6 7 8 9 10 11 12; do key DPAD_DOWN 0; done; sleep 1; shot 14e-settings-dock-items; texts settings-dock-items 40
 adb shell am start -W -n $P/.MainActivity --es section movie; sleep 8; nudge; texts movies-genres-top 30; shot 04e-movies-genres-top
 crashes categories
 if want home-rows; then
@@ -469,6 +469,8 @@ key DPAD_LEFT 2; shot 102-guide-past; texts guide-past 12
 key DPAD_CENTER 10; top catchup; shot 103-catchup-playing; texts catchup 12
 key BACK 2; key BACK 2
 adb shell am start -W -n $P/.LiveActivity; sleep 6
+# Live TV reopens on the last group: switch to All channels first
+key DPAD_LEFT 1; key DPAD_LEFT 1; key DPAD_LEFT 1; key DPAD_LEFT 2; tap "All channels"; sleep 3
 # move down to the Xtream channel that keeps replays ("Flux News", tv_archive 3 days)
 for i in 1 2 3 4 5 6 7 8; do T=$(texts guide-find 4); echo "$T"; case "$T" in *"Flux News"*) break;; esac; key DPAD_DOWN 1; done
 key DPAD_LEFT 2; texts guide-past-xtream 12; shot 103b-guide-past-xtream
