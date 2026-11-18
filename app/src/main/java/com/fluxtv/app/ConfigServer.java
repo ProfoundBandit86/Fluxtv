@@ -191,6 +191,9 @@ public final class ConfigServer {
             }
             case "/dvr-guide":
                 return Iptv.downloadAllGuides();
+            case "/iptv-show-all":
+                Iptv.showEverything();
+                return "Showing every channel again";
             case "/iptv-regions": {
                 List<String> codes = new ArrayList<>();
                 for (String c : f(form, "regions").toUpperCase(java.util.Locale.ROOT).split("[,\\s]+")) if (!c.isEmpty()) codes.add(c);

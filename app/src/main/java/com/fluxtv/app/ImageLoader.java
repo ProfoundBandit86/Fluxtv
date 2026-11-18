@@ -247,7 +247,7 @@ public final class ImageLoader {
             }
             return b;
         } catch (Http.HttpException e) {
-            failed(url, "server said " + e.getMessage());
+            failed(url, "server said HTTP " + e.code + (e.code == 404 ? " (not found)" : e.code == 401 || e.code == 403 ? " (not allowed)" : ""));
             return null;
         } catch (java.net.SocketTimeoutException e) {
             failed(url, "timed out");

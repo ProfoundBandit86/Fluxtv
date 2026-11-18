@@ -154,7 +154,8 @@ crashes home
 adb shell am start -W -n $P/.MainActivity; sleep 6; nudge; key DPAD_DOWN 1; key DPAD_DOWN 1; sleep 1; shot 02c-home-rows-up; texts home-rows-up 30
 adb shell am start -W -f 0x10008000 -n $P/.SettingsActivity --es category categories; sleep 6; texts settings-categories 60; shot 14c-settings-categories
 for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14; do key DPAD_DOWN 0; done; sleep 2; shot 14d-settings-categories-mdblist; texts settings-mdblist 40
-adb shell am start -W -f 0x10008000 -n $P/.SettingsActivity --es category home; sleep 5; for i in 1 2 3 4 5 6 7 8 9 10 11 12; do key DPAD_DOWN 0; done; sleep 1; shot 14e-settings-dock-items
+adb shell am start -W -f 0x10008000 -n $P/.SettingsActivity --es category home; sleep 5; key DPAD_RIGHT 1; for i in 1 2 3 4 5 6 7 8 9 10 11 12; do key DPAD_DOWN 0; done; sleep 1; shot 14e-settings-dock-items; texts settings-dock-items 40
+adb shell am start -W -n $P/.MainActivity --es section movie; sleep 8; nudge; texts movies-genres-top 30; shot 04e-movies-genres-top
 crashes categories
 if want home-rows; then
 # Rows from other apps + Customize Home lists them
@@ -348,7 +349,7 @@ sleep 8; for i in 1 2 3 4 5 6 7 8 9 10 11 12; do key DPAD_DOWN 0; done; sleep 2;
 adb shell am start -W -n $P/.IptvFilterActivity; sleep 4; texts iptv-filter 30; shot 79-iptv-filter
 key DPAD_CENTER 2; texts iptv-filter-hidden 10; key DPAD_CENTER 2; texts iptv-filter-shown-again 10
 adb shell am start -W -f 0x10008000 -n $P/.SettingsActivity --es category live; sleep 6
-post /iptv-regions --data-urlencode "regions=" --data-urlencode "unknown=show"
+post /iptv-show-all
 crashes channel-filters
 fi
 if want theme-place; then
