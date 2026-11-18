@@ -99,7 +99,7 @@ public class MainActivity extends Activity {
         dim.setAlpha(0f);
         dim.setVisibility(View.GONE);
         root.addView(dim, new FrameLayout.LayoutParams(-1, -1));
-        root.addView(drawerPanel, new FrameLayout.LayoutParams(Ui.dp(this, 250), ViewGroup.LayoutParams.MATCH_PARENT));
+        root.addView(drawerPanel, new FrameLayout.LayoutParams(Ui.dp(this, DRAWER_DP), ViewGroup.LayoutParams.MATCH_PARENT));
         setContentView(root);
         syncRail();
     }
@@ -107,7 +107,7 @@ public class MainActivity extends Activity {
     // ------------------------------------------------------------ the dock (always on screen; ← opens the full menu)
 
     /** Width of the always-visible dock on the left, and where Home's content starts. */
-    private static final int RAIL_DP = 76, START_DP = RAIL_DP + 44;
+    private static final int RAIL_DP = 38, DRAWER_DP = 220, START_DP = RAIL_DP + 44, TOP_DP = 64;
     private LinearLayout rail;
     private TextView railAvatar;
     private final Map<View, View> railFor = new HashMap<>();
@@ -117,7 +117,7 @@ public class MainActivity extends Activity {
         rail.setGravity(Gravity.CENTER_HORIZONTAL);
         rail.setFocusable(false);
         rail.setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);
-        rail.setPadding(Ui.dp(this, 6), Ui.dp(this, 14), Ui.dp(this, 6), Ui.dp(this, 10));
+        rail.setPadding(Ui.dp(this, 3), Ui.dp(this, 16), Ui.dp(this, 3), Ui.dp(this, 10));
         GradientDrawable bg = new GradientDrawable();
         bg.setColor(Ui.alpha(Ui.BG, 0.8f));
         GradientDrawable edge = new GradientDrawable();   // a thin line on the right edge
@@ -130,8 +130,8 @@ public class MainActivity extends Activity {
         railAvatar.setGravity(Gravity.CENTER);
         railAvatar.setBackground(Ui.rounded(this, Ui.ACCENT, 0, 999));
         railAvatar.setTextColor(Ui.BG);
-        LinearLayout.LayoutParams al = new LinearLayout.LayoutParams(Ui.dp(this, 32), Ui.dp(this, 32));
-        al.setMargins(0, 0, 0, Ui.dp(this, 10));
+        LinearLayout.LayoutParams al = new LinearLayout.LayoutParams(Ui.dp(this, 26), Ui.dp(this, 26));
+        al.setMargins(0, 0, 0, Ui.dp(this, 12));
         rail.addView(railAvatar, al);
         // Entries are added alongside the full menu's (drawerItem), so both always match.
         for (int i = 0; i < drawer.getChildCount(); i++) {
@@ -148,25 +148,21 @@ public class MainActivity extends Activity {
         String label = String.valueOf(drawerRow.getTag(R.id.rail_label) == null ? "" : drawerRow.getTag(R.id.rail_label));
         Object icon = drawerRow.getTag(R.id.rail_icon);
         if (label.isEmpty() || !(icon instanceof Integer)) return null;
-        LinearLayout e = Ui.vertical(this);
-        e.setGravity(Gravity.CENTER);
+        // Compact dock: icons only (the names show when ← slides the dock open).
+        FrameLayout e = new FrameLayout(this);
+        e.setContentDescription(label);
         StateListDrawable bg = new StateListDrawable();
-        bg.addState(new int[]{android.R.attr.state_selected}, Ui.rounded(this, Ui.alpha(Color.WHITE, 0.11f), 0, 14));
-        bg.addState(new int[]{}, Ui.rounded(this, Color.TRANSPARENT, 0, 14));
+        bg.addState(new int[]{android.R.attr.state_selected}, Ui.rounded(this, Ui.alpha(Color.WHITE, 0.11f), 0, 10));
+        bg.addState(new int[]{}, Ui.rounded(this, Color.TRANSPARENT, 0, 10));
         e.setBackground(bg);
         ImageView ic = new ImageView(this);
         ic.setImageResource((Integer) icon);
         ic.setImageTintList(new ColorStateList(new int[][]{{android.R.attr.state_selected}, {}}, new int[]{Ui.ACCENT, Ui.MUTED}));
         ic.setImageTintMode(PorterDuff.Mode.SRC_IN);
         ic.setDuplicateParentStateEnabled(true);
-        e.addView(ic, new LinearLayout.LayoutParams(Ui.dp(this, 18), Ui.dp(this, 18)));
-        TextView t = Ui.single(Ui.text(this, label, 10, Ui.MUTED));
-        t.setTextColor(new ColorStateList(new int[][]{{android.R.attr.state_selected}, {}}, new int[]{Ui.TEXT, Ui.MUTED}));
-        t.setDuplicateParentStateEnabled(true);
-        t.setPadding(0, Ui.dp(this, 3), 0, 0);
-        e.addView(t);
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 42));
-        lp.setMargins(0, Ui.dp(this, 1), 0, Ui.dp(this, 1));
+        e.addView(ic, new FrameLayout.LayoutParams(Ui.dp(this, 18), Ui.dp(this, 18), Gravity.CENTER));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 34));
+        lp.setMargins(0, Ui.dp(this, 2), 0, Ui.dp(this, 2));
         e.setLayoutParams(lp);
         railFor.put(drawerRow, e);
         return e;
@@ -175,13 +171,26 @@ public class MainActivity extends Activity {
     /** The dock mirrors the menu: same entries shown, current section marked. */
     private void syncRail() {
         if (rail == null) return;
+        java.util.Set<String> hidden = dockHidden();
         for (Map.Entry<View, View> e : railFor.entrySet()) {
-            e.getValue().setVisibility(e.getKey().getVisibility());
+            Object key = e.getKey().getTag(R.id.rail_label);
+            boolean off = hidden.contains(String.valueOf(key)) && !e.getKey().isSelected();
+            e.getValue().setVisibility(off ? View.GONE : e.getKey().getVisibility());
             e.getValue().setSelected(e.getKey().isSelected());
         }
         String name = Store.profile();
         railAvatar.setText(name.isEmpty() ? "?" : name.substring(0, 1).toUpperCase());
     }
+
+    /** Dock items hidden in Settings → Home screen → Left dock (they stay in the full menu). */
+    static java.util.Set<String> dockHidden() {
+        java.util.Set<String> out = new java.util.HashSet<>();
+        for (String k : Store.get("dock_hidden").split("\\|")) if (!k.isEmpty()) out.add(k);
+        return out;
+    }
+
+    /** The dock's items in order (for Settings). */
+    static final String[] DOCK_ITEMS = {"Search", "Home", "Movies", "TV Shows", "Live TV", "Favorites", "Apps", "Smart", "Downloads"};
 
     // ------------------------------------------------------------ layout
 
@@ -214,6 +223,7 @@ public class MainActivity extends Activity {
         contentRoot.addView(top, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         LinearLayout hero = Ui.vertical(this);
+        heroBox = hero;
         hero.setPadding(Ui.dp(this, START_DP), Ui.dp(this, 66), 0, 0);
         heroEyebrow = Ui.eyebrow(this, "");
         heroTitle = Ui.single(Ui.heading(this, "Flux", 40));
@@ -236,29 +246,83 @@ public class MainActivity extends Activity {
         rows = Ui.vertical(this);
         rows.setClipChildren(false);
         rows.setClipToPadding(false);
-        rows.setPadding(Ui.dp(this, START_DP), 0, 0, Ui.dp(this, 200));
         scroll.addView(rows);
         float heightDp = getResources().getDisplayMetrics().heightPixels / getResources().getDisplayMetrics().density;
-        int rowsTop = heightDp >= 520 ? 236 : 186;
-        if (rowsTop < 236) heroText.setMaxLines(1);
+        heroGapDp = (heightDp >= 520 ? 236 : 186) - TOP_DP;
+        if (heroGapDp < 236 - TOP_DP) heroText.setMaxLines(1);
+        // The rows' area starts just under the status line; on Home the first row sits lower (room for the
+        // featured title above it). Browsing further down slides the rows up into that space.
+        rows.setPadding(Ui.dp(this, START_DP), Ui.dp(this, heroGapDp), 0, Ui.dp(this, 400));
         FrameLayout.LayoutParams rp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
-        rp.setMargins(0, Ui.dp(this, rowsTop), 0, 0);
+        rp.setMargins(0, Ui.dp(this, TOP_DP), 0, 0);
         contentRoot.addView(scroll, rp);
+        scroll.getViewTreeObserver().addOnGlobalFocusChangeListener((oldF, newF) -> onRowFocus(newF));
+    }
+
+    // ------------------------------------------------------------ rows slide up while browsing
+
+    private View heroBox;
+    private int heroGapDp;
+    private boolean browsing;
+
+    /** Home: the featured title shows while you're on the first row; further down the rows move up to fill the screen. */
+    private void onRowFocus(View f) {
+        if (f == null || drawerOpen) return;
+        View top = null, row = null;
+        for (View v = f; v != null && v.getParent() instanceof View; v = (View) v.getParent()) {
+            if (row == null && "row".equals(v.getTag())) row = v;
+            if (v.getParent() == rows) { top = v; break; }
+        }
+        if (top == null) return;
+        boolean first = rows.indexOfChild(top) <= firstRowIndex();
+        View target = row != null ? row : top;
+        if (first) {
+            setBrowsing(false);
+            scroll.post(() -> scroll.smoothScrollTo(0, 0));
+        } else {
+            setBrowsing(true);
+            int y = 0;
+            for (View v = target; v != null && v != rows; v = (View) v.getParent()) y += v.getTop();
+            int to = Math.max(0, y - Ui.dp(this, 4));
+            scroll.post(() -> scroll.smoothScrollTo(0, to));
+        }
+    }
+
+    /** Index of the first row that actually shows something (slots can be empty while loading). */
+    private int firstRowIndex() {
+        for (int i = 0; i < rows.getChildCount(); i++) {
+            View c = rows.getChildAt(i);
+            if (c.getVisibility() == View.VISIBLE && c.getHeight() > 0) return i;
+        }
+        return 0;
+    }
+
+    private void setBrowsing(boolean on) {
+        boolean heroSection = "home".equals(section);
+        float heroAlpha = heroSection && !on ? 1f : 0f;
+        if (heroBox != null && heroBox.getAlpha() != heroAlpha) heroBox.animate().alpha(heroAlpha).setDuration(200).start();
+        float imgAlpha = heroSection ? (on ? 0.35f : 1f) : 0.3f;
+        if (heroImage.getAlpha() != imgAlpha) heroImage.animate().alpha(imgAlpha).setDuration(250).start();
+        browsing = on;
     }
 
     // ------------------------------------------------------------ sidebar
 
     private void buildDrawer() {
         drawer = Ui.vertical(this);
-        drawer.setPadding(Ui.dp(this, 16), Ui.dp(this, 26), Ui.dp(this, 16), Ui.dp(this, 20));
+        drawer.setPadding(Ui.dp(this, 10), Ui.dp(this, 16), Ui.dp(this, 10), Ui.dp(this, 10));
         // The menu scrolls when it's taller than the screen.
         drawerPanel = new FocusScroll.Vertical(this);
         drawerPanel.setFillViewport(true);
         drawerPanel.setFocusable(false);
-        drawerPanel.setBackground(new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
-                new int[]{Ui.PANEL, Ui.alpha(Ui.PANEL, 0.97f)}));
-        drawerPanel.setElevation(Ui.dp(this, 12));
-        drawerPanel.setTranslationX(-Ui.dp(this, 250));
+        GradientDrawable dbg = new GradientDrawable();
+        dbg.setColor(Ui.alpha(Ui.BG, 0.97f));
+        GradientDrawable dedge = new GradientDrawable();
+        dedge.setColor(Ui.alpha(Color.WHITE, 0.07f));
+        android.graphics.drawable.LayerDrawable dl = new android.graphics.drawable.LayerDrawable(new android.graphics.drawable.Drawable[]{dbg, dedge});
+        dl.setLayerInset(1, Ui.dp(this, DRAWER_DP) - Math.max(1, Ui.dp(this, 1)), 0, 0, 0);
+        drawerPanel.setBackground(dl);
+        drawerPanel.setTranslationX(-Ui.dp(this, DRAWER_DP));
         drawerPanel.setVisibility(View.INVISIBLE);   // closed: hidden entirely, so its shadow doesn't show on the left edge
         drawerPanel.addView(drawer, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         drawer.setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);
@@ -308,8 +372,8 @@ public class MainActivity extends Activity {
         s.addState(new int[]{android.R.attr.state_selected}, Ui.rounded(this, Ui.BUTTON, 0, 12));
         s.addState(new int[]{}, Ui.rounded(this, Color.TRANSPARENT, 0, 12));
         item.setBackground(s);
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 44));
-        lp.setMargins(0, Ui.dp(this, 2), 0, Ui.dp(this, 2));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 36));
+        lp.setMargins(0, Ui.dp(this, 1), 0, Ui.dp(this, 1));
         item.setLayoutParams(lp);
         return item;
     }
@@ -320,7 +384,7 @@ public class MainActivity extends Activity {
     }
 
     private TextView label(String s) {
-        TextView t = Ui.single(Ui.text(this, s, 15, Ui.MUTED));
+        TextView t = Ui.single(Ui.text(this, s, 13, Ui.MUTED));
         t.setTextColor(tint());
         t.setTypeface(android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL));
         t.setPadding(Ui.dp(this, 14), 0, 0, 0);
@@ -354,10 +418,11 @@ public class MainActivity extends Activity {
         lastContentFocus = getCurrentFocus();
         drawer.setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
         contentRoot.setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);   // focus stays in the menu
+        // The dock slides open from where the compact one is, and Home slides right to make room.
+        if (drawerPanel.getVisibility() != View.VISIBLE) drawerPanel.setTranslationX(-Ui.dp(this, DRAWER_DP - RAIL_DP));
         drawerPanel.setVisibility(View.VISIBLE);
-        drawerPanel.animate().translationX(0).setDuration(220).setInterpolator(new DecelerateInterpolator()).start();
-        dim.setVisibility(View.VISIBLE);
-        dim.animate().alpha(1f).setDuration(220).start();
+        drawerPanel.animate().translationX(0).setDuration(240).setInterpolator(new DecelerateInterpolator()).start();
+        contentRoot.animate().translationX(Ui.dp(this, DRAWER_DP - RAIL_DP)).setDuration(240).setInterpolator(new DecelerateInterpolator()).start();
         View target = drawerItems.get(section);
         (target != null ? target : drawer.getChildAt(2)).requestFocus();   // Search (after the profile and its spacer)
     }
@@ -365,9 +430,9 @@ public class MainActivity extends Activity {
     private void closeDrawer(boolean restoreFocus) {
         if (!drawerOpen) return;
         drawerOpen = false;
-        drawerPanel.animate().translationX(-Ui.dp(this, 250)).setDuration(200).setInterpolator(new DecelerateInterpolator())
+        drawerPanel.animate().translationX(-Ui.dp(this, DRAWER_DP - RAIL_DP)).setDuration(220).setInterpolator(new DecelerateInterpolator())
                 .withEndAction(() -> { if (!drawerOpen) drawerPanel.setVisibility(View.INVISIBLE); }).start();
-        dim.animate().alpha(0f).setDuration(200).withEndAction(() -> dim.setVisibility(View.GONE)).start();
+        contentRoot.animate().translationX(0).setDuration(220).setInterpolator(new DecelerateInterpolator()).start();
         drawer.setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);
         contentRoot.setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
         if (restoreFocus) focusContent();
@@ -735,6 +800,9 @@ public class MainActivity extends Activity {
         if (home == null) return;
         sectionGen++;
         rows.removeAllViews();
+        boolean homeSection = "home".equals(section);
+        rows.setPadding(rows.getPaddingLeft(), homeSection ? Ui.dp(this, heroGapDp) : Ui.dp(this, 6), 0, rows.getPaddingBottom());
+        setBrowsing(false);
         firstItem = null;
         firstEyebrow = "";
         switch (section) {
@@ -891,8 +959,8 @@ public class MainActivity extends Activity {
     }
 
     private void renderType(String type) {
+        genreButtons(type);   // genre boxes first, at the top of the screen
         continueRow(type);
-        genreButtons(type);
         posterRow(rows, "Favorites", null, favorites(type));
         for (Addons.Row r : home.rows) {
             if (!type.equals(r.type) || "IPTV".equals(r.note)) continue;
@@ -933,10 +1001,25 @@ public class MainActivity extends Activity {
         App.async(() -> Addons.genreNames(type), names -> {
             if (gen != sectionGen || names.isEmpty()) return;
             LinearLayout row = Ui.row(this, slot, "Genres");
+            int[] tints = {0xFF2E3B47, 0xFF3A2F45, 0xFF45302A, 0xFF27394A, 0xFF2F4030, 0xFF433A26, 0xFF432A36};
+            int i = 0;
             for (String g : names) {
-                android.widget.Button b = Ui.button(this, g, v -> startActivity(new Intent(this, GenreActivity.class)
-                        .putExtra("type", type).putExtra("genre", g)));
-                row.addView(b);
+                // A box per genre (bottom-left label), outlined in the highlight colour when selected.
+                TextView b = Ui.heading(this, g, 15);
+                b.setFocusable(true);
+                b.setClickable(true);
+                b.setGravity(Gravity.BOTTOM | Gravity.START);
+                b.setPadding(Ui.dp(this, 12), 0, Ui.dp(this, 10), Ui.dp(this, 9));
+                int tint = tints[i++ % tints.length];
+                StateListDrawable bg = new StateListDrawable();
+                bg.addState(new int[]{android.R.attr.state_focused}, Ui.rounded(this, tint, Ui.FOCUS, 12));
+                bg.addState(new int[]{}, Ui.rounded(this, tint, 0, 12));
+                b.setBackground(bg);
+                b.setOnFocusChangeListener((v, has) -> v.animate().scaleX(has ? 1.05f : 1f).scaleY(has ? 1.05f : 1f).setDuration(120).start());
+                b.setOnClickListener(v -> startActivity(new Intent(this, GenreActivity.class).putExtra("type", type).putExtra("genre", g)));
+                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(Ui.dp(this, 120), Ui.dp(this, 60));
+                lp.setMargins(0, Ui.dp(this, 4), Ui.dp(this, 12), Ui.dp(this, 4));
+                row.addView(b, lp);
             }
         }, null);
     }

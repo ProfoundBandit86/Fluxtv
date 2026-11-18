@@ -296,13 +296,16 @@ public final class ConfigServer {
             case "/keys":
                 if (!f(form, "gemini").isEmpty()) Store.put("gemini_key", f(form, "gemini"));
                 if (!f(form, "tmdb").isEmpty()) Store.put("tmdb_key", f(form, "tmdb"));
+                if (!f(form, "mdblist").isEmpty()) Store.put("mdblist_key", f(form, "mdblist"));
                 Store.bumpSources();
                 return "Keys saved";
+            case "/mdblist-add":
+                return "Added " + MdbList.add(f(form, "url")) + " to Home";
             case "/gemini-speed":
                 Gemini.setFast(!"smart".equals(f(form, "speed")));
                 return "Gemini search speed saved";
             case "/key-remove":
-                if (f(form, "key").equals("gemini_key") || f(form, "key").equals("tmdb_key")) Store.put(f(form, "key"), "");
+                if (f(form, "key").equals("gemini_key") || f(form, "key").equals("tmdb_key") || f(form, "key").equals("mdblist_key")) Store.put(f(form, "key"), "");
                 Store.bumpSources();
                 return "Key removed";
             // ---- profiles & Trakt
@@ -416,6 +419,7 @@ public final class ConfigServer {
                 if (!f(form, "introdb").isEmpty()) Store.put("test_introdb", f(form, "introdb"));
                 if (!f(form, "sports").isEmpty()) Store.put("test_sports", f(form, "sports"));
                 if (!f(form, "weather").isEmpty()) Store.put("test_weather", f(form, "weather"));
+                if (!f(form, "mdblist").isEmpty()) Store.put("test_mdblist", f(form, "mdblist"));
                 Store.put("gemini_model_t", "0");
                 return "Test endpoints set";
             default:

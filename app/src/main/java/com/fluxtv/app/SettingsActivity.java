@@ -34,7 +34,8 @@ public class SettingsActivity extends FluxActivity {
     /** key → [title, one-line description] */
     private static final String[][] CATEGORIES = {
             {"profiles", "Profiles & Trakt", "Who's watching, watchlist sync"},
-            {"home", "Home screen", "Home button, rows, region"},
+            {"home", "Home screen", "Home button, dock, weather"},
+            {"categories", "Categories", "Rows on Home, MDBList"},
             {"appearance", "Appearance", "Themes and colours"},
             {"player", "Player", "Subtitles, picture, size limits"},
             {"sources", "Sources", "Add-ons, servers, Real-Debrid, IPTV"},
@@ -44,7 +45,7 @@ public class SettingsActivity extends FluxActivity {
             {"search", "Search", "Gemini and TMDB"},
             {"system", "System", "Updates, phone setup, TV settings"},
     };
-    private static final int[] ICONS = {R.drawable.ic_account, R.drawable.ic_home, R.drawable.ic_display, R.drawable.ic_play,
+    private static final int[] ICONS = {R.drawable.ic_account, R.drawable.ic_home, R.drawable.ic_list, R.drawable.ic_display, R.drawable.ic_play,
             R.drawable.ic_addons, R.drawable.ic_live, R.drawable.ic_bulb, R.drawable.ic_download, R.drawable.ic_search, R.drawable.ic_settings};
 
     private String cat = "profiles";
@@ -221,6 +222,7 @@ public class SettingsActivity extends FluxActivity {
         content = pane;
         switch (cat) {
             case "home": paneHome(); break;
+            case "categories": paneCategories(); break;
             case "appearance": paneAppearance(); break;
             case "player": panePlayer(); break;
             case "sources": paneSources(); break;
@@ -321,9 +323,27 @@ public class SettingsActivity extends FluxActivity {
             boolean on = !hiddenApps.contains(src[0]);
             cwRow.addView(Ui.pill(this, (on ? "✓ " : "") + src[1], on, v -> { ContinueWatching.setHidden(src[0], on); render(); }));
         }
-        section("Rows");
-        content.addView(label("Choose which rows show on Home, and their order."));
-        buttonRow().addView(Ui.button(this, R.drawable.ic_home, "Customize Home", v -> startActivity(new Intent(this, HomeRowsActivity.class))));
+        section("Left dock");
+        content.addView(label("Choose what shows in the dock on Home. Hidden items stay in the full menu (press ← on Home)."));
+        java.util.Set<String> dockOff = MainActivity.dockHidden();
+        for (String item : MainActivity.DOCK_ITEMS) {
+            LinearLayout line = buttonRow();
+            line.setGravity(Gravity.CENTER_VERTICAL);
+            TextView name = Ui.text(this, item.equals("Smart") ? "Smart home" : item, 16, dockOff.contains(item) ? Ui.DIM : Ui.TEXT);
+            name.setMinWidth(Ui.dp(this, 200));
+            line.addView(name);
+            if (item.equals("Home")) {
+                line.addView(Ui.text(this, "Always shown", 14, Ui.DIM));
+                continue;
+            }
+            boolean off = dockOff.contains(item);
+            line.addView(Ui.pill(this, off ? "Hidden" : "Shown", !off, v -> {
+                java.util.Set<String> now = MainActivity.dockHidden();
+                if (off) now.remove(item); else now.add(item);
+                Store.put("dock_hidden", android.text.TextUtils.join("|", now));
+                render();
+            }));
+        }
         section("Weather");
         String wp = Weather.place(), wl = Weather.placeLabel();
         content.addView(label(wp.isEmpty() ? "Shows the weather next to the clock at the top right. Enter a ZIP code or a city."
@@ -368,6 +388,122 @@ public class SettingsActivity extends FluxActivity {
     private void refreshBadge() {
         View b = getWindow().getDecorView().findViewWithTag(ClockBadge.TAG);
         if (b instanceof ClockBadge) ((ClockBadge) b).refreshWeather(true);
+    }
+
+    // ------------------------------------------------------------ categories (rows on Home) + MDBList
+
+    private List<MdbList.ListInfo> mdbTop, mdbMine;
+    private String mdbError;
+
+    private void paneCategories() {
+        heading("Categories", "The rows on Home, and lists you add from MDBList.");
+        section("Rows on Home");
+        content.addView(label("Continue watching, your apps and streaming services stay at the top. Then these, in this order."));
+        List<String> order = new ArrayList<>();
+        Map<String, Addons.Row> byKey = new LinkedHashMap<>();
+        for (Addons.Row r : HomeLayout.ordered(HomeLayout.available)) {
+            order.add(HomeLayout.key(r));
+            byKey.put(HomeLayout.key(r), r);
+        }
+        java.util.Set<String> hidden = HomeLayout.hidden();
+        if (order.isEmpty()) content.addView(label("Open Home once so Flux knows which rows there are."));
+        for (int i = 0; i < order.size(); i++) {
+            String key = order.get(i);
+            Addons.Row r = byKey.get(key);
+            int idx = i;
+            boolean shown = !hidden.contains(key);
+            LinearLayout line = buttonRow();
+            line.setGravity(Gravity.CENTER_VERTICAL);
+            LinearLayout names = Ui.vertical(this);
+            TextView t = Ui.single(Ui.text(this, r.title, 16, shown ? Ui.TEXT : Ui.DIM));
+            names.addView(t);
+            if (!r.note.isEmpty()) names.addView(Ui.text(this, r.note, 12, Ui.DIM));
+            line.addView(names, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+            line.addView(Ui.pill(this, shown ? "Shown" : "Hidden", shown, v -> {
+                if (hidden.contains(key)) hidden.remove(key); else hidden.add(key);
+                HomeLayout.save(order, hidden);
+                render();
+            }));
+            line.addView(Ui.button(this, "▲", v -> {
+                if (idx == 0) return;
+                java.util.Collections.swap(order, idx, idx - 1);
+                HomeLayout.save(order, hidden);
+                render();
+            }));
+            line.addView(Ui.button(this, "▼", v -> {
+                if (idx >= order.size() - 1) return;
+                java.util.Collections.swap(order, idx, idx + 1);
+                HomeLayout.save(order, hidden);
+                render();
+            }));
+        }
+
+        section("MDBList");
+        content.addView(label("Add any list from mdblist.com as a row on Home (movie lists also show in Movies, show lists in TV Shows). "
+                + "Get a free API key at mdblist.com/preferences → API Access. Public lists also work without one."));
+        content.addView(keyField("mdblist_key", "MDBList API key"));
+        LinearLayout add = buttonRow();
+        add.setGravity(Gravity.CENTER_VERTICAL);
+        android.widget.EditText link = new android.widget.EditText(this);
+        link.setSingleLine(true);
+        link.setHint("List link, e.g. mdblist.com/lists/username/list-name");
+        link.setTextColor(Ui.TEXT);
+        link.setHintTextColor(Ui.DIM);
+        link.setTextSize(15);
+        add.addView(link, new LinearLayout.LayoutParams(Ui.dp(this, 460), ViewGroup.LayoutParams.WRAP_CONTENT));
+        add.addView(Ui.button(this, "Add", v -> {
+            String u = link.getText().toString();
+            Toast.makeText(this, "Checking the list…", Toast.LENGTH_SHORT).show();
+            App.async(() -> MdbList.add(u), name -> {
+                Toast.makeText(this, "Added \u201C" + name + "\u201D to Home", Toast.LENGTH_LONG).show();
+                render(true);
+            }, e -> Toast.makeText(this, App.message(e), Toast.LENGTH_LONG).show());
+        }));
+        List<MdbList.ListInfo> saved = MdbList.saved();
+        if (!saved.isEmpty()) content.addView(label("Your rows from MDBList"));
+        for (MdbList.ListInfo l : saved) {
+            LinearLayout line = buttonRow();
+            line.setGravity(Gravity.CENTER_VERTICAL);
+            line.addView(Ui.text(this, l.name, 16, Ui.TEXT), new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+            line.addView(Ui.button(this, "Remove", v -> { MdbList.remove(l.url); render(true); }));
+        }
+        if (MdbList.key().isEmpty()) return;
+        if (mdbTop == null && mdbError == null) {
+            content.addView(label("Loading popular lists…"));
+            App.async(() -> new Object[]{MdbList.topLists(), MdbList.myLists()}, r -> {
+                @SuppressWarnings("unchecked") List<MdbList.ListInfo> top = (List<MdbList.ListInfo>) r[0];
+                @SuppressWarnings("unchecked") List<MdbList.ListInfo> mine = (List<MdbList.ListInfo>) r[1];
+                mdbTop = top;
+                mdbMine = mine;
+                if ("categories".equals(cat)) render(true);
+            }, e -> { mdbError = App.message(e); if ("categories".equals(cat)) render(true); });
+            return;
+        }
+        if (mdbError != null) {
+            content.addView(label("Couldn't load lists from MDBList: " + mdbError));
+            buttonRow().addView(Ui.button(this, "Try again", v -> { mdbError = null; render(true); }));
+            return;
+        }
+        listPills("Your MDBList lists", mdbMine, saved);
+        listPills("Popular lists", mdbTop, saved);
+    }
+
+    private void listPills(String title, List<MdbList.ListInfo> lists, List<MdbList.ListInfo> saved) {
+        if (lists == null || lists.isEmpty()) return;
+        content.addView(label(title));
+        LinearLayout row = null;
+        int n = 0;
+        for (MdbList.ListInfo l : lists) {
+            boolean have = false;
+            for (MdbList.ListInfo s2 : saved) if (s2.url.equals(l.url)) have = true;
+            if (have) continue;
+            if (n++ % 3 == 0) row = buttonRow();
+            row.addView(Ui.pill(this, "+ " + l.name, false, v -> {
+                MdbList.add(l);
+                Toast.makeText(this, "Added \u201C" + l.name + "\u201D to Home", Toast.LENGTH_SHORT).show();
+                render(true);
+            }));
+        }
     }
 
     private List<SmartHome.Device> shDevices;
@@ -942,6 +1078,8 @@ public class SettingsActivity extends FluxActivity {
             if (k.isEmpty()) return;
             Store.put(storeKey, k);
             Store.bumpSources();
+            mdbTop = null;
+            mdbError = null;
             Toast.makeText(this, "Saved", Toast.LENGTH_SHORT).show();
             render();
         }));

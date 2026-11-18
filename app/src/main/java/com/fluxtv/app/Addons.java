@@ -133,6 +133,8 @@ public final class Addons {
                 }));
             }
         }
+        // Lists added from MDBList (Settings → Categories).
+        for (MdbList.ListInfo l : MdbList.saved()) jobs.add(POOL.submit(() -> MdbList.fetch(l)));
         return jobs;
     }
 

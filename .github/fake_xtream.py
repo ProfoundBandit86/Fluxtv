@@ -281,6 +281,14 @@ class H(BaseHTTPRequestHandler):
             return self.send(200, json.dumps({"children": [
                 {"name": "AFC", "standings": {"entries": [entry("Kansas City Chiefs", 9, 2), entry("Buffalo Bills", 8, 3)]}},
                 {"name": "NFC", "standings": {"entries": [entry("Philadelphia Eagles", 9, 2), entry("Dallas Cowboys", 5, 6)]}}]}))
+        if p.startswith("/mdblist/lists/top") or p.startswith("/mdblist/lists/user"):
+            return self.send(200, json.dumps([{"id": 1, "name": "Top Watched Movies of the Week", "slug": "top-watched-movies-of-the-week", "user_name": "linaspurinis", "mediatype": "movie", "items": 3},
+                                              {"id": 2, "name": "Latest TV Shows", "slug": "latest-tv-shows", "user_name": "garycrawfordgc", "mediatype": "show", "items": 2}]))
+        if p.startswith("/mdblist/lists/") and p.endswith("/items"):
+            return self.send(200, json.dumps({"movies": [
+                {"id": 1, "rank": 1, "title": "The Shawshank Redemption", "imdb_id": "tt0111161", "mediatype": "movie", "release_year": 1994},
+                {"id": 2, "rank": 2, "title": "The Matrix", "imdb_id": "tt0133093", "mediatype": "movie", "release_year": 1999},
+                {"id": 3, "rank": 3, "title": "The Godfather", "imdb_id": "tt0068646", "mediatype": "movie", "release_year": 1972}], "shows": []}))
         if p.startswith("/weather/v1/search"):
             return self.send(200, json.dumps({"results": [{"name": "Chicago", "admin1": "Illinois", "latitude": 41.85, "longitude": -87.65}]}))
         if p.startswith("/weather/v1/forecast"):

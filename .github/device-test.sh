@@ -109,6 +109,10 @@ curl -s -m 30 -X POST --data-urlencode "name=Default" http://127.0.0.1:8090/trak
 # Weather for the clock badge (fake Open-Meteo)
 curl -s -m 30 -X POST --data-urlencode "tmdb=http://10.0.2.2:8000/3" --data-urlencode "gemini=http://10.0.2.2:8000/gemini/" --data-urlencode "trakt=http://10.0.2.2:8000/trakt" --data-urlencode "weather=http://10.0.2.2:8000/weather" http://127.0.0.1:8090/test-config | grep -o "<p class='m'>[^<]*"
 curl -s -m 30 -X POST --data-urlencode "place=Chicago" http://127.0.0.1:8090/weather | grep -o "<p class='m'>[^<]*"
+# MDBList (fake): key + one list as a Home row
+curl -s -m 30 -X POST --data-urlencode "tmdb=http://10.0.2.2:8000/3" --data-urlencode "gemini=http://10.0.2.2:8000/gemini/" --data-urlencode "trakt=http://10.0.2.2:8000/trakt" --data-urlencode "mdblist=http://10.0.2.2:8000/mdblist" http://127.0.0.1:8090/test-config | grep -o "<p class='m'>[^<]*"
+post /keys --data-urlencode "mdblist=fakeMdbKey"
+post /mdblist-add --data-urlencode "url=https://mdblist.com/lists/linaspurinis/top-watched-movies-of-the-week"
 sleep 8
 curl -s -m 30 http://127.0.0.1:8090/ > out/settings-page.html
 echo "== SETTINGS PAGE: $(grep -o '<summary>[^<]*' out/settings-page.html | tr '\n' ' ')"
@@ -144,6 +148,12 @@ for i in 1 2 3 4 5 6 7 8 9 10; do key DPAD_UP 0; done; sleep 1; key DPAD_DOWN 1
 key DPAD_DOWN 1; texts drawer-down 30; key DPAD_CENTER 20; top movies; texts movies 30; shot 04-movies
 texts movies-genres 40; key DPAD_DOWN 2; key DPAD_DOWN 2; shot 04b-movies-scrolled
 crashes home
+# Rows slide up when browsing below the first row; Settings → Categories (MDBList) and dock items
+adb shell am start -W -n $P/.MainActivity; sleep 6; nudge; key DPAD_DOWN 1; key DPAD_DOWN 1; sleep 1; shot 02c-home-rows-up; texts home-rows-up 30
+adb shell am start -W -n $P/.SettingsActivity --es category categories; sleep 6; texts settings-categories 60; shot 14c-settings-categories
+for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14; do key DPAD_DOWN 0; done; sleep 2; shot 14d-settings-categories-mdblist; texts settings-mdblist 40
+adb shell am start -W -n $P/.SettingsActivity --es category home; sleep 5; for i in 1 2 3 4 5 6 7 8 9 10 11 12; do key DPAD_DOWN 0; done; sleep 1; shot 14e-settings-dock-items
+crashes categories
 if want home-rows; then
 # Rows from other apps + Customize Home lists them
 for i in 1 2 3 4 5 6; do key DPAD_DOWN 1; done; sleep 2; texts home-deep 60; shot 04c-home-deep

@@ -29,7 +29,7 @@ public final class Store {
     /** Identifies the current add-ons + servers (a saved Home is only reused if these haven't changed). */
     public static String addonsVersionKey() {
         return Integer.toHexString((get("addons") + "|" + get("servers") + "|" + get("iptv") + "|" + get("region")
-                + "|" + get("home_rows")).hashCode());
+                + "|" + get("home_rows") + "|" + get("mdblist_lists")).hashCode());
     }
 
     /** Bumps when favorites or watch progress change. */
