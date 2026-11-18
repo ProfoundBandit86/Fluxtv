@@ -25,6 +25,8 @@ tap() { adb shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1; B=$(adb shell
 longtap() { adb shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1; B=$(adb shell cat /sdcard/ui.xml | grep -o "<node[^>]*text=\"$1[^>]*>" | head -1 | grep -o 'bounds="[^"]*"' | grep -o '[0-9]*' | tr '\n' ' '); set -- $B; if [ -n "$4" ]; then adb shell input swipe $(( ($1+$3)/2 )) $(( ($2+$4)/2 )) $(( ($1+$3)/2 )) $(( ($2+$4)/2 )) 1300; else echo "== no element for longtap"; fi; }
 # Waits until some on-screen text starts with $1, for at most $2 seconds (the old fixed wait), so screens that
 # are ready early don't sit idle. Checks every ~3 s (a screen dump itself takes a moment).
+# POST to the phone setup page, retrying while it starts up (it restarts each time Settings reopens).
+post() { local path=$1; shift; local R; for i in 1 2 3 4 5; do R=$(curl -s -m 90 -X POST "$@" "http://127.0.0.1:8090$path" | grep -o "<p class='m'>[^<]*"); [ -n "$R" ] && { echo "$R"; return 0; }; sleep 3; done; echo "== NO ANSWER from $path"; }
 waitfor() { local end=$(( $(date +%s) + $2 )); while [ "$(date +%s)" -lt "$end" ]; do
   adb shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1
   if adb shell cat /sdcard/ui.xml | grep -q "text=\"$1"; then echo "== READY ($1) after $(( $2 - end + $(date +%s) ))s"; return 0; fi
@@ -294,7 +296,7 @@ if want live; then
   && printf '[global]\n  map to guest = Bad User\n  server min protocol = SMB2\n  guest account = nobody\n[flux]\n  path = /srv/flux\n  read only = no\n  guest ok = yes\n  force user = nobody\n' | sudo tee /etc/samba/smb.conf > /dev/null \
   && (sudo systemctl restart smbd || sudo smbd -D) && echo "== SAMBA: up") || echo "== SAMBA: failed $(tail -3 /tmp/samba.log)"
 adb shell am start -W -n $P/.SettingsActivity --es category live; sleep 3
-curl -s -m 60 -X POST --data-urlencode "url=http://10.0.2.2:8000" --data-urlencode "user=test" --data-urlencode "pass=test" http://127.0.0.1:8090/iptv-xtream | grep -o "<p class='m'>[^<]*"
+post /iptv-xtream --data-urlencode "url=http://10.0.2.2:8000" --data-urlencode "user=test" --data-urlencode "pass=test"
 curl -s -m 60 -X POST http://127.0.0.1:8090/dvr-guide | grep -o "<p class='m'>[^<]*"
 adb shell am start -W -n $P/.LiveActivity; sleep 8; shot 60-live-guide; texts live-guide 30
 key DPAD_DOWN 1; key DPAD_RIGHT 1; key DPAD_RIGHT 2; shot 61-live-guide-later
@@ -313,7 +315,7 @@ adb shell "ls -la /sdcard/Android/data/$P/files/Movies/Recordings/ 2>&1 | tail -
 adb shell am start -W -n $P/.SettingsActivity --es category live; sleep 3
 curl -s -m 60 -X POST --data-urlencode "host=10.0.2.2" http://127.0.0.1:8090/dvr-smb-login | grep -o "<p class='m'>[^<]*\|📁 [^<]*\|Couldn't open it[^<]*" | head -6
 curl -s -m 60 -X POST --data-urlencode "path=flux" http://127.0.0.1:8090/dvr-smb-open | grep -o "📁 [^<]*\|Use this folder" | head -4
-curl -s -m 60 -X POST --data-urlencode "path=flux/Shows" http://127.0.0.1:8090/dvr-smb-use | grep -o "<p class='m'>[^<]*"
+post /dvr-smb-use --data-urlencode "path=flux/Shows"
 curl -s -m 30 http://127.0.0.1:8090/ > out/settings-page-dvr.html
 adb shell am start -W -n $P/.SmbBrowseActivity; sleep 5; shot 70-smb-browser; texts smb-browser 20; key BACK 1
 adb shell am start -W -n $P/.LiveActivity; sleep 5; key DPAD_CENTER 8; key MENU 2; key DPAD_CENTER 3
@@ -326,7 +328,7 @@ adb shell am start -W -n $P/.MainActivity; sleep 8; nudge; key DPAD_DOWN 1; shot
 crashes live
 # ---------------- Which channels show: countries from group names ("US| News", "UK| Sports"), guide download indicator
 adb shell am start -W -n $P/.SettingsActivity --es category live; sleep 6
-curl -s -m 20 -X POST --data-urlencode "regions=US" --data-urlencode "unknown=show" http://127.0.0.1:8090/iptv-regions | grep -o "<p class='m'>[^<]*"
+post /iptv-regions --data-urlencode "regions=US" --data-urlencode "unknown=show"
 adb shell am start -W -n $P/.LiveActivity; sleep 6; texts live-us-only 40; shot 76-live-us-only
 adb shell am start -W -n $P/.SettingsActivity --es category live; sleep 6
 (curl -s -m 60 -X POST http://127.0.0.1:8090/dvr-guide > /dev/null &) ; sleep 1.5; shot 77-settings-guide-downloading
@@ -334,7 +336,7 @@ sleep 8; for i in 1 2 3 4 5 6 7 8 9 10 11 12; do key DPAD_DOWN 0; done; sleep 2;
 adb shell am start -W -n $P/.IptvFilterActivity; sleep 4; texts iptv-filter 30; shot 79-iptv-filter
 key DPAD_CENTER 2; texts iptv-filter-hidden 10; key DPAD_CENTER 2; texts iptv-filter-shown-again 10
 adb shell am start -W -n $P/.SettingsActivity --es category live; sleep 6
-curl -s -m 20 -X POST --data-urlencode "regions=" --data-urlencode "unknown=show" http://127.0.0.1:8090/iptv-regions | grep -o "<p class='m'>[^<]*"
+post /iptv-regions --data-urlencode "regions=" --data-urlencode "unknown=show"
 crashes channel-filters
 fi
 if want theme-place; then
@@ -354,8 +356,8 @@ fi
 if want smarthome; then
 # ---------------- Smart home panel (Home Assistant)
 adb shell am start -W -n $P/.SettingsActivity --es category smarthome; sleep 3
-curl -s -m 30 -X POST --data-urlencode "url=http://10.0.2.2:8000/ha" --data-urlencode "token=wrong" http://127.0.0.1:8090/sh-connect | grep -o "<p class='m'>[^<]*"
-curl -s -m 30 -X POST --data-urlencode "url=http://10.0.2.2:8000/ha" --data-urlencode "token=hatoken" http://127.0.0.1:8090/sh-connect | grep -o "<p class='m'>[^<]*"
+post /sh-connect --data-urlencode "url=http://10.0.2.2:8000/ha" --data-urlencode "token=wrong"
+post /sh-connect --data-urlencode "url=http://10.0.2.2:8000/ha" --data-urlencode "token=hatoken"
 curl -s -m 30 http://127.0.0.1:8090/ > out/settings-page-sh.html; echo "== WEB DEVICES: $(grep -o "name='d_[^']*'[^>]*>[^<]*" out/settings-page-sh.html | sed "s/name='d_//; s/' value='on'//" | tr '\n' '|')"
 adb shell am start -W -n $P/.SettingsActivity --es category smarthome; sleep 5; shot 80-settings-smarthome; texts settings-smarthome 40
 adb shell settings put secure enabled_accessibility_services $P/$P.HomeButtonService; adb shell settings put secure accessibility_enabled 1; sleep 3
@@ -433,7 +435,7 @@ key BACK 2; key BACK 2
 crashes skip-next
 fi
 if want epg; then
-curl -s -m 60 -X POST --data-urlencode "urls=http://10.0.2.2:8000/extra-epg.xml" --data-urlencode "refresh=1" http://127.0.0.1:8090/epg-extra | grep -o "<p class='m'>[^<]*"
+post /epg-extra --data-urlencode "urls=http://10.0.2.2:8000/extra-epg.xml" --data-urlencode "refresh=1"
 sleep 15
 curl -s -m 60 -X POST http://127.0.0.1:8090/dvr-guide | grep -o "<p class='m'>[^<]*"
 curl -s -m 20 http://127.0.0.1:8090/ > out/settings-page-epg.html; echo "== WEB EPG: $(grep -o 'Last download: [^<]*\|extra-epg.xml: [^<]*' out/settings-page-epg.html | tr '\n' ' ')"
@@ -444,7 +446,7 @@ fi
 if want portal; then
 # ---------------- v28: MAC portal, catch-up, multiview, sports
 XT=ca0e9097; PORTAL=9b2ad21
-curl -s -m 60 -X POST --data-urlencode "url=http://10.0.2.2:8000/stalker/c/" --data-urlencode "mac=00-1a-79-00-00-01" http://127.0.0.1:8090/iptv-stalker | grep -o "<p class='m'>[^<]*"
+post /iptv-stalker --data-urlencode "url=http://10.0.2.2:8000/stalker/c/" --data-urlencode "mac=00-1a-79-00-00-01"
 sleep 6
 adb shell am start -W -n $P/.LivePlayerActivity --es group all --es source $PORTAL --es channel 501; sleep 12; top portal-play; shot 100-portal-playing; texts portal-play 12
 key BACK 2
