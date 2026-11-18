@@ -550,12 +550,12 @@ public class LiveActivity extends FluxActivity {
         row.setClickable(true);
         row.setPadding(Ui.dp(this, 12), Ui.dp(this, 9), Ui.dp(this, 12), Ui.dp(this, 9));
         android.graphics.drawable.StateListDrawable bg = new android.graphics.drawable.StateListDrawable();
-        bg.addState(new int[]{android.R.attr.state_focused}, Ui.rounded(this, Ui.TEXT, 0, 10));
+        bg.addState(new int[]{android.R.attr.state_focused}, Ui.rounded(this, Ui.FOCUS, 0, 10));
         bg.addState(new int[]{android.R.attr.state_selected}, Ui.rounded(this, Ui.BUTTON, 0, 10));
         bg.addState(new int[]{}, Ui.rounded(this, Color.TRANSPARENT, 0, 10));
         row.setBackground(bg);
         TextView t = Ui.single(Ui.text(this, name, 15, Ui.TEXT));
-        t.setTextColor(new android.content.res.ColorStateList(new int[][]{{android.R.attr.state_focused}, {}}, new int[]{Ui.BG, Ui.TEXT}));
+        t.setTextColor(new android.content.res.ColorStateList(new int[][]{{android.R.attr.state_focused}, {}}, new int[]{Ui.ON_FOCUS, Ui.TEXT}));
         t.setDuplicateParentStateEnabled(true);
         row.addView(t, new LinearLayout.LayoutParams(0, -2, 1f));
         if (count >= 0) {

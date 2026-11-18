@@ -81,7 +81,7 @@ final class Plex {
 
     private static String bestConnection(JSONArray conns, String token) {
         if (conns == null) return null;
-        // Try local first, then remote, then Plex relay.
+        // Try local first, then remote, then Plex relay (the relay is speed-capped, so pictures crawl over it).
         for (int pass = 0; pass < 3; pass++) {
             for (int i = 0; i < conns.length(); i++) {
                 JSONObject c = conns.optJSONObject(i);
@@ -89,11 +89,59 @@ final class Plex {
                 boolean local = c.optBoolean("local"), relay = c.optBoolean("relay");
                 boolean match = pass == 0 ? local && !relay : pass == 1 ? !local && !relay : relay;
                 if (!match) continue;
+                if (pass == 0) {
+                    // Plain address on the home network first. Many routers block the *.plex.direct names Plex
+                    // hands out (DNS rebinding protection), which used to push Flux onto the internet or the relay.
+                    String addr = c.optString("address");
+                    if (!addr.isEmpty() && !addr.contains(":")) {
+                        String plain = "http://" + addr + ":" + c.optInt("port", 32400);
+                        // A signed-in request, so servers set to "Secure connections: Required" are skipped here.
+                        if (Http.ping(plain + "/library/sections", headers(token), 2500)) return plain;
+                    }
+                }
                 String uri = c.optString("uri").replaceAll("/+$", "");
                 if (Http.ping(uri + "/identity", headers(token), 4000)) return uri;
             }
         }
         return null;
+    }
+
+    /** True when the address is on the home network (a private IP, or a plex.direct name for one). */
+    static boolean onHomeNetwork(String url) {
+        String host;
+        try { host = new java.net.URI(url).getHost(); } catch (Exception e) { return false; }
+        if (host == null) return false;
+        if (host.endsWith(".plex.direct")) host = host.substring(0, host.indexOf('.')).replace('-', '.');
+        if (host.startsWith("10.") || host.startsWith("192.168.") || host.startsWith("127.")) return true;
+        if (host.startsWith("172.")) {
+            String[] p = host.split("\\.");
+            try { int b = Integer.parseInt(p[1]); return b >= 16 && b <= 31; } catch (Exception e) { return false; }
+        }
+        return false;
+    }
+
+    /**
+     * Once per start: a Plex server that was reached over the internet or Plex's relay when it was added (slow
+     * pictures and slow menus) moves to its home-network address when that answers now.
+     */
+    static void recheckConnections() {
+        for (MediaServer s : Store.servers()) {
+            if (!MediaServer.PLEX.equals(s.kind) || s.id.isEmpty()) continue;
+            try {
+                if (onHomeNetwork(s.url) && Http.ping(s.url + "/identity", headers(s.token), 3000)) continue;
+                JSONArray res = new JSONArray(Http.call("GET", PLEX_TV + "resources?includeHttps=1&includeRelay=1",
+                        headers(s.token), null, null));
+                for (int i = 0; i < res.length(); i++) {
+                    JSONObject r = res.optJSONObject(i);
+                    if (r == null || !s.id.equals(r.optString("clientIdentifier"))) continue;
+                    String url = bestConnection(r.optJSONArray("connections"), r.optString("accessToken", s.token));
+                    if (url != null && !url.equals(s.url)) {
+                        s.url = url;
+                        Store.saveServer(s);
+                    }
+                }
+            } catch (Exception ignored) { }
+        }
     }
 
     /** Adds a server by address + token (e.g. from the phone setup page). */

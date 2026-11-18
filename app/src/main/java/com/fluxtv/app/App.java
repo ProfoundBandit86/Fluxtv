@@ -48,6 +48,8 @@ public class App extends Application {
                 MAIN.postDelayed(this, 3600 * 1000L);   // guides refresh when older than Settings says
             }
         }, 8000);
+        // Plex servers first reached over the internet/relay switch to the home network when they can (faster pictures).
+        MAIN.postDelayed(() -> IO.execute(Plex::recheckConnections), 4000);
         // Save any crash so the home screen can show it next time (TVs hide crash dialogs).
         Thread.UncaughtExceptionHandler previous = Thread.getDefaultUncaughtExceptionHandler();
         Thread.setDefaultUncaughtExceptionHandler((thread, error) -> {

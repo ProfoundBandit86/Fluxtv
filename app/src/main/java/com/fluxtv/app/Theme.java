@@ -66,6 +66,21 @@ public final class Theme {
         apply();
     }
 
+    /** Highlight colour: 0 = white, 1 = the theme's accent, 2+ = one of the accent colours. */
+    public static int highlightIndex() {
+        return clamp(Store.get("theme_highlight"), ACCENT_HEX.length + 2);
+    }
+
+    public static String highlightName() {
+        int h = highlightIndex();
+        return h == 0 ? "White" : h == 1 ? "Match theme (" + ACCENT_NAMES[accentIndex()] + ")" : ACCENT_NAMES[h - 2];
+    }
+
+    public static void setHighlight(int i) {
+        Store.put("theme_highlight", String.valueOf(i));
+        apply();
+    }
+
     public static void setBackground(int i) {
         Store.put("theme_bg", String.valueOf(i));
         apply();
@@ -83,7 +98,22 @@ public final class Theme {
         Ui.BUTTON = Color.parseColor(bg[2]);
         Ui.BORDER = Color.parseColor(bg[3]);
         Ui.ACCENT = Color.parseColor(ACCENT_HEX[accentIndex()]);
+        int h = highlightIndex();
+        Ui.FOCUS = h == 0 ? Color.WHITE : h == 1 ? Ui.ACCENT : Color.parseColor(ACCENT_HEX[h - 2]);
+        // Dark text on a light highlight, white text on a dark one, whichever is easier to read.
+        Ui.ON_FOCUS = contrast(Ui.FOCUS, Ui.BG) >= contrast(Ui.FOCUS, Color.WHITE) ? Ui.BG : Color.WHITE;
         version++;
+    }
+
+    private static double luminance(int c) {
+        double[] ch = {Color.red(c) / 255.0, Color.green(c) / 255.0, Color.blue(c) / 255.0};
+        for (int i = 0; i < 3; i++) ch[i] = ch[i] <= 0.03928 ? ch[i] / 12.92 : Math.pow((ch[i] + 0.055) / 1.055, 2.4);
+        return 0.2126 * ch[0] + 0.7152 * ch[1] + 0.0722 * ch[2];
+    }
+
+    private static double contrast(int a, int b) {
+        double la = luminance(a), lb = luminance(b);
+        return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
     }
 
     private static int clamp(String v, int n) {

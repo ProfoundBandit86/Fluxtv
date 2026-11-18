@@ -142,7 +142,7 @@ public class SearchActivity extends FluxActivity {
         android.graphics.drawable.StateListDrawable s = new android.graphics.drawable.StateListDrawable();
         android.graphics.drawable.GradientDrawable f = new android.graphics.drawable.GradientDrawable();
         f.setShape(android.graphics.drawable.GradientDrawable.OVAL);
-        f.setColor(Ui.TEXT);
+        f.setColor(Ui.FOCUS);
         f.setStroke(Ui.dp(this, 3), Ui.ACCENT);
         android.graphics.drawable.GradientDrawable n = new android.graphics.drawable.GradientDrawable();
         n.setShape(android.graphics.drawable.GradientDrawable.OVAL);

@@ -32,6 +32,10 @@ public final class Ui {
     public static int BUTTON = Color.parseColor("#1E1E2A");
     public static int BORDER = Color.parseColor("#22222E");
     public static int ACCENT = Color.parseColor("#8B7CFF");
+    /** What the remote has selected (white by default; Settings → Theme → Highlight colour). */
+    public static int FOCUS = Color.WHITE;
+    /** Text and icons drawn on top of FOCUS: dark on a light highlight, white on a dark one. */
+    public static int ON_FOCUS = Color.parseColor("#0B0B10");
 
     public static final int TEXT = Color.parseColor("#F4F4F7");
     public static final int MUTED = Color.parseColor("#A9A9B8");
@@ -107,7 +111,7 @@ public final class Ui {
     /** Text/icon colour that turns dark when the (white) control is focused. */
     public static ColorStateList onFocusDark(int normal) {
         return new ColorStateList(new int[][]{{android.R.attr.state_focused}, {android.R.attr.state_pressed}, {}},
-                new int[]{BG, BG, normal});
+                new int[]{ON_FOCUS, ON_FOCUS, normal});
     }
 
     /** Vertical scrim from a colour to transparent (direction is where the colour sits). */
@@ -138,7 +142,7 @@ public final class Ui {
         b.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
         b.setTextColor(onFocusDark(TEXT));
         b.setFocusable(true);
-        b.setBackground(focusable(c, GLASS, TEXT, 0));
+        b.setBackground(focusable(c, GLASS, FOCUS, 0));
         b.setPadding(dp(c, 20), 0, dp(c, 20), 0);
         b.setMinHeight(dp(c, 46));
         b.setMinimumHeight(dp(c, 46));
@@ -179,7 +183,7 @@ public final class Ui {
         b.setTextColor(BG);
         b.setCompoundDrawableTintList(ColorStateList.valueOf(BG));
         b.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
-        b.setBackground(focusable(c, Color.parseColor("#E9E9EF"), Color.WHITE, ACCENT));
+        b.setBackground(focusable(c, Color.parseColor("#E9E9EF"), FOCUS, ACCENT));
         b.setPadding(dp(c, 24), 0, dp(c, 30), 0);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(c, 64));
         lp.setMargins(0, dp(c, 4), dp(c, 12), dp(c, 4));
@@ -211,7 +215,7 @@ public final class Ui {
         b.setSingleLine(true);
         b.setEllipsize(android.text.TextUtils.TruncateAt.END);
         b.setFocusable(true);
-        b.setBackground(focusable(c, GLASS, TEXT, 0));
+        b.setBackground(focusable(c, GLASS, FOCUS, 0));
         b.setStateListAnimator(null);
         b.setGravity(Gravity.CENTER_VERTICAL);
         b.setPadding(dp(c, 14), 0, dp(c, 16), 0);
@@ -269,7 +273,7 @@ public final class Ui {
         t.setGravity(Gravity.CENTER);
         t.setPadding(dp(c, 16), 0, dp(c, 16), 0);
         StateListDrawable s1 = new StateListDrawable();
-        s1.addState(new int[]{android.R.attr.state_focused}, rounded(c, TEXT, ACCENT, 999));
+        s1.addState(new int[]{android.R.attr.state_focused}, rounded(c, FOCUS, ACCENT, 999));
         s1.addState(new int[]{}, rounded(c, selected ? TEXT : GLASS, 0, 999));
         t.setBackground(s1);
         if (!selected) t.setTextColor(onFocusDark(MUTED));
@@ -330,7 +334,7 @@ public final class Ui {
         int pad = dp(c, 3);
         f.setPadding(pad, pad, pad, pad);
         StateListDrawable s = new StateListDrawable();
-        s.addState(new int[]{android.R.attr.state_focused}, rounded(c, Color.TRANSPARENT, TEXT, 13));
+        s.addState(new int[]{android.R.attr.state_focused}, rounded(c, Color.TRANSPARENT, FOCUS, 13));
         s.addState(new int[]{}, new ColorDrawable(Color.TRANSPARENT));
         // The highlight is drawn on top of the picture, so the picture can never hide part of it.
         f.setForeground(s);

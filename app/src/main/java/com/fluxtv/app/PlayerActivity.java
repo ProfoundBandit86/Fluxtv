@@ -361,11 +361,11 @@ public class PlayerActivity extends Activity {
         d.setBounds(0, 0, is, is);
         b.setCompoundDrawables(d, null, null, null);
         b.setPadding((size - is) / 2, 0, 0, 0);
-        b.setCompoundDrawableTintList(main ? android.content.res.ColorStateList.valueOf(Ui.BG) : Ui.onFocusDark(Ui.TEXT));
+        b.setCompoundDrawableTintList(main ? Ui.onFocusDark(Ui.BG) : Ui.onFocusDark(Ui.TEXT));
         android.graphics.drawable.StateListDrawable bg = new android.graphics.drawable.StateListDrawable();
         android.graphics.drawable.GradientDrawable focused = new android.graphics.drawable.GradientDrawable();
         focused.setShape(android.graphics.drawable.GradientDrawable.OVAL);
-        focused.setColor(Color.WHITE);
+        focused.setColor(Ui.FOCUS);
         focused.setStroke(Ui.dp(this, 3), Ui.ACCENT);
         android.graphics.drawable.GradientDrawable normal = new android.graphics.drawable.GradientDrawable();
         normal.setShape(android.graphics.drawable.GradientDrawable.OVAL);

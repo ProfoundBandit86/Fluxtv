@@ -336,7 +336,7 @@ public class StreamsActivity extends FluxActivity {
         r.setClickable(true);
         r.setPadding(Ui.dp(this, 12), Ui.dp(this, 12), Ui.dp(this, 14), Ui.dp(this, 12));
         StateListDrawable bg = new StateListDrawable();
-        bg.addState(new int[]{android.R.attr.state_focused}, Ui.rounded(this, Ui.BUTTON, Ui.TEXT, 14));
+        bg.addState(new int[]{android.R.attr.state_focused}, Ui.rounded(this, Ui.BUTTON, Ui.FOCUS, 14));
         bg.addState(new int[]{}, Ui.rounded(this, Ui.alpha(Ui.BUTTON, 0.55f), 0, 14));
         r.setBackground(bg);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);

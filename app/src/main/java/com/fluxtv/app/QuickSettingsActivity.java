@@ -124,7 +124,7 @@ public class QuickSettingsActivity extends Activity {
         t.setClickable(true);
         t.setPadding(Ui.dp(this, 14), Ui.dp(this, 12), Ui.dp(this, 10), Ui.dp(this, 10));
         StateListDrawable bg = new StateListDrawable();
-        bg.addState(new int[]{android.R.attr.state_focused}, Ui.rounded(this, Ui.TEXT, 0, 14));
+        bg.addState(new int[]{android.R.attr.state_focused}, Ui.rounded(this, Ui.FOCUS, 0, 14));
         bg.addState(new int[]{}, Ui.rounded(this, Ui.alpha(Color.WHITE, 0.07f), 0, 14));
         t.setBackground(bg);
         ImageView ic = new ImageView(this);

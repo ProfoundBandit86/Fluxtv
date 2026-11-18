@@ -188,6 +188,11 @@ adb shell am start -W -n $P/.SettingsActivity --es category appearance; sleep 4;
 curl -s -m 20 -X POST --data-urlencode "theme=2" http://127.0.0.1:8090/appearance | grep -o "<p class='m'>[^<]*"
 adb shell am start -W -n $P/.MainActivity; sleep 8; nudge; shot 39-home-ocean-theme
 curl -s -m 20 -X POST --data-urlencode "theme=0" http://127.0.0.1:8090/appearance > /dev/null
+# Highlight colour: Mint (accent 3 → highlight 5), then back to white
+curl -s -m 20 -X POST --data-urlencode "highlight=5" http://127.0.0.1:8090/appearance | grep -o "<p class='m'>[^<]*"
+adb shell am start -W -n $P/.SettingsActivity --es category appearance; sleep 4; key DPAD_RIGHT 1; shot 39b-highlight-mint-settings
+adb shell am start -W -n $P/.MainActivity; sleep 8; nudge; key DPAD_DOWN 1; shot 39c-highlight-mint-home
+curl -s -m 20 -X POST --data-urlencode "highlight=0" http://127.0.0.1:8090/appearance > /dev/null
 crashes themes
 
 # Quick Settings panel (also its own launcher entry)

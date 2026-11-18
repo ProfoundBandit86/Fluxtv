@@ -112,7 +112,7 @@ public abstract class FluxActivity extends Activity {
         ImageView ic = new ImageView(this);
         ic.setImageResource(icon);
         ic.setImageTintList(new ColorStateList(new int[][]{{android.R.attr.state_focused}, {android.R.attr.state_selected}, {}},
-                new int[]{Ui.BG, Ui.ACCENT, Ui.MUTED}));
+                new int[]{Ui.ON_FOCUS, Ui.ACCENT, Ui.MUTED}));
         ic.setImageTintMode(PorterDuff.Mode.SRC_IN);
         ic.setDuplicateParentStateEnabled(true);
         row.addView(ic, new LinearLayout.LayoutParams(Ui.dp(this, 20), Ui.dp(this, 20)));
@@ -135,7 +135,7 @@ public abstract class FluxActivity extends Activity {
         item.setClickable(true);
         item.setPadding(Ui.dp(this, 14), 0, Ui.dp(this, 14), 0);
         StateListDrawable s = new StateListDrawable();
-        s.addState(new int[]{android.R.attr.state_focused}, Ui.rounded(this, Ui.TEXT, 0, 12));
+        s.addState(new int[]{android.R.attr.state_focused}, Ui.rounded(this, Ui.FOCUS, 0, 12));
         s.addState(new int[]{android.R.attr.state_selected}, Ui.rounded(this, Ui.BUTTON, 0, 12));
         s.addState(new int[]{}, Ui.rounded(this, Color.TRANSPARENT, 0, 12));
         item.setBackground(s);
@@ -148,7 +148,7 @@ public abstract class FluxActivity extends Activity {
     private TextView label(String s) {
         TextView t = Ui.single(Ui.text(this, s, 15, Ui.MUTED));
         t.setTextColor(new ColorStateList(new int[][]{{android.R.attr.state_focused}, {android.R.attr.state_selected}, {}},
-                new int[]{Ui.BG, Ui.TEXT, Ui.MUTED}));
+                new int[]{Ui.ON_FOCUS, Ui.TEXT, Ui.MUTED}));
         t.setTypeface(android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL));
         t.setPadding(Ui.dp(this, 14), 0, 0, 0);
         t.setDuplicateParentStateEnabled(true);

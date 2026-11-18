@@ -160,24 +160,24 @@ public class SettingsActivity extends FluxActivity {
         row.setClickable(true);
         row.setPadding(Ui.dp(this, 12), Ui.dp(this, 8), Ui.dp(this, 12), Ui.dp(this, 8));
         StateListDrawable bg = new StateListDrawable();
-        bg.addState(new int[]{android.R.attr.state_focused}, Ui.rounded(this, Ui.TEXT, 0, 12));
+        bg.addState(new int[]{android.R.attr.state_focused}, Ui.rounded(this, Ui.FOCUS, 0, 12));
         bg.addState(new int[]{android.R.attr.state_selected}, Ui.rounded(this, Ui.BUTTON, 0, 12));
         bg.addState(new int[]{}, Ui.rounded(this, Color.TRANSPARENT, 0, 12));
         row.setBackground(bg);
         ImageView ic = new ImageView(this);
         ic.setImageResource(icon);
         ic.setImageTintList(new ColorStateList(new int[][]{{android.R.attr.state_focused}, {android.R.attr.state_selected}, {}},
-                new int[]{Ui.BG, Ui.ACCENT, Ui.MUTED}));
+                new int[]{Ui.ON_FOCUS, Ui.ACCENT, Ui.MUTED}));
         ic.setImageTintMode(PorterDuff.Mode.SRC_IN);
         ic.setDuplicateParentStateEnabled(true);
         row.addView(ic, new LinearLayout.LayoutParams(Ui.dp(this, 20), Ui.dp(this, 20)));
         LinearLayout names = Ui.vertical(this);
         names.setPadding(Ui.dp(this, 14), 0, 0, 0);
         TextView t = Ui.single(Ui.text(this, c[1], 15, Ui.TEXT));
-        t.setTextColor(new ColorStateList(new int[][]{{android.R.attr.state_focused}, {}}, new int[]{Ui.BG, Ui.TEXT}));
+        t.setTextColor(new ColorStateList(new int[][]{{android.R.attr.state_focused}, {}}, new int[]{Ui.ON_FOCUS, Ui.TEXT}));
         t.setDuplicateParentStateEnabled(true);
         TextView d = Ui.single(Ui.text(this, c[2], 11, Ui.DIM));
-        d.setTextColor(new ColorStateList(new int[][]{{android.R.attr.state_focused}, {}}, new int[]{Ui.alpha(Ui.BG, 0.7f), Ui.DIM}));
+        d.setTextColor(new ColorStateList(new int[][]{{android.R.attr.state_focused}, {}}, new int[]{Ui.alpha(Ui.ON_FOCUS, 0.7f), Ui.DIM}));
         d.setDuplicateParentStateEnabled(true);
         names.addView(t);
         names.addView(d);
@@ -593,6 +593,20 @@ public class SettingsActivity extends FluxActivity {
             }));
         }
         content.addView(label(Theme.ACCENT_NAMES[Theme.accentIndex()]));
+        content.addView(section("Highlight colour"));
+        content.addView(label("The colour that shows what the remote has selected."));
+        LinearLayout highlightModes = buttonRow();
+        highlightModes.addView(Ui.pill(this, "White", Theme.highlightIndex() == 0, v -> { Theme.setHighlight(0); recreate(); }));
+        highlightModes.addView(Ui.pill(this, "Match theme", Theme.highlightIndex() == 1, v -> { Theme.setHighlight(1); recreate(); }));
+        LinearLayout highlights = buttonRow();
+        for (int i = 0; i < Theme.ACCENT_HEX.length; i++) {
+            int idx = i + 2;
+            highlights.addView(swatch(Color.parseColor(Theme.ACCENT_HEX[i]), Theme.ACCENT_NAMES[i], idx == Theme.highlightIndex(), v -> {
+                Theme.setHighlight(idx);
+                recreate();
+            }));
+        }
+        content.addView(label("Highlight: " + Theme.highlightName()));
         content.addView(section("Background"));
         LinearLayout bgs = buttonRow();
         for (int i = 0; i < Theme.BG_NAMES.length; i++) {
@@ -793,7 +807,7 @@ public class SettingsActivity extends FluxActivity {
         tile.setOnClickListener(click);
         tile.setContentDescription((String) Theme.THEMES[i][0]);
         StateListDrawable s = new StateListDrawable();
-        s.addState(new int[]{android.R.attr.state_focused}, Ui.rounded(this, bg, Ui.TEXT, 12));
+        s.addState(new int[]{android.R.attr.state_focused}, Ui.rounded(this, bg, Ui.FOCUS, 12));
         s.addState(new int[]{}, Ui.rounded(this, bg, selected ? accent : Ui.BORDER, 12));
         tile.setBackground(s);
         View card = new View(this);
@@ -825,7 +839,7 @@ public class SettingsActivity extends FluxActivity {
         v.setContentDescription(name);
         v.setOnClickListener(click);
         StateListDrawable s = new StateListDrawable();
-        s.addState(new int[]{android.R.attr.state_focused}, circle(color, Ui.TEXT, 4));
+        s.addState(new int[]{android.R.attr.state_focused}, circle(color, Ui.FOCUS, 4));
         s.addState(new int[]{}, circle(color, selected ? Ui.alpha(Ui.TEXT, 0.6f) : 0, 2));
         v.setBackground(s);
         v.setOnFocusChangeListener((x, has) -> x.animate().scaleX(has ? 1.12f : 1f).scaleY(has ? 1.12f : 1f).setDuration(120).start());

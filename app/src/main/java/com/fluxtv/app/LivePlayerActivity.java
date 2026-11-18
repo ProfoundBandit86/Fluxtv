@@ -141,7 +141,7 @@ public class LivePlayerActivity extends Activity {
         listPanel.setVisibility(View.GONE);
         channelList = new ListView(this);
         channelList.setDivider(null);
-        channelList.setSelector(Ui.rounded(this, Ui.TEXT, 0, 10));
+        channelList.setSelector(Ui.rounded(this, Ui.FOCUS, 0, 10));
         channelList.setDrawSelectorOnTop(false);
         channelList.setItemsCanFocus(false);
         channelList.setPadding(Ui.dp(this, 24), Ui.dp(this, 24), Ui.dp(this, 24), Ui.dp(this, 24));

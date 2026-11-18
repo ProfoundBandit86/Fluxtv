@@ -359,6 +359,7 @@ public final class ConfigServer {
                 }
                 if (!f(form, "accent").isEmpty()) Theme.setAccent(Integer.parseInt(f(form, "accent")));
                 if (!f(form, "bg").isEmpty()) Theme.setBackground(Integer.parseInt(f(form, "bg")));
+                if (!f(form, "highlight").isEmpty()) Theme.setHighlight(Integer.parseInt(f(form, "highlight")));
                 return "Colours saved";
             case "/region":
                 Store.put("region", f(form, "region"));
@@ -609,7 +610,8 @@ public final class ConfigServer {
           .append(select("theme", themeNames, Theme.themeIndex())).append("<button>Use theme</button></form>")
           .append("<h3>Or mix your own</h3><form method='post' action='/appearance'>Accent colour")
           .append(select("accent", Theme.ACCENT_NAMES, Theme.accentIndex())).append("Background")
-          .append(select("bg", Theme.BG_NAMES, Theme.bgIndex())).append("<button>Save colours</button></form></details>");
+          .append(select("bg", Theme.BG_NAMES, Theme.bgIndex())).append("Highlight colour (what the remote has selected)")
+          .append(select("highlight", highlightNames(), Theme.highlightIndex())).append("<button>Save colours</button></form></details>");
 
         // ---------------- player
         sb.append("" + section("player", "Player", "Subtitles, picture, size limits") + "<form method='post' action='/player'>")
@@ -972,5 +974,13 @@ public final class ConfigServer {
 
     private static String esc(String s) {
         return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("'", "&#39;").replace("\"", "&quot;");
+    }
+
+    private static String[] highlightNames() {
+        String[] out = new String[Theme.ACCENT_NAMES.length + 2];
+        out[0] = "White";
+        out[1] = "Match theme";
+        System.arraycopy(Theme.ACCENT_NAMES, 0, out, 2, Theme.ACCENT_NAMES.length);
+        return out;
     }
 }

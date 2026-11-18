@@ -355,7 +355,7 @@ public class GuideView extends View {
         float x2 = chanW + (stop - windowStart) * pxPerMs - 2 * d;
         if (x2 - x1 < 2 * d) return;
         r.set(x1, y + 2 * d, x2, y + rowH - 2 * d);
-        int bg = focusedCell ? (viewFocused ? Ui.TEXT : Ui.alpha(Ui.TEXT, 0.3f))
+        int bg = focusedCell ? (viewFocused ? Ui.FOCUS : Ui.alpha(Ui.FOCUS, 0.3f))
                 : live ? Ui.alpha(Ui.TEXT, 0.11f) : Ui.alpha(Ui.TEXT, 0.06f);
         fill.setColor(bg);
         c.drawRoundRect(r, 8 * d, 8 * d, fill);
@@ -365,14 +365,14 @@ public class GuideView extends View {
             fill.setColor(Ui.alpha(Ui.ACCENT, 0.5f));
             c.drawRect(x1 + 6 * d, y + rowH - 6 * d, Math.max(x1 + 6 * d, px - 6 * d), y + rowH - 4 * d, fill);
         }
-        int fg = focusedCell && viewFocused ? Ui.BG : Ui.TEXT;
+        int fg = focusedCell && viewFocused ? Ui.ON_FOCUS : Ui.TEXT;
         float pad = 10 * d, tx = Math.max(x1, chanW) + pad;
         float room = x2 - tx - pad - (scheduled ? 16 * d : 0);
         if (room > 12 * d) {
             title.setColor(fg);
             String t = TextUtils.ellipsize(text, title, room, TextUtils.TruncateAt.END).toString();
             c.drawText(t, tx, y + rowH / 2f - 1 * d, title);
-            small.setColor(focusedCell && viewFocused ? Ui.alpha(Ui.BG, 0.7f) : Ui.MUTED);
+            small.setColor(focusedCell && viewFocused ? Ui.alpha(Ui.ON_FOCUS, 0.7f) : Ui.MUTED);
             String time = timeFmt.format(new Date(start)) + " – " + timeFmt.format(new Date(stop));
             if (text.equals("No information")) time = "";
             c.drawText(TextUtils.ellipsize(time, small, room, TextUtils.TruncateAt.END).toString(), tx, y + rowH / 2f + 15 * d, small);

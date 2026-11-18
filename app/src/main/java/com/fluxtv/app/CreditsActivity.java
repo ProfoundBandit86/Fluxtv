@@ -75,7 +75,7 @@ public class CreditsActivity extends FluxActivity {
         GradientDrawable on = new GradientDrawable();
         on.setShape(GradientDrawable.OVAL);
         on.setColor(Color.TRANSPARENT);
-        on.setStroke(Ui.dp(a, 3), Ui.TEXT);
+        on.setStroke(Ui.dp(a, 3), Ui.FOCUS);
         s.addState(new int[]{android.R.attr.state_focused}, on);
         s.addState(new int[]{}, new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
         ring.setBackground(s);
