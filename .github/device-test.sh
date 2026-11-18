@@ -75,9 +75,9 @@ if [ -f .github/QUICK_HOME ]; then
   sleep 5
   adb shell dumpsys accessibility | grep -i -E "flux|bound|enabled services|Filter|keyEvent" | head -30
   adb shell cmd package set-home-activity com.google.android.apps.nexuslauncher/.NexusLauncherActivity
-  adb shell am start -W --activity-clear-task --activity-new-task -n $P/.SettingsActivity; sleep 4
+  adb shell am start -W -f 0x10008000 -n $P/.SettingsActivity; sleep 4
   adb shell input keyevent HOME; sleep 7; top sw-home-7s
-  adb shell am start -W --activity-clear-task --activity-new-task -n $P/.SettingsActivity; sleep 3
+  adb shell am start -W -f 0x10008000 -n $P/.SettingsActivity; sleep 3
   adb emu event send EV_KEY:KEY_HOMEPAGE:1 EV_SYN:0:0; sleep 0.1; adb emu event send EV_KEY:KEY_HOMEPAGE:0 EV_SYN:0:0
   sleep 4; top hw-home-4s
   adb shell getevent -lp 2>/dev/null | grep -i -B3 HOMEPAGE | head
@@ -150,9 +150,9 @@ texts movies-genres 40; key DPAD_DOWN 2; key DPAD_DOWN 2; shot 04b-movies-scroll
 crashes home
 # Rows slide up when browsing below the first row; Settings → Categories (MDBList) and dock items
 adb shell am start -W -n $P/.MainActivity; sleep 6; nudge; key DPAD_DOWN 1; key DPAD_DOWN 1; sleep 1; shot 02c-home-rows-up; texts home-rows-up 30
-adb shell am start -W --activity-clear-task --activity-new-task -n $P/.SettingsActivity --es category categories; sleep 6; texts settings-categories 60; shot 14c-settings-categories
+adb shell am start -W -f 0x10008000 -n $P/.SettingsActivity --es category categories; sleep 6; texts settings-categories 60; shot 14c-settings-categories
 for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14; do key DPAD_DOWN 0; done; sleep 2; shot 14d-settings-categories-mdblist; texts settings-mdblist 40
-adb shell am start -W --activity-clear-task --activity-new-task -n $P/.SettingsActivity --es category home; sleep 5; for i in 1 2 3 4 5 6 7 8 9 10 11 12; do key DPAD_DOWN 0; done; sleep 1; shot 14e-settings-dock-items
+adb shell am start -W -f 0x10008000 -n $P/.SettingsActivity --es category home; sleep 5; for i in 1 2 3 4 5 6 7 8 9 10 11 12; do key DPAD_DOWN 0; done; sleep 1; shot 14e-settings-dock-items
 crashes categories
 if want home-rows; then
 # Rows from other apps + Customize Home lists them
@@ -162,7 +162,7 @@ crashes home-rows
 fi
 # Profiles & Trakt, Settings
 adb shell am start -W -n $P/.ProfilesActivity; sleep 4; nudge; texts profiles 40; shot 13-profiles
-adb shell am start -W --activity-clear-task --activity-new-task -n $P/.SettingsActivity; sleep 4; texts settings 60; shot 14-settings
+adb shell am start -W -f 0x10008000 -n $P/.SettingsActivity; sleep 4; texts settings 60; shot 14-settings
 key DPAD_DOWN 1; key DPAD_DOWN 1; key DPAD_DOWN 1; key DPAD_DOWN 1; shot 14b-settings-scrolled
 crashes settings
 # Player options: audio, subtitles (built-in and from an add-on), speed
@@ -210,7 +210,7 @@ if want sidebar; then
 adb shell am start -W -n $P/.DetailActivity --es type movie --es id tt0111161 --es name Test
 waitfor Trailer 12; nudge; key DPAD_LEFT 1; key DPAD_LEFT 1; key DPAD_LEFT 1; key DPAD_LEFT 2; texts detail-sidebar 40; shot 33-detail-sidebar
 key DPAD_DOWN 1; key DPAD_DOWN 1; key DPAD_CENTER 6; top sidebar-to-movies; texts sidebar-to-movies 12
-adb shell am start -W --activity-clear-task --activity-new-task -n $P/.SettingsActivity; sleep 4; key DPAD_LEFT 2; texts settings-sidebar 20; shot 34-settings-sidebar
+adb shell am start -W -f 0x10008000 -n $P/.SettingsActivity; sleep 4; key DPAD_LEFT 2; texts settings-sidebar 20; shot 34-settings-sidebar
 key BACK 2; texts settings-after-back 8
 crashes sidebar
 # Remote-button link to a service page
@@ -247,18 +247,18 @@ adb shell am start -W -n $P/.SearchActivity --ez demo_listen true; sleep 3; shot
 crashes search
 fi
 # Themes
-adb shell am start -W --activity-clear-task --activity-new-task -n $P/.SettingsActivity --es category appearance; sleep 4; shot 38-themes
+adb shell am start -W -f 0x10008000 -n $P/.SettingsActivity --es category appearance; sleep 4; shot 38-themes
 curl -s -m 20 -X POST --data-urlencode "theme=2" http://127.0.0.1:8090/appearance | grep -o "<p class='m'>[^<]*"
 adb shell am start -W -n $P/.MainActivity; sleep 8; nudge; shot 39-home-ocean-theme
 # (the setup page only answers reliably while an inner screen such as Settings is open)
-adb shell am start -W --activity-clear-task --activity-new-task -n $P/.SettingsActivity; sleep 3
+adb shell am start -W -f 0x10008000 -n $P/.SettingsActivity; sleep 3
 curl -s -m 20 -X POST --data-urlencode "theme=0" http://127.0.0.1:8090/appearance | grep -o "<p class='m'>[^<]*"
 # Highlight colour: Mint (accent 3 → highlight 5), then back to white
 curl -s -m 20 -X POST --data-urlencode "highlight=5" http://127.0.0.1:8090/appearance | grep -o "<p class='m'>[^<]*"
 adb shell am force-stop $P
-adb shell am start -W --activity-clear-task --activity-new-task -n $P/.SettingsActivity --es category appearance; sleep 4; key DPAD_RIGHT 1; focused highlight-settings; shot 39b-highlight-mint-settings
+adb shell am start -W -f 0x10008000 -n $P/.SettingsActivity --es category appearance; sleep 4; key DPAD_RIGHT 1; focused highlight-settings; shot 39b-highlight-mint-settings
 adb shell am start -W -n $P/.MainActivity; waitfor "Your apps" 15; nudge; key DPAD_DOWN 1; shot 39c-highlight-mint-home
-adb shell am start -W --activity-clear-task --activity-new-task -n $P/.SettingsActivity; sleep 6
+adb shell am start -W -f 0x10008000 -n $P/.SettingsActivity; sleep 6
 for i in 1 2 3; do R=$(curl -s -m 20 -X POST --data-urlencode "highlight=0" http://127.0.0.1:8090/appearance | grep -o "<p class='m'>[^<]*"); echo "== HIGHLIGHT RESET: $R"; [ -n "$R" ] && break; sleep 4; done
 crashes themes
 if want quick; then
@@ -280,23 +280,23 @@ if want home-button; then
 adb shell settings put secure enabled_accessibility_services $P/$P.HomeButtonService
 adb shell settings put secure accessibility_enabled 1
 sleep 3
-adb shell am start -W --activity-clear-task --activity-new-task -n $P/.SettingsActivity --es category home; sleep 4; texts settings-home 30; shot 35-settings-home
+adb shell am start -W -f 0x10008000 -n $P/.SettingsActivity --es category home; sleep 4; texts settings-home 30; shot 35-settings-home
 adb shell cmd package set-home-activity com.google.android.apps.nexuslauncher/.NexusLauncherActivity
 adb logcat -c
-adb shell am start -W --activity-clear-task --activity-new-task -n $P/.SettingsActivity; sleep 3
+adb shell am start -W -f 0x10008000 -n $P/.SettingsActivity; sleep 3
 # A hardware Home press (through the emulator's virtual keyboard, like a real remote)
 adb emu event send EV_KEY:KEY_HOMEPAGE:1 EV_SYN:0:0; sleep 0.1; adb emu event send EV_KEY:KEY_HOMEPAGE:0 EV_SYN:0:0
 sleep 2; top after-hw-home-2s; adb logcat -d | grep FluxHome | tail -6
 # Software Home (adb input) for comparison
-adb shell am start -W --activity-clear-task --activity-new-task -n $P/.SettingsActivity; sleep 3
+adb shell am start -W -f 0x10008000 -n $P/.SettingsActivity; sleep 3
 adb shell input keyevent HOME; sleep 7; top after-sw-home-7s; adb logcat -d | grep FluxHome | tail -6
 # Hold Home
-adb shell am start -W --activity-clear-task --activity-new-task -n $P/.SettingsActivity; sleep 3
+adb shell am start -W -f 0x10008000 -n $P/.SettingsActivity; sleep 3
 adb emu event send EV_KEY:KEY_HOMEPAGE:1 EV_SYN:0:0; sleep 1.2; adb emu event send EV_KEY:KEY_HOMEPAGE:0 EV_SYN:0:0
 sleep 3; top after-long-home; shot 37-long-home
 shot 36-after-home-button
 curl -s -m 20 http://127.0.0.1:8090/ > /dev/null
-adb shell am start -W --activity-clear-task --activity-new-task -n $P/.SettingsActivity; sleep 3
+adb shell am start -W -f 0x10008000 -n $P/.SettingsActivity; sleep 3
 curl -s -m 20 http://127.0.0.1:8090/ > out/settings-page-final.html; echo "== WEB SECTIONS: $(grep -o "<summary>[^<]*" out/settings-page-final.html | tr '\n' ' ')"
 crashes home-button
 fi
@@ -305,7 +305,7 @@ if want live; then
 (sudo apt-get install -y -q samba > /tmp/samba.log 2>&1 && sudo mkdir -p /srv/flux/Shows && sudo chmod -R 777 /srv/flux \
   && printf '[global]\n  map to guest = Bad User\n  server min protocol = SMB2\n  guest account = nobody\n[flux]\n  path = /srv/flux\n  read only = no\n  guest ok = yes\n  force user = nobody\n' | sudo tee /etc/samba/smb.conf > /dev/null \
   && (sudo systemctl restart smbd || sudo smbd -D) && echo "== SAMBA: up") || echo "== SAMBA: failed $(tail -3 /tmp/samba.log)"
-adb shell am start -W --activity-clear-task --activity-new-task -n $P/.SettingsActivity --es category live; sleep 3
+adb shell am start -W -f 0x10008000 -n $P/.SettingsActivity --es category live; sleep 3
 post /iptv-xtream --data-urlencode "url=http://10.0.2.2:8000" --data-urlencode "user=test" --data-urlencode "pass=test"
 curl -s -m 60 -X POST http://127.0.0.1:8090/dvr-guide | grep -o "<p class='m'>[^<]*"
 adb shell am start -W -n $P/.LiveActivity; sleep 8; shot 60-live-guide; texts live-guide 30
@@ -322,7 +322,7 @@ key DPAD_CENTER 3; echo "== recording locally for 20s"; sleep 20
 adb shell am start -W -n $P/.RecordingsActivity; sleep 3; shot 69-recordings; texts recordings 20
 adb shell "ls -la /sdcard/Android/data/$P/files/Movies/Recordings/ 2>&1 | tail -3"
 # SMB share: sign in, browse, choose a folder, record there
-adb shell am start -W --activity-clear-task --activity-new-task -n $P/.SettingsActivity --es category live; sleep 3
+adb shell am start -W -f 0x10008000 -n $P/.SettingsActivity --es category live; sleep 3
 curl -s -m 60 -X POST --data-urlencode "host=10.0.2.2" http://127.0.0.1:8090/dvr-smb-login | grep -o "<p class='m'>[^<]*\|📁 [^<]*\|Couldn't open it[^<]*" | head -6
 curl -s -m 60 -X POST --data-urlencode "path=flux" http://127.0.0.1:8090/dvr-smb-open | grep -o "📁 [^<]*\|Use this folder" | head -4
 post /dvr-smb-use --data-urlencode "path=flux/Shows"
@@ -337,21 +337,21 @@ adb shell am start -W -a android.intent.action.VIEW -d "fluxtv://live/201"; slee
 adb shell am start -W -n $P/.MainActivity; sleep 8; nudge; key DPAD_DOWN 1; shot 73-home-row-1; key DPAD_DOWN 1; shot 74-home-row-2; key DPAD_DOWN 1; shot 75-home-row-3; texts home-live-row 40
 crashes live
 # ---------------- Which channels show: countries from group names ("US| News", "UK| Sports"), guide download indicator
-adb shell am start -W --activity-clear-task --activity-new-task -n $P/.SettingsActivity --es category live; sleep 6
+adb shell am start -W -f 0x10008000 -n $P/.SettingsActivity --es category live; sleep 6
 post /iptv-regions --data-urlencode "regions=US" --data-urlencode "unknown=show"
 adb shell am start -W -n $P/.LiveActivity; sleep 6; texts live-us-only 40; shot 76-live-us-only
-adb shell am start -W --activity-clear-task --activity-new-task -n $P/.SettingsActivity --es category live; sleep 6
+adb shell am start -W -f 0x10008000 -n $P/.SettingsActivity --es category live; sleep 6
 (curl -s -m 60 -X POST http://127.0.0.1:8090/dvr-guide > /dev/null &) ; sleep 1.5; shot 77-settings-guide-downloading
 sleep 8; for i in 1 2 3 4 5 6 7 8 9 10 11 12; do key DPAD_DOWN 0; done; sleep 2; texts settings-live-channels 50; shot 78-settings-live-channels
 adb shell am start -W -n $P/.IptvFilterActivity; sleep 4; texts iptv-filter 30; shot 79-iptv-filter
 key DPAD_CENTER 2; texts iptv-filter-hidden 10; key DPAD_CENTER 2; texts iptv-filter-shown-again 10
-adb shell am start -W --activity-clear-task --activity-new-task -n $P/.SettingsActivity --es category live; sleep 6
+adb shell am start -W -f 0x10008000 -n $P/.SettingsActivity --es category live; sleep 6
 post /iptv-regions --data-urlencode "regions=" --data-urlencode "unknown=show"
 crashes channel-filters
 fi
 if want theme-place; then
 # ---------------- Settings keeps your place after choosing a theme
-adb shell am start -W --activity-clear-task --activity-new-task -n $P/.SettingsActivity --es category appearance; sleep 3
+adb shell am start -W -f 0x10008000 -n $P/.SettingsActivity --es category appearance; sleep 3
 key DPAD_CENTER 2; key DPAD_RIGHT 1; key DPAD_RIGHT 1; focused theme-before
 key DPAD_CENTER 4; focused theme-after; shot 91-theme-after
 curl -s -m 20 -X POST --data-urlencode "theme=0" http://127.0.0.1:8090/appearance > /dev/null
@@ -365,11 +365,11 @@ sleep 8; texts home-later 25
 fi
 if want smarthome; then
 # ---------------- Smart home panel (Home Assistant)
-adb shell am start -W --activity-clear-task --activity-new-task -n $P/.SettingsActivity --es category smarthome; sleep 3
+adb shell am start -W -f 0x10008000 -n $P/.SettingsActivity --es category smarthome; sleep 3
 post /sh-connect --data-urlencode "url=http://10.0.2.2:8000/ha" --data-urlencode "token=wrong"
 post /sh-connect --data-urlencode "url=http://10.0.2.2:8000/ha" --data-urlencode "token=hatoken"
 curl -s -m 30 http://127.0.0.1:8090/ > out/settings-page-sh.html; echo "== WEB DEVICES: $(grep -o "name='d_[^']*'[^>]*>[^<]*" out/settings-page-sh.html | sed "s/name='d_//; s/' value='on'//" | tr '\n' '|')"
-adb shell am start -W --activity-clear-task --activity-new-task -n $P/.SettingsActivity --es category smarthome; sleep 5; shot 80-settings-smarthome; texts settings-smarthome 40
+adb shell am start -W -f 0x10008000 -n $P/.SettingsActivity --es category smarthome; sleep 5; shot 80-settings-smarthome; texts settings-smarthome 40
 adb shell settings put secure enabled_accessibility_services $P/$P.HomeButtonService; adb shell settings put secure accessibility_enabled 1; sleep 3
 adb shell am start -W -a android.intent.action.VIEW -d "fluxtv://smarthome"
 sleep 5; top smart-panel; shot 81-smart-panel   # (no uiautomator here: it pauses accessibility services, which closes the panel)
@@ -389,7 +389,7 @@ crashes smarthome
 fi
 if want apps-sync; then
 # ---------------- icons, Apps grid, Settings focus, age limits, TV-to-TV sync
-adb shell am start -W --activity-clear-task --activity-new-task -n $P/.SettingsActivity --es category home; sleep 3
+adb shell am start -W -f 0x10008000 -n $P/.SettingsActivity --es category home; sleep 3
 sleep 2; focused settings-start; key DPAD_RIGHT 2; focused settings-right
 for i in 1 2 3 4 5 6 7 8 9 10; do key DPAD_DOWN 1; F=$(focused settings-down-$i); echo "$F"; case "$F" in *"): Round"*|*"): Square"*) break;; esac; done
 key DPAD_CENTER 3; focused settings-after-click; top settings-after-click; shot 50-settings-after-click
@@ -399,7 +399,7 @@ adb shell am start -W -n $P/.MainActivity; sleep 8; nudge
 for i in 1 2 3 4 5 6; do key DPAD_DOWN 1; done; shot 52-home-app-tiles
 adb forward tcp:8091 tcp:8091
 echo "== HELLO: $(curl -s -m 10 http://127.0.0.1:8091/sync/hello)"
-adb shell am start -W --activity-clear-task --activity-new-task -n $P/.SettingsActivity --es category profiles; sleep 3
+adb shell am start -W -f 0x10008000 -n $P/.SettingsActivity --es category profiles; sleep 3
 CODE=$(curl -s -m 20 -X POST http://127.0.0.1:8090/sync-code | grep -o "settings page): [0-9]*" | grep -o "[0-9]*$"); echo "== CODE: $CODE"
 PAIR=$(curl -s -m 20 -X POST -H 'Content-Type: application/json' -d "{\"code\":\"$CODE\",\"id\":\"faketv\",\"name\":\"Bedroom TV\",\"key\":\"\"}" http://127.0.0.1:8091/sync/pair); echo "== PAIR: $PAIR"
 KEY=$(echo "$PAIR" | python3 -c "import json,sys; print(json.load(sys.stdin).get('key',''))")
@@ -424,7 +424,7 @@ curl -s -m 20 -X POST --data-urlencode "name=Kids" http://127.0.0.1:8090/profile
 adb shell am start -W -n $P/.MainActivity; sleep 10; nudge; texts kids-home 50; shot 54-kids-home
 key DPAD_LEFT 1; key DPAD_LEFT 1; shot 55-kids-sidebar; texts kids-sidebar 30; key BACK 1
 adb shell am start -W -n $P/.MainActivity --es section favorites; sleep 5; texts kids-favorites 30; shot 56-kids-favorites
-adb shell am start -W --activity-clear-task --activity-new-task -n $P/.SettingsActivity --es category profiles; sleep 3
+adb shell am start -W -f 0x10008000 -n $P/.SettingsActivity --es category profiles; sleep 3
 curl -s -m 20 -X POST --data-urlencode "name=Default" http://127.0.0.1:8090/profile-use | grep -o "<p class='m'>[^<]*"
 crashes sync
 fi
@@ -450,7 +450,7 @@ sleep 15
 curl -s -m 60 -X POST http://127.0.0.1:8090/dvr-guide | grep -o "<p class='m'>[^<]*"
 curl -s -m 20 http://127.0.0.1:8090/ > out/settings-page-epg.html; echo "== WEB EPG: $(grep -o 'Last download: [^<]*\|extra-epg.xml: [^<]*' out/settings-page-epg.html | tr '\n' ' ')"
 adb shell am start -W -n $P/.LiveActivity; sleep 8; shot 97-guide-extra; texts guide-extra 40
-adb shell am start -W --activity-clear-task --activity-new-task -n $P/.SettingsActivity --es category live; sleep 4; key DPAD_RIGHT 1; key DPAD_DOWN 1; key DPAD_DOWN 1; key DPAD_DOWN 1; key DPAD_DOWN 1; key DPAD_DOWN 1; shot 98-settings-epg; texts settings-epg 40
+adb shell am start -W -f 0x10008000 -n $P/.SettingsActivity --es category live; sleep 4; key DPAD_RIGHT 1; key DPAD_DOWN 1; key DPAD_DOWN 1; key DPAD_DOWN 1; key DPAD_DOWN 1; key DPAD_DOWN 1; shot 98-settings-epg; texts settings-epg 40
 crashes epg
 fi
 if want portal; then
@@ -477,7 +477,7 @@ key DPAD_RIGHT 2; shot 105-multiview-right
 key MENU 2; texts multiview-menu 10; tap "Add a view"; sleep 10; shot 106-multiview-3
 key BACK 2
 crashes portal-catchup-multiview
-adb shell am start -W --activity-clear-task --activity-new-task -n $P/.SettingsActivity; sleep 4
+adb shell am start -W -f 0x10008000 -n $P/.SettingsActivity; sleep 4
 curl -s -m 30 -X POST --data-urlencode "tmdb=http://10.0.2.2:8000/3" --data-urlencode "gemini=http://10.0.2.2:8000/gemini/" --data-urlencode "trakt=http://10.0.2.2:8000/trakt" --data-urlencode "sports=http://10.0.2.2:8000/espn" http://127.0.0.1:8090/test-config | grep -o "<p class='m'>[^<]*"
 adb shell am start -W -n $P/.SportsActivity; waitfor Table 15; texts sports 40; shot 107-sports
 tap "Kansas City Chiefs"; sleep 10; top sports-watch; shot 108-sports-watch; key BACK 2
