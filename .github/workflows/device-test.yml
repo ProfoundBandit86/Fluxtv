@@ -5,6 +5,7 @@ name: Device test (emulator)
 on:
   push:
     branches: [device-test]
+    paths-ignore: ['**.md']
   workflow_dispatch:
 
 permissions:
