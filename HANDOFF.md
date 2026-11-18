@@ -1,6 +1,6 @@
 # Flux TV — handoff
 
-Last updated: 2026-11-17 · latest release **v32** · repo `ProfoundBandit86/Fluxtv` (old name `fluxtv` redirects)
+Last updated: 2026-11-18 · latest release **redesign (Nov 18)** · repo `ProfoundBandit86/Fluxtv` (old name `fluxtv` redirects)
 
 This file is for whoever picks the project up next (a person or a new AI session). It says what Flux is,
 how it is built, tested and released, what was done recently, and the rules and gotchas learned the hard way.
@@ -81,6 +81,23 @@ Gotchas for tests:
   internet/relay move to the LAN — owner reported slow Plex artwork; not verified against his server yet.
   **Tests**: quick/full emulator modes (see §2). (v31 was the docs-only HANDOFF commit's build number.)
 
+- **Redesign (released Nov 18, from the owner-approved Design canvas):** Home has an always-visible labelled
+  dock (`MainActivity` rail mirrors the menu via view tags `R.id.rail_icon/rail_label`; ← still opens the full menu;
+  owner does NOT want buttons across the top). `ClockBadge` (weather + time) is added to the window of screens in
+  `App.BADGE_SCREENS` and fades while a full-screen ScrollView under it is scrolled; the player has its own.
+  `Weather` = Open-Meteo (+ zippopotam.us for US ZIPs), place set in Settings → Home screen → Weather or phone
+  `/weather` (owner still needs to enter his ZIP). Player controls on one dark glass panel (Ask Gemini · −10 ⏯ +30 ·
+  Subtitles · Audio · ⋮). **Ask Gemini is voice-first** (owner asked: no suggestions, no typing): full-screen dark
+  overlay, SpeechRecognizer with partial results, falls back to the TV's voice screen; test builds take
+  `--es gemini_test_question`. Up next is a card with countdown. Settings sections are cards (`section()` switches
+  `content` to the card; `pane` is the list). Buttons are pills (`Ui.focusablePill`). Service logos: TMDB SVG →
+  `.png`, exact company names, transparency checked (`Ui.hasTransparency`).
+- **In testing (next release):** IPTV country filter / hidden groups & channels (`Iptv.shown`, `IptvFilterActivity`,
+  Settings → Live TV → Channels, guide ⋮ menu, phone `/iptv-regions`), guide download indicator
+  (`Iptv.guideStatus()`), service-page first-poster highlight not clipped (`Ui.page` no clipping).
+- Catch-up: supported for MAC portals (tested), Xtream (`tv_archive`) and M3U `catchup` tags; past programmes with ↺
+  in the guide replay. Xtream replay is now exercised in the test (Flux News channel).
+
 ## 5. Rules and decisions to keep
 
 - Owner is non-technical; explain in plain words. Releases go straight to his TV, so test on the emulator first.
@@ -93,19 +110,16 @@ Gotchas for tests:
 
 ## 6. Known gaps / ideas
 
-- **Design mockup (owner approved the direction):** claude.ai Design canvas "Flux TV — sleeker video player" — dark-glass
-  player controls, Ask Gemini opens straight into voice (no suggestion chips), sleeker title info page, Up next card,
-  Home screen with an **always-visible left dock** (owner does NOT want buttons across the top), clock + weather badge
-  top right on every screen, Settings › Theme with Highlight colour. Not built in the app yet. Weather needs a
-  ZIP/city setting (ask the owner).
+- **Design canvas** "Flux TV — sleeker video player" on claude.ai holds the approved mockups (built in the redesign).
+  Owner still needs to set his ZIP for the weather.
 - **Lip sync** (proposed, waiting for owner's go-ahead): manual audio delay in ⋮ (±50 ms), remembered per audio
   output device (TV speakers / Bluetooth / soundbar) and per show, plus a one-time flash-and-beep calibration.
   Media3 has no built-in audio delay: wrap `DefaultAudioSink` in a `ForwardingAudioSink` that offsets
   `getCurrentPositionUs`.
-- App tiles on Home (`MainActivity` ~line 1023) still outline with `Ui.ACCENT`, not `Ui.FOCUS`.
 - Test `waitfor "Your apps"` never matches (falls back to the full old wait); find a label that the dump shows.
+- Test: the phone page often doesn't answer right after Settings reopens (highlight reset step) — harmless, but the
+  rest of that run keeps a Mint highlight.
 
-- Xtream catch-up URL format is standard but wasn't exercised end-to-end on the emulator (portal catch-up was).
 - MAC portals that hand out HLS (`.m3u8`) links won't play through `fluxiptv://` (media type is guessed before resolving); most give TS.
 - "Ask Gemini" has no frame for DRM video and isn't in the Live TV player yet.
 - Not yet tested on the real TV: Multiview, Sports layout, Ask Gemini, auto-reconnect.
