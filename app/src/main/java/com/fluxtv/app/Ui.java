@@ -406,6 +406,12 @@ public final class Ui {
     /** Wide 16:9 card with progress (Continue watching, episodes). */
     public static View landscape(Context c, String imageUrl, String title, String sub, String badge,
                                  double progress, float widthDp, View.OnClickListener click, Runnable onFocus) {
+        return landscape(c, new String[]{imageUrl}, title, sub, badge, progress, widthDp, click, onFocus);
+    }
+
+    /** images: tried in turn until one loads (e.g. episode still, backdrop, poster). */
+    public static View landscape(Context c, String[] images, String title, String sub, String badge,
+                                 double progress, float widthDp, View.OnClickListener click, Runnable onFocus) {
         LinearLayout col = vertical(c);
         LinearLayout.LayoutParams clp = new LinearLayout.LayoutParams(dp(c, widthDp), ViewGroup.LayoutParams.WRAP_CONTENT);
         clp.setMargins(0, dp(c, 6), dp(c, 14), dp(c, 6));
@@ -414,7 +420,7 @@ public final class Ui {
         FrameLayout f = frame(c, click, widthDp);
         ImageView img = image(c, BUTTON, 10);
         f.addView(img, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(c, widthDp * 9 / 16)));
-        ImageLoader.load(img, imageUrl, dp(c, widthDp));
+        ImageLoader.loadFirst(img, dp(c, widthDp), images);
         if (badge != null && !badge.isEmpty()) f.addView(badge(c, badge));
         if (progress > 0) {
             View bar = progressBar(c, progress);
@@ -514,14 +520,18 @@ public final class Ui {
         return content;
     }
 
-    /** True when the picture's corners are see-through (a logo on a clear background). */
+    /** True when a good part of the picture is see-through (a logo on a clear background, safe to tint white). */
     public static boolean hasTransparency(android.graphics.Bitmap b) {
         if (b == null || !b.hasAlpha() || b.getWidth() < 2 || b.getHeight() < 2) return false;
-        int w = b.getWidth() - 1, h = b.getHeight() - 1;
-        int[] px = {b.getPixel(0, 0), b.getPixel(w, 0), b.getPixel(0, h), b.getPixel(w, h)};
-        int clear = 0;
-        for (int p : px) if (Color.alpha(p) < 40) clear++;
-        return clear >= 3;
+        int clear = 0, n = 0;
+        for (int y = 0; y < 12; y++) {
+            for (int x = 0; x < 12; x++) {
+                int p = b.getPixel(x * (b.getWidth() - 1) / 11, y * (b.getHeight() - 1) / 11);
+                n++;
+                if (Color.alpha(p) < 40) clear++;
+            }
+        }
+        return clear * 100 / n >= 12;
     }
 
     public static String time(long ms) {

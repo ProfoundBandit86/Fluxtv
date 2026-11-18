@@ -882,6 +882,16 @@ public class SettingsActivity extends FluxActivity {
             content.addView(a);
             content.addView(label("Open this on a phone or computer on the same Wi-Fi while Settings is open. Every setting is there."));
         }
+        section("Pictures");
+        content.addView(label(ImageLoader.report()));
+        LinearLayout pics = buttonRow();
+        pics.addView(Ui.button(this, R.drawable.ic_update, "Clear saved pictures", v -> {
+            App.async(() -> { ImageLoader.clear(); return true; }, ok -> {
+                Toast.makeText(this, "Pictures will download fresh", Toast.LENGTH_SHORT).show();
+                render(true);
+            }, null);
+        }));
+        pics.addView(Ui.button(this, "Refresh this report", v -> render(true)));
         section("Flux TV " + Updater.currentName(this));
         LinearLayout sys = buttonRow();
         sys.addView(Ui.button(this, R.drawable.ic_update, "Check for updates", v -> Updater.check(this, true)));

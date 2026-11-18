@@ -106,6 +106,23 @@ final class Plex {
         return null;
     }
 
+    /**
+     * Plex picture links saved earlier (Continue watching, Favorites) carry the server address of that time. When the
+     * server has since moved (home network ↔ internet ↔ relay) they stop loading, so point them at today's address.
+     */
+    static String fixImageUrl(String url) {
+        if (url == null || !url.contains("X-Plex-Token=") || !url.contains("/photo/:/transcode")) return url;
+        try {
+            for (MediaServer s : Store.servers()) {
+                if (!MediaServer.PLEX.equals(s.kind) || s.url.isEmpty() || s.token.isEmpty()) continue;
+                if (!url.contains("X-Plex-Token=" + Http.enc(s.token)) || url.startsWith(s.url + "/")) continue;
+                int path = url.indexOf("/photo/:/transcode");
+                return s.url + url.substring(path);
+            }
+        } catch (Exception ignored) { }
+        return url;
+    }
+
     /** True when the address is on the home network (a private IP, or a plex.direct name for one). */
     static boolean onHomeNetwork(String url) {
         String host;

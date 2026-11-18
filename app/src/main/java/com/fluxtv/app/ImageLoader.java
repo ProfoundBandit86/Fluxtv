@@ -26,8 +26,8 @@ public final class ImageLoader {
             new java.util.concurrent.LinkedBlockingDeque<Runnable>() {
                 @Override public boolean offer(Runnable r) { return super.offerFirst(r); }
             });
-    /** One download per picture even when several views ask for it at once. */
-    private static final java.util.Map<String, java.util.List<Runnable>> INFLIGHT = new java.util.HashMap<>();
+    /** One download per picture even when several views ask for it at once: [on success, on failure] per view. */
+    private static final java.util.Map<String, java.util.List<Runnable[]>> INFLIGHT = new java.util.HashMap<>();
 
     private ImageLoader() { }
 
@@ -37,45 +37,102 @@ public final class ImageLoader {
 
     /** onLoaded runs on the main thread once the picture is shown (not if it fails). */
     public static void load(ImageView view, String url, int targetWidthPx, Runnable onLoaded) {
-        view.setTag(url);
-        if (url == null || url.isEmpty()) {
+        load(view, new String[]{url}, 0, targetWidthPx, onLoaded);
+    }
+
+    /** Tries each picture in turn (e.g. episode still, then backdrop, then poster) until one loads. */
+    public static void loadFirst(ImageView view, int targetWidthPx, String... urls) {
+        load(view, urls, 0, targetWidthPx, null);
+    }
+
+    private static void load(ImageView view, String[] urls, int i, int targetWidthPx, Runnable onLoaded) {
+        while (i < urls.length && (urls[i] == null || urls[i].isEmpty())) i++;
+        String key = java.util.Arrays.toString(urls);
+        view.setTag(key);
+        if (i >= urls.length) {
             view.setImageDrawable(null);
             return;
         }
+        String url = Plex.fixImageUrl(urls[i]);
         Bitmap cached = CACHE.get(url);
         if (cached != null) {
             view.setImageBitmap(cached);
             if (onLoaded != null) onLoaded.run();
             return;
         }
-        view.setImageDrawable(null);
+        if (i == 0) view.setImageDrawable(null);
+        int next = i + 1;
         Runnable show = () -> {
             Bitmap b = CACHE.get(url);
-            if (b != null && url.equals(view.getTag())) {
+            if (b != null && key.equals(view.getTag())) {
                 view.setImageBitmap(b);
                 if (onLoaded != null) onLoaded.run();
             }
         };
+        Runnable fail = () -> { if (key.equals(view.getTag()) && next < urls.length) load(view, urls, next, targetWidthPx, onLoaded); };
         synchronized (INFLIGHT) {
-            java.util.List<Runnable> waiting = INFLIGHT.get(url);
-            if (waiting != null) { waiting.add(show); return; }
+            java.util.List<Runnable[]> waiting = INFLIGHT.get(url);
+            if (waiting != null) { waiting.add(new Runnable[]{show, fail}); return; }
             waiting = new java.util.ArrayList<>();
-            waiting.add(show);
+            waiting.add(new Runnable[]{show, fail});
             INFLIGHT.put(url, waiting);
         }
         POOL.execute(() -> {
-            java.util.List<Runnable> waiting;
+            java.util.List<Runnable[]> waiting;
             // Scrolled away before its turn came: skip the work (it is asked for again if it comes back).
-            boolean wanted = url.equals(view.getTag());
+            boolean wanted = key.equals(view.getTag());
             synchronized (INFLIGHT) {
                 if (!wanted && INFLIGHT.get(url) != null && INFLIGHT.get(url).size() <= 1) { INFLIGHT.remove(url); return; }
             }
             Bitmap b = fetch(url, targetWidthPx);
+            if (b == null) {   // one more try after a moment (busy servers, a dropped connection)
+                try { Thread.sleep(1500); } catch (InterruptedException ignored) { }
+                b = fetch(url, targetWidthPx);
+            }
             if (b != null) CACHE.put(url, b);
             synchronized (INFLIGHT) { waiting = INFLIGHT.remove(url); }
-            if (b == null || waiting == null) return;
-            App.MAIN.post(() -> { for (Runnable r : waiting) r.run(); });
+            if (waiting == null) return;
+            boolean ok = b != null;
+            java.util.List<Runnable[]> w = waiting;
+            App.MAIN.post(() -> { for (Runnable[] r : w) (ok ? r[0] : r[1]).run(); });
         });
+    }
+
+    // ------------------------------------------------------------ what went wrong (Settings → System → Pictures)
+
+    private static final java.util.LinkedList<String> FAILS = new java.util.LinkedList<>();
+    private static int failCount, okCount;
+
+    private static void failed(String url, String why) {
+        String host;
+        try { host = new java.net.URI(url).getHost(); } catch (Exception e) { host = null; }
+        if (host == null) host = url.length() > 40 ? url.substring(0, 40) : url;
+        String line = new java.text.SimpleDateFormat("h:mm a", java.util.Locale.getDefault()).format(new java.util.Date())
+                + "  " + host + "  " + why;
+        synchronized (FAILS) {
+            failCount++;
+            FAILS.addFirst(line);
+            while (FAILS.size() > 25) FAILS.removeLast();
+        }
+    }
+
+    /** Forgets every saved picture (memory and disk), so they all download fresh. */
+    public static void clear() {
+        CACHE.evictAll();
+        if (dir == null) diskFile("x");
+        java.io.File[] all = dir.listFiles();
+        if (all != null) for (java.io.File f : all) f.delete();
+        synchronized (FAILS) { FAILS.clear(); failCount = 0; okCount = 0; }
+    }
+
+    /** A short report of pictures that didn't load since Flux started. */
+    public static String report() {
+        synchronized (FAILS) {
+            if (failCount == 0) return okCount + " pictures loaded, none failed since Flux started.";
+            StringBuilder sb = new StringBuilder(okCount + " loaded · " + failCount + " didn't load since Flux started. Latest:");
+            for (String l : FAILS) sb.append("\n").append(l);
+            return sb.toString();
+        }
     }
 
     public interface Got { void run(Bitmap b); }
@@ -181,8 +238,28 @@ public final class ImageLoader {
             BitmapFactory.Options o = new BitmapFactory.Options();
             o.inSampleSize = sample;
             o.inPreferredConfig = alpha ? Bitmap.Config.ARGB_8888 : Bitmap.Config.RGB_565;
-            return BitmapFactory.decodeByteArray(data, 0, data.length, o);
-        } catch (Exception | OutOfMemoryError e) {
+            Bitmap b = BitmapFactory.decodeByteArray(data, 0, data.length, o);
+            if (b == null) {
+                failed(url, "not a picture Android can show (" + data.length + " bytes" + (url.contains(".svg") ? ", SVG" : "") + ")");
+                diskFile(url).delete();   // don't keep serving a bad copy
+            } else {
+                synchronized (FAILS) { okCount++; }
+            }
+            return b;
+        } catch (Http.HttpException e) {
+            failed(url, "server said " + e.getMessage());
+            return null;
+        } catch (java.net.SocketTimeoutException e) {
+            failed(url, "timed out");
+            return null;
+        } catch (java.net.UnknownHostException e) {
+            failed(url, "address not found");
+            return null;
+        } catch (OutOfMemoryError e) {
+            failed(url, "too big");
+            return null;
+        } catch (Exception e) {
+            failed(url, e.getClass().getSimpleName() + (e.getMessage() == null ? "" : ": " + e.getMessage()));
             return null;
         }
     }

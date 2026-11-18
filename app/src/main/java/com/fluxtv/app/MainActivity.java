@@ -785,8 +785,8 @@ public class MainActivity extends Activity {
         LinearLayout row = Ui.row(this, rows, "Continue watching");
         for (JSONObject p : list) {
             boolean ext = "external".equals(p.optString("type"));
-            String img = !p.optString("still").isEmpty() ? p.optString("still")
-                    : !p.optString("background").isEmpty() ? p.optString("background") : p.optString("poster");
+            // Episode picture first, then the show's backdrop, then its poster: whichever loads.
+            String[] img = {p.optString("still"), p.optString("background"), p.optString("poster")};
             View card = Ui.landscape(this, img, p.optString("name"), p.optString("sub"), p.optString("badge"),
                     p.optDouble("progress", 0), 196,
                     v -> { if (ext) WatchNext.open(this, p); else DetailActivity.open(this, p); },
@@ -812,7 +812,7 @@ public class MainActivity extends Activity {
             View.OnClickListener open = v -> WatchNext.open(this, p);
             Runnable focus = () -> feature(p, r.note);
             if (r.wide) {
-                String img = !p.optString("still").isEmpty() ? p.optString("still") : p.optString("poster");
+                String[] img = {p.optString("still"), p.optString("background"), p.optString("poster")};
                 row.addView(Ui.landscape(this, img, p.optString("name"), p.optString("sub"), "",
                         p.optDouble("progress", 0), 196, open, focus));
             } else {
@@ -1125,11 +1125,15 @@ public class MainActivity extends Activity {
             // Loaded with its transparency kept: the logo is tinted white, and a picture without transparency
             // would turn into a solid white box, so those keep showing the name instead.
             ImageLoader.bitmap(s.wordmark, Ui.dp(this, 140), b -> {
-                if (!s.wordmark.equals(logo.getTag()) || !Ui.hasTransparency(b)) return;
+                if (!s.wordmark.equals(logo.getTag())) return;
+                if (!Ui.hasTransparency(b)) { serviceIcon(tile, s, fallback); return; }
                 logo.setImageBitmap(b);
                 logo.setColorFilter(Color.WHITE, PorterDuff.Mode.SRC_IN);   // monochrome wordmark
                 fallback.setVisibility(View.GONE);
             });
+            App.MAIN.postDelayed(() -> { if (logo.getDrawable() == null) serviceIcon(tile, s, fallback); }, 8000);
+        } else {
+            serviceIcon(tile, s, fallback);
         }
         // No white wordmark: the name itself stands in (never the coloured app icon, so all tiles match).
         col.addView(tile, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 98)));
@@ -1143,6 +1147,16 @@ public class MainActivity extends Activity {
         });
         tile.setOnClickListener(v -> startActivity(new Intent(this, ServiceActivity.class).putExtra("service", s.key)));
         return col;
+    }
+
+    /** No usable white wordmark: the service's own app icon, centred, instead of just its name. */
+    private void serviceIcon(FrameLayout tile, Tmdb.Service s, View fallback) {
+        if (s.logo.isEmpty() || tile.findViewWithTag("svcIcon") != null) return;
+        ImageView icon = Ui.image(this, Color.TRANSPARENT, 14);
+        icon.setTag("svcIcon");
+        icon.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        tile.addView(icon, new FrameLayout.LayoutParams(Ui.dp(this, 60), Ui.dp(this, 60), Gravity.CENTER));
+        ImageLoader.load(icon, s.logo, Ui.dp(this, 60), () -> fallback.setVisibility(View.GONE));
     }
 
     // ------------------------------------------------------------ featured area
@@ -1170,7 +1184,7 @@ public class MainActivity extends Activity {
         String bg = p.optString("background");
         heroImage.animate().cancel();
         heroImage.setAlpha(0.35f);
-        ImageLoader.load(heroImage, bg.isEmpty() ? p.optString("poster") : bg, Ui.dp(this, 900));
+        ImageLoader.loadFirst(heroImage, Ui.dp(this, 900), bg, p.optString("still"), p.optString("poster"));
         heroImage.animate().alpha(1f).setDuration(260).start();
     }
 
