@@ -182,7 +182,27 @@ public class PlayerActivity extends Activity {
                     player.play();
                     return;
                 }
+                // The connection to the server dropped or stalled (common with debrid / IPTV servers):
+                // reconnect and carry on from the same spot, a few times, before giving up.
+                if (!live && isNetworkError(error) && netRetries < 5) {
+                    netRetries++;
+                    long pos = player.getCurrentPosition();
+                    Toast.makeText(PlayerActivity.this, "Connection dropped, reconnecting…", Toast.LENGTH_SHORT).show();
+                    App.MAIN.postDelayed(() -> {
+                        if (player == null || isFinishing()) return;
+                        player.prepare();
+                        if (pos > 0) player.seekTo(pos);
+                        player.play();
+                    }, Math.min(8000, 1000L << (netRetries - 1)));
+                    return;
+                }
                 showError(error);
+            }
+        });
+        player.addListener(new Player.Listener() {
+            @Override
+            public void onIsPlayingChanged(boolean playing) {
+                if (playing) App.MAIN.postDelayed(() -> { if (player != null && player.isPlaying()) netRetries = 0; }, 20_000);
             }
         });
 
@@ -1780,12 +1800,25 @@ public class PlayerActivity extends Activity {
         if (dur > 0 && pos >= 0) Sources.report(info.videoId, pos, dur);
     }
 
+    private int netRetries;
+
+    /** IO errors 2000–2999: the stream's connection failed, not the file's format. */
+    private static boolean isNetworkError(PlaybackException e) {
+        return e.errorCode >= 2000 && e.errorCode < 3000 && e.errorCode != PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND
+                && e.errorCode != PlaybackException.ERROR_CODE_IO_NO_PERMISSION;
+    }
+
     private void showError(PlaybackException error) {
         if (isFinishing()) return;
+        String why = isNetworkError(error)
+                ? "The connection to the stream's server kept dropping, even after reconnecting. The server may be busy or the link "
+                  + "may have expired: go back and press Play again, or pick another source."
+                : error.errorCode >= 4000 && error.errorCode < 5000
+                ? "The built-in player may not support this file's audio or video format."
+                : "This source couldn't be played. Try another source.";
         new AlertDialog.Builder(this)
                 .setTitle("Playback error")
-                .setMessage(error.getErrorCodeName() + "\n" + (error.getMessage() == null ? "" : error.getMessage())
-                        + "\n\nThe built-in player may not support this file's audio or video format.")
+                .setMessage(why + "\n\n(" + error.getErrorCodeName() + ")")
                 .setPositiveButton("Open in another player", (d, w) -> {
                     openExternally();
                     finish();
