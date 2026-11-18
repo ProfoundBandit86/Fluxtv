@@ -1,6 +1,6 @@
 # Flux TV — handoff
 
-Last updated: 2026-11-17 · latest release **v30** · repo `ProfoundBandit86/Fluxtv` (old name `fluxtv` redirects)
+Last updated: 2026-11-17 · latest release **v32** · repo `ProfoundBandit86/Fluxtv` (old name `fluxtv` redirects)
 
 This file is for whoever picks the project up next (a person or a new AI session). It says what Flux is,
 how it is built, tested and released, what was done recently, and the rules and gotchas learned the hard way.
@@ -74,6 +74,12 @@ Gotchas for tests:
 - v29: player bar simplified to Ask Gemini + ⋮; **Ask Gemini** panel (pauses, sends a still of the frame + title/time context,
   Google Search grounding, voice or typed follow-ups, spoiler-safe)
 - v30: player reconnects on dropped connections (ERROR_CODE_IO_*) instead of the misleading "format not supported" dialog
+- v32: **Highlight colour** (Settings → Appearance; White / Match theme / any accent). All focus fills and outlines use
+  `Ui.FOCUS`, text on them `Ui.ON_FOCUS` (picked for contrast). Also on the phone page (`/appearance highlight=`).
+  **Plex**: tries the plain LAN address (`http://ip:32400`) before `*.plex.direct` (often blocked by routers' DNS
+  rebinding protection), and `Plex.recheckConnections()` runs 4 s after start so servers first reached over the
+  internet/relay move to the LAN — owner reported slow Plex artwork; not verified against his server yet.
+  **Tests**: quick/full emulator modes (see §2). (v31 was the docs-only HANDOFF commit's build number.)
 
 ## 5. Rules and decisions to keep
 
@@ -86,6 +92,18 @@ Gotchas for tests:
 - Gemini uses the owner's own key (Settings → Search). Sports scores use ESPN's unofficial public JSON — may change without notice.
 
 ## 6. Known gaps / ideas
+
+- **Design mockup (owner approved the direction):** claude.ai Design canvas "Flux TV — sleeker video player" — dark-glass
+  player controls, Ask Gemini opens straight into voice (no suggestion chips), sleeker title info page, Up next card,
+  Home screen with an **always-visible left dock** (owner does NOT want buttons across the top), clock + weather badge
+  top right on every screen, Settings › Theme with Highlight colour. Not built in the app yet. Weather needs a
+  ZIP/city setting (ask the owner).
+- **Lip sync** (proposed, waiting for owner's go-ahead): manual audio delay in ⋮ (±50 ms), remembered per audio
+  output device (TV speakers / Bluetooth / soundbar) and per show, plus a one-time flash-and-beep calibration.
+  Media3 has no built-in audio delay: wrap `DefaultAudioSink` in a `ForwardingAudioSink` that offsets
+  `getCurrentPositionUs`.
+- App tiles on Home (`MainActivity` ~line 1023) still outline with `Ui.ACCENT`, not `Ui.FOCUS`.
+- Test `waitfor "Your apps"` never matches (falls back to the full old wait); find a label that the dump shows.
 
 - Xtream catch-up URL format is standard but wasn't exercised end-to-end on the emulator (portal catch-up was).
 - MAC portals that hand out HLS (`.m3u8`) links won't play through `fluxiptv://` (media type is guessed before resolving); most give TS.
