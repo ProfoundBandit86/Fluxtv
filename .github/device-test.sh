@@ -138,6 +138,8 @@ adb shell content query --uri content://android.media.tv/preview_program --proje
 # Home: Continue watching, apps, services, rows
 adb shell am start -W -n $P/.MainActivity
 waitfor "Your apps" 35; sleep 2
+# Android's one-time "Viewing full screen" notice takes the remote's keys until it's dismissed.
+T=$(texts first-start 40); case "$T" in *"Got it"*) tap "Got it"; sleep 2;; esac
 nudge; top home; texts home 60; shot 01-home
 for i in 1 2 3; do key DPAD_DOWN 1; done; sleep 2; texts home-scrolled 40; shot 02-home-scrolled
 key DPAD_LEFT 2; texts row-left-drawer 30; shot 02b-row-left-opens-drawer; key DPAD_RIGHT 2
