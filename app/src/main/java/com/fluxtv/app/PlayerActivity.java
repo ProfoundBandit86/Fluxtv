@@ -895,10 +895,14 @@ public class PlayerActivity extends Activity {
 
     private void buildGemini() {
         geminiPanel = new FrameLayout(this);
-        geminiPanel.setBackground(new android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.RIGHT_LEFT,
-                new int[]{Ui.alpha(Ui.PANEL, 0.98f), Ui.alpha(Ui.PANEL, 0.94f), Ui.alpha(Ui.PANEL, 0.0f)}));
+        // A solid panel on the right with a soft fade into the picture on its left edge.
+        View fade = new View(this);
+        fade.setBackground(new android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT,
+                new int[]{Ui.alpha(Ui.PANEL, 0f), Ui.alpha(Ui.PANEL, 0.97f)}));
+        geminiPanel.addView(fade, new FrameLayout.LayoutParams(Ui.dp(this, 90), -1, Gravity.START));
         LinearLayout col = Ui.vertical(this);
-        col.setPadding(Ui.dp(this, 70), Ui.dp(this, 36), Ui.dp(this, 48), Ui.dp(this, 28));
+        col.setBackgroundColor(Ui.alpha(Ui.PANEL, 0.97f));
+        col.setPadding(Ui.dp(this, 36), Ui.dp(this, 36), Ui.dp(this, 48), Ui.dp(this, 28));
         LinearLayout head = Ui.horizontal(this);
         head.setGravity(Gravity.CENTER_VERTICAL);
         android.widget.ImageView star = new android.widget.ImageView(this);
@@ -945,7 +949,7 @@ public class PlayerActivity extends Activity {
         col.addView(askField, new LinearLayout.LayoutParams(-1, -2));
         geminiPanel.addView(col, new FrameLayout.LayoutParams(Ui.dp(this, 620), -1, Gravity.END));
         geminiPanel.setVisibility(View.GONE);
-        root.addView(geminiPanel, new FrameLayout.LayoutParams(Ui.dp(this, 620), -1, Gravity.END));
+        root.addView(geminiPanel, new FrameLayout.LayoutParams(Ui.dp(this, 710), -1, Gravity.END));
     }
 
     private void addSuggestions() {
@@ -1007,12 +1011,11 @@ public class PlayerActivity extends Activity {
         asking = true;
         View sug = chat.findViewWithTag("suggestions");
         if (sug != null) chat.removeView(sug);
+        askRow.getChildAt(0).requestFocus();
         TextView q = Ui.heading(this, question, 17);
         q.setPadding(0, Ui.dp(this, 16), 0, Ui.dp(this, 6));
         chat.addView(q);
         TextView a = Ui.text(this, "Thinking…", 16, Ui.MUTED);
-        a.setFocusable(true);
-        a.setBackground(Ui.focusable(this, Color.TRANSPARENT, Ui.alpha(Color.WHITE, 0.06f), 0));
         a.setLineSpacing(0, 1.15f);
         chat.addView(a);
         chatScroll.post(() -> chatScroll.fullScroll(View.FOCUS_DOWN));
@@ -1025,14 +1028,13 @@ public class PlayerActivity extends Activity {
             history.add(new String[]{"model", answer});
             a.setText(answer);
             a.setTextColor(Ui.TEXT);
-            a.requestFocus();
             chatScroll.post(() -> chatScroll.fullScroll(View.FOCUS_DOWN));
-            askRow.getChildAt(0).requestFocus();
+            askRow.getChildAt(0).post(() -> askRow.getChildAt(0).requestFocus());
         }, e -> {
             asking = false;
             a.setText(App.message(e));
             a.setTextColor(Ui.WARN);
-            askRow.getChildAt(0).requestFocus();
+            askRow.getChildAt(0).post(() -> askRow.getChildAt(0).requestFocus());
         });
     }
 
