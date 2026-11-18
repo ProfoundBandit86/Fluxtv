@@ -1,6 +1,6 @@
 # Flux TV — handoff
 
-Last updated: 2026-11-18 · latest release **redesign (Nov 18)** · repo `ProfoundBandit86/Fluxtv` (old name `fluxtv` redirects)
+Last updated: 2026-11-18 · latest release **round 3 (Nov 18)** · repo `ProfoundBandit86/Fluxtv` (old name `fluxtv` redirects)
 
 This file is for whoever picks the project up next (a person or a new AI session). It says what Flux is,
 how it is built, tested and released, what was done recently, and the rules and gotchas learned the hard way.
@@ -92,11 +92,26 @@ Gotchas for tests:
   `--es gemini_test_question`. Up next is a card with countdown. Settings sections are cards (`section()` switches
   `content` to the card; `pane` is the list). Buttons are pills (`Ui.focusablePill`). Service logos: TMDB SVG →
   `.png`, exact company names, transparency checked (`Ui.hasTransparency`).
-- **In testing (next release):** IPTV country filter / hidden groups & channels (`Iptv.shown`, `IptvFilterActivity`,
-  Settings → Live TV → Channels, guide ⋮ menu, phone `/iptv-regions`), guide download indicator
+- **Released Nov 18 (2nd):** IPTV country filter / hidden groups & channels (`Iptv.shown`, `IptvFilterActivity`,
+  Settings → Live TV → Channels, guide ⋮ menu, phone `/iptv-regions`, `/iptv-show-all`), guide download indicator
   (`Iptv.guideStatus()`), service-page first-poster highlight not clipped (`Ui.page` no clipping).
+  **Round 3 (owner-approved mockups 7–10):** dock is 38 dp, icons only; ← slides the menu (220 dp, 13 sp labels)
+  out from it and `contentRoot` slides right (no dimming). Home rows: `rows` top padding leaves room for the featured
+  title; focusing below the first row scrolls that row to the top and fades the title (`onRowFocus`). Movies/TV/
+  Favorites start at the top with genre boxes first. Dock items can be hidden (`dock_hidden`, Settings → Home
+  screen). **Settings → Categories**: rows on Home (show/hide, ▲▼ via `HomeLayout`) + **MDBList** (`MdbList`:
+  key `mdblist_key`, lists `mdblist_lists`, items from api.mdblist.com `/lists/{user}/{slug}/items`, or public
+  `{url}/json` without a key; posters from images.metahub.space; rows join `Addons.catalogJobs`).
+  **Pictures:** `ImageLoader.loadFirst` (still → backdrop → poster), one retry, `Plex.fixImageUrl` repoints saved
+  Plex links to the current server address, failure report in Settings → System → Pictures; service tiles fall
+  back to the app icon when no usable white wordmark loads.
+- Test gotchas learned: open Settings with `am start -f 0x10008000` (NEW_TASK|CLEAR_TASK) — otherwise Android can
+  just bring Home back and the phone page never starts; `post` helper retries phone-page POSTs; dismiss Android's
+  one-time "Viewing full screen" notice ("Got it") first; the emulator starts in touch mode, so the first key on a
+  new screen may only move focus.
 - Catch-up: supported for MAC portals (tested), Xtream (`tv_archive`) and M3U `catchup` tags; past programmes with ↺
-  in the guide replay. Xtream replay is now exercised in the test (Flux News channel).
+  in the guide replay. Xtream replay test (Flux News) still needs one clean pass (earlier runs were spoiled by test
+  setup problems).
 
 ## 5. Rules and decisions to keep
 
