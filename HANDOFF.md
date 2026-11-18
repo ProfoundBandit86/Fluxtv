@@ -29,12 +29,12 @@ the owner and family. It combines:
 | Release | **Every push to `main`** builds a signed APK and publishes GitHub release `v<run number>`. TVs update themselves (Updater.java) when the home screen reloads |
 | Signing | `signing/flux-release.jks`, passwords `fluxtv-release`, alias `flux` (owner agreed to a public keystore). SHA-1 `24:A0:36:38:69:B5:09:3A:8F:BA:F0:63:C7:CE:6E:64:20:5A:ED:C0` |
 | Shrinking | R8 on (`minifyEnabled true`, `shrinkResources true`, **`-dontobfuscate`** so on-screen crash traces stay readable). Rules in `app/proguard-rules.pro` |
-| Emulator tests | Push to branch **`device-test`** → `.github/workflows/device-test.yml` runs `.github/device-test.sh` on an Android TV emulator (≈50 min, timeout 70). Screenshots + `logcat.txt` are pushed to branch **`device-test-output`** |
+| Emulator tests | Push to branch **`device-test`** → **quick** test: core sections (home, settings, player, title page, themes) + the sections matching the files changed vs `main` (≈10–20 min). Push to **`device-test-full`**, put **`[full]`** in the commit message, or "Run workflow" → full: every section (≈50 min, timeout 70). Changes to shared code (App, Http, ImageLoader, Store, manifest, build files, resources) always run full. File → section map is at the top of `.github/device-test.sh` (`want <section>`). The 2nd (Android TV) emulator only runs in full mode or when home-row code changed. Screenshots + `logcat.txt` are pushed to branch **`device-test-output`** |
 | Fake servers for tests | `.github/fake_xtream.py` (port 8000): Xtream + XMLTV + timeshift, fake TMDB, Gemini (incl. "Ask Gemini" with `/_screen` log), Trakt, Radarr/Sonarr, Home Assistant (`/ha`, token `hatoken`), subtitles add-on, IntroDB (`/introdb`), Stalker portal (`/stalker/portal.php`, MAC `00:1A:79:00:00:01`), ESPN (`/espn`), request log `/_reqs`. Test-only URLs are set through the web app's `/test-config` (TEST_BUILD only) |
-| Test helpers in device-test.sh | `key`, `shot`, `texts`, `focused`, `top`, `crashes`, `tap "<text prefix>"`, `longtap` |
+| Test helpers in device-test.sh | `key`, `shot`, `texts`, `focused`, `top`, `crashes`, `tap "<text prefix>"`, `longtap`, `waitfor "<text prefix>" <max s>` (use instead of a fixed sleep when a screen has a known label) |
 | Local compile check | `javac -sourcepath /home/claude/stubs:app/src/main/java …` against hand-made Android stubs. The stubs have many gaps (Canvas, ProgressBar, R ids…), so filter out "cannot find symbol"; **CI is the real compiler** |
 
-Usual loop: edit → push `device-test` → read `== …` lines in the run log + screenshots → push `device-test:main` to release.
+Usual loop: edit → push `device-test` (quick) → read `== MODE`/`== SECTIONS` and the other `== …` lines in the run log + screenshots → push `device-test:main` to release. Use a full run before big or risky releases (player, Home button, Live TV) — and add new tests inside an `if want <section>` block.
 
 Gotchas for tests:
 - `uiautomator dump` (used by `texts`/`focused`) takes seconds and pauses accessibility services; the player's

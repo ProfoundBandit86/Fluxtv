@@ -1,12 +1,22 @@
 name: Device test (emulator)
 
 # Runs Flux on an Android emulator, opens titles, the stream list and the player,
-# and saves logcat plus screenshots. Trigger by pushing to the device-test branch.
+# and saves logcat plus screenshots.
+#   push to device-test        → quick test: core screens + the parts the change touches (≈10–20 min)
+#   push to device-test-full,
+#   or "[full]" in the commit  → full test of every screen (≈50 min)
+#   Run workflow (Actions tab) → choose quick or full
 on:
   push:
-    branches: [device-test]
+    branches: [device-test, device-test-full]
     paths-ignore: ['**.md']
   workflow_dispatch:
+    inputs:
+      mode:
+        description: 'quick or full'
+        default: 'full'
+        type: choice
+        options: [quick, full]
 
 permissions:
   contents: write
@@ -17,6 +27,20 @@ jobs:
     timeout-minutes: 70
     steps:
       - uses: actions/checkout@v4
+
+      - name: Pick quick or full test
+        id: mode
+        run: |
+          MODE=quick
+          if [ "${{ github.event_name }}" = workflow_dispatch ]; then MODE="${{ inputs.mode }}"; fi
+          if [ "${{ github.ref_name }}" = device-test-full ]; then MODE=full; fi
+          if git log -1 --format=%B | grep -qi '\[full\]'; then MODE=full; fi
+          # Files changed compared with what's released (main)
+          git fetch -q --depth=1 origin main && git diff --name-only FETCH_HEAD HEAD > /tmp/changed.txt || : > /tmp/changed.txt
+          echo "Mode: $MODE"; echo "Changed:"; cat /tmp/changed.txt
+          echo "mode=$MODE" >> "$GITHUB_OUTPUT"
+          # The second (Android TV) emulator only checks other apps' Home rows
+          if [ "$MODE" = full ] || grep -qE 'MainActivity|Blend|WatchNext|HomeRows|HomeLayout' /tmp/changed.txt; then echo "tv=1" >> "$GITHUB_OUTPUT"; fi
 
       - uses: actions/setup-java@v4
         with:
@@ -47,10 +71,10 @@ jobs:
           profile: pixel_6
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
-          script: bash .github/device-test.sh
+          script: FLUX_TEST_MODE=${{ steps.mode.outputs.mode }} bash .github/device-test.sh
 
       - name: Run on Android TV emulator (other apps' Home rows)
-        if: always() && hashFiles('.github/QUICK_HOME') == '' && hashFiles('.github/quick.sh') == ''
+        if: always() && steps.mode.outputs.tv == '1' && hashFiles('.github/QUICK_HOME') == '' && hashFiles('.github/quick.sh') == ''
         continue-on-error: true
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -67,7 +91,7 @@ jobs:
           cd out
           git init -q -b device-test-output
           git -c user.name=ci -c user.email=ci@example.com add -A
-          git -c user.name=ci -c user.email=ci@example.com commit -q -m "Device test output ${{ github.run_number }}"
+          git -c user.name=ci -c user.email=ci@example.com commit -q -m "Device test output ${{ github.run_number }} (${{ steps.mode.outputs.mode }})"
           git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" device-test-output
 
       - uses: actions/upload-artifact@v4

@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
-# Emulator smoke test for Flux TV: home -> title page -> streams -> Real-Debrid, series page, Settings colours.
+# Emulator test for Flux TV, in sections.
+#   FLUX_TEST_MODE=full  → every section (≈50 min).
+#   FLUX_TEST_MODE=quick → the core sections (home, settings, player, title page, themes) plus the sections
+#                          that match the files changed versus main (listed in /tmp/changed.txt). ≈10–20 min.
+# A change to anything that affects every screen (App, Http, ImageLoader, Store, the manifest, build files…)
+# makes a quick run behave like a full one.
 set -x
 mkdir -p out
 P=com.fluxtv.app
@@ -16,6 +21,48 @@ s = x.rfind('<node', 0, i)
 print(' '.join(re.findall(r'text=\"([^\"]+)\"', x[s:s+3000])[:4]))")"; }
 nudge() { key DPAD_DOWN 1; key DPAD_UP 1; }
 crashes() { echo "== CRASHES ($1)"; adb logcat -d -b crash | tail -60; }
+tap() { adb shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1; B=$(adb shell cat /sdcard/ui.xml | grep -o "<node[^>]*text=\"$1[^>]*>" | head -1 | grep -o 'bounds="[^"]*"' | grep -o '[0-9]*' | tr '\n' ' '); set -- $B; if [ -n "$4" ]; then adb shell input tap $(( ($1+$3)/2 )) $(( ($2+$4)/2 )); else echo "== no element for tap"; fi; }
+longtap() { adb shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1; B=$(adb shell cat /sdcard/ui.xml | grep -o "<node[^>]*text=\"$1[^>]*>" | head -1 | grep -o 'bounds="[^"]*"' | grep -o '[0-9]*' | tr '\n' ' '); set -- $B; if [ -n "$4" ]; then adb shell input swipe $(( ($1+$3)/2 )) $(( ($2+$4)/2 )) $(( ($1+$3)/2 )) $(( ($2+$4)/2 )) 1300; else echo "== no element for longtap"; fi; }
+# Waits until some on-screen text starts with $1, for at most $2 seconds (the old fixed wait), so screens that
+# are ready early don't sit idle. Checks every ~3 s (a screen dump itself takes a moment).
+waitfor() { local end=$(( $(date +%s) + $2 )); while [ "$(date +%s)" -lt "$end" ]; do
+  adb shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1
+  if adb shell cat /sdcard/ui.xml | grep -q "text=\"$1"; then echo "== READY ($1) after $(( $2 - end + $(date +%s) ))s"; return 0; fi
+  sleep 2; done; echo "== NOT SEEN ($1) in $2 s"; }
+
+# ---------------- which sections run
+MODE=${FLUX_TEST_MODE:-full}
+CHANGED=$(cat /tmp/changed.txt 2>/dev/null | tr '\n' ' ')
+echo "== MODE: $MODE; changed: $CHANGED"
+WANT=" core "
+add() { WANT="$WANT $* "; }
+for f in $CHANGED; do
+  case "$f" in
+    *.github/device-test.sh|*.github/workflows/*|*.github/fake_xtream.py|*.md|*.github/tv-test.sh) ;;
+    */MainActivity.java|*/Blend.java|*/HomeLayout.java|*/HomeRowsActivity.java|*/WatchNext.java|*/ContinueWatching.java) add home-rows cw home-instant apps-sync ;;
+    */Apps.java|*/AppsActivity.java) add apps-sync ;;
+    */FluxActivity.java) add sidebar ;;
+    */DetailActivity.java|*/CreditsActivity.java|*/PersonActivity.java|*/GenreActivity.java) add credits sidebar arr ;;
+    */StreamsActivity.java|*/Sources.java|*/Addon.java|*/Addons.java|*/AddonsActivity.java|*/RealDebrid.java|*/PlayInfo.java) add arr ;;
+    */Arr.java|*/ArrSetupActivity.java|*/Sab.java|*/DownloadsActivity.java) add arr ;;
+    */ServiceActivity.java|*/ServiceShortcutActivity.java) add service sidebar ;;
+    */SearchActivity.java|*/Gemini.java|*/VoiceWave.java) add search gemini ;;
+    */QuickSettingsActivity.java) add quick ;;
+    */HomeButtonService.java|*/Updater.java|*/UpdateReceiver.java) add home-button smarthome ;;
+    */Iptv.java|*/IptvActivity.java|*/LiveActivity.java|*/LivePlayerActivity.java|*/GuideView.java|*/Dvr*.java|*/Smb*.java|*/RecordingsActivity.java) add live epg portal ;;
+    */Stalker.java|*/MultiviewActivity.java|*/Sports.java|*/SportsActivity.java) add live portal ;;
+    */SmartHome.java|*/HomeAssistant.java|*/GoogleCommands.java|*/SmartPanel*.java) add live smarthome ;;
+    */ProfileSync.java|*/ProfilesActivity.java|*/Ratings.java|*/Trakt.java|*/AccountActivity.java) add apps-sync ;;
+    */Theme.java|*/Ui.java|*/SettingsActivity.java|*/ConfigServer.java|*/FocusScroll.java) add theme-place sidebar quick ;;
+    */PlayerActivity.java|*/Players.java|*/Segments.java) add skip-next gemini ;;
+    */Plex.java|*/Jellyfin.java|*/MediaServer.java|*/ServersActivity.java|*/Tmdb.java) ;;   # no fake server for these yet: core only
+    *) MODE=full ;;   # App, Http, ImageLoader, Store, manifest, build files, resources… touch everything
+  esac
+done
+want() { [ "$MODE" = full ] || [[ "$WANT" == *" $1 "* ]]; }
+# Sections that need Live TV set up first
+if want epg || want portal || want smarthome; then add live; fi
+echo "== SECTIONS: $([ "$MODE" = full ] && echo all || echo $WANT)"
 
 adb install -r flux-test.apk
 if [ -f .github/quick.sh ]; then source .github/quick.sh; exit 0; fi
@@ -79,10 +126,9 @@ for t in "Shell Movie One" "Shell Movie Two" "Shell Movie Three"; do
   adb shell content insert --uri content://android.media.tv/preview_program --bind channel_id:l:${CH:-1} --bind type:i:0 --bind "title:s:$t" --bind poster_art_aspect_ratio:i:0 --bind browsable:i:1 --bind "intent_uri:s:intent:#Intent;action=android.settings.SETTINGS;end"
 done
 adb shell content query --uri content://android.media.tv/preview_program --projection _id:title:channel_id | head -5
-
 # Home: Continue watching, apps, services, rows
 adb shell am start -W -n $P/.MainActivity
-sleep 35
+waitfor "Your apps" 35; sleep 2
 nudge; top home; texts home 60; shot 01-home
 for i in 1 2 3; do key DPAD_DOWN 1; done; sleep 2; texts home-scrolled 40; shot 02-home-scrolled
 key DPAD_LEFT 2; texts row-left-drawer 30; shot 02b-row-left-opens-drawer; key DPAD_RIGHT 2
@@ -93,20 +139,18 @@ for i in 1 2 3 4 5 6 7 8 9 10; do key DPAD_UP 0; done; sleep 1; key DPAD_DOWN 1
 key DPAD_DOWN 1; texts drawer-down 30; key DPAD_CENTER 20; top movies; texts movies 30; shot 04-movies
 texts movies-genres 40; key DPAD_DOWN 2; key DPAD_DOWN 2; shot 04b-movies-scrolled
 crashes home
-
+if want home-rows; then
 # Rows from other apps + Customize Home lists them
 for i in 1 2 3 4 5 6; do key DPAD_DOWN 1; done; sleep 2; texts home-deep 60; shot 04c-home-deep
 adb shell am start -W -n $P/.HomeRowsActivity; sleep 3; texts home-rows 60; shot 04d-home-rows
 crashes home-rows
-
+fi
 # Profiles & Trakt, Settings
 adb shell am start -W -n $P/.ProfilesActivity; sleep 4; nudge; texts profiles 40; shot 13-profiles
 adb shell am start -W -n $P/.SettingsActivity; sleep 4; texts settings 60; shot 14-settings
 key DPAD_DOWN 1; key DPAD_DOWN 1; key DPAD_DOWN 1; key DPAD_DOWN 1; shot 14b-settings-scrolled
 crashes settings
-
 # Player options: audio, subtitles (built-in and from an add-on), speed
-tap() { adb shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1; B=$(adb shell cat /sdcard/ui.xml | grep -o "<node[^>]*text=\"$1[^>]*>" | head -1 | grep -o 'bounds="[^"]*"' | grep -o '[0-9]*' | tr '\n' ' '); set -- $B; if [ -n "$4" ]; then adb shell input tap $(( ($1+$3)/2 )) $(( ($2+$4)/2 )); else echo "== no element for tap"; fi; }
 adb shell am start -W -n $P/.PlayerActivity --es url "https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_fmp4/master.m3u8" --es pi_type movie --es pi_meta tt0068646 --es pi_video tt0068646 --es pi_name PlayerTest
 sleep 20; shot 15-player
 key MENU 2; texts player-menu 30; shot 16-player-menu
@@ -121,14 +165,14 @@ key DPAD_RIGHT 1; key DPAD_RIGHT 1; key DPAD_CENTER 2; texts player-speed 20; sh
 key BACK 1; key BACK 1; key BACK 3
 crashes player
 echo "== TRAKT LOG"; curl -s http://127.0.0.1:8000/trakt/_log | python3 -c "import json,sys; [print(e['path'], e['body'][:160]) for e in json.load(sys.stdin)]"
-
+if want arr; then
 # Radarr: add from the title page
 adb shell am start -W -n $P/.DetailActivity --es type movie --es id tt0111161 --es name Test
-sleep 12; nudge; texts detail-arr 30; shot 23-detail-radarr
+waitfor Trailer 12; nudge; texts detail-arr 30; shot 23-detail-radarr
 tap "+ Radarr"; sleep 4; texts arr-quality 20; shot 24-arr-quality
 tap "HD-1080p"; sleep 6; texts arr-added 30; shot 25-arr-added
 adb shell am start -W -n $P/.DetailActivity --es type series --es id tt0903747 --es name "Breaking Bad"
-sleep 12; nudge; texts detail-sonarr 30; shot 26-detail-sonarr
+waitfor Trailer 12; nudge; texts detail-sonarr 30; shot 26-detail-sonarr
 adb shell am start -W -n $P/.DownloadsActivity; sleep 6; texts downloads 60; shot 27-downloads
 adb shell am start -W -n $P/.ArrSetupActivity; sleep 5; texts arr-setup 60; shot 28-arr-setup
 crashes arr
@@ -141,35 +185,39 @@ adb shell am start -W -n $P/.GenreActivity --es type movie --es genre Action
 sleep 12; nudge; texts genre 30; shot 32-genre-action
 crashes fallback
 echo "== ARR LOG 2"; curl -s http://127.0.0.1:8000/arr/_log | python3 -c "import json,sys; d=json.load(sys.stdin); [print(e['path'], e.get('body','')[:160]) for e in d['arr'] if 'body' in e]"
+fi
 # Play from the title page: a starting screen, not the stream list
 adb shell am start -W -n $P/.StreamsActivity --ez autoplay true --es pi_type movie --es pi_meta tt0133093 --es pi_video tt0133093 --es pi_name Matrix
 sleep 2; shot 40-play-starting; sleep 10; top play-auto; shot 41-play-after
 key BACK 2; key BACK 2
-
+if want sidebar; then
 # Sidebar on other screens
 adb shell am start -W -n $P/.DetailActivity --es type movie --es id tt0111161 --es name Test
-sleep 12; nudge; key DPAD_LEFT 1; key DPAD_LEFT 1; key DPAD_LEFT 1; key DPAD_LEFT 2; texts detail-sidebar 40; shot 33-detail-sidebar
+waitfor Trailer 12; nudge; key DPAD_LEFT 1; key DPAD_LEFT 1; key DPAD_LEFT 1; key DPAD_LEFT 2; texts detail-sidebar 40; shot 33-detail-sidebar
 key DPAD_DOWN 1; key DPAD_DOWN 1; key DPAD_CENTER 6; top sidebar-to-movies; texts sidebar-to-movies 12
 adb shell am start -W -n $P/.SettingsActivity; sleep 4; key DPAD_LEFT 2; texts settings-sidebar 20; shot 34-settings-sidebar
 key BACK 2; texts settings-after-back 8
 crashes sidebar
 # Remote-button link to a service page
 adb shell am start -W -a android.intent.action.VIEW -d "fluxtv://service/disney"; sleep 8; top deeplink; texts deeplink 10; shot 29-deeplink-disney
-
+fi
+if want service; then
 # Service page
 adb shell am start -W -n $P/.ServiceActivity --es service netflix
 sleep 12; nudge; texts service 30; shot 05-service
 crashes service
-
-# Title page -> Cast & Crew -> person -> filmography
+fi
+# Title page (core) -> Cast & Crew -> person -> filmography
 adb shell am start -W -n $P/.DetailActivity --es type movie --es id tt0111161 --es name Test
-sleep 12; nudge; texts detail 30; shot 06-detail
+waitfor Trailer 12; nudge; texts detail 30; shot 06-detail
+if want credits; then
 adb shell am start -W -n $P/.CreditsActivity --es id tt0111161 --es type movie --es name "The Shawshank Redemption"
 sleep 8; nudge; texts credits 20; shot 07-credits
 key DPAD_CENTER 8; top person; texts person 40; shot 08-person
 nudge; key DPAD_CENTER 10; top person-click; texts person-click 10; shot 09-person-to-title
 crashes credits
-
+fi
+if want search; then
 # Gemini search (typed), then voice
 adb shell am start -W -n $P/.SearchActivity --es query "mind bending movies"
 sleep 20
@@ -182,7 +230,7 @@ adb shell am start -W -n $P/.SearchActivity --ez voice true
 sleep 3; top voice; shot 11-voice; sleep 5; texts voice 15; shot 11b-voice-after
 adb shell am start -W -n $P/.SearchActivity --ez demo_listen true; sleep 3; shot 11c-listening-demo
 crashes search
-
+fi
 # Themes
 adb shell am start -W -n $P/.SettingsActivity --es category appearance; sleep 4; shot 38-themes
 curl -s -m 20 -X POST --data-urlencode "theme=2" http://127.0.0.1:8090/appearance | grep -o "<p class='m'>[^<]*"
@@ -194,18 +242,21 @@ adb shell am start -W -n $P/.SettingsActivity --es category appearance; sleep 4;
 adb shell am start -W -n $P/.MainActivity; sleep 8; nudge; key DPAD_DOWN 1; shot 39c-highlight-mint-home
 curl -s -m 20 -X POST --data-urlencode "highlight=0" http://127.0.0.1:8090/appearance > /dev/null
 crashes themes
-
+if want quick; then
 # Quick Settings panel (also its own launcher entry)
 adb shell am start -W -n $P/.QuickSettingsActivity
 sleep 4; nudge; top quick; texts quick 30; shot 12-quick-settings
 key DPAD_RIGHT 1; key DPAD_CENTER 5; top quick-open; key BACK 2
 crashes quick
-
+fi
+if want cw; then
 # Continue watching sources + Gemini request settings
 adb shell am start -W -n $P/.HomeRowsActivity; sleep 3; texts cw-sources 20; shot 30-cw-sources
 tap "✓ Flux"; sleep 2; texts cw-sources-after 12
 curl -s http://127.0.0.1:8000/arr/_log | python3 -c "import json,sys; d=json.load(sys.stdin); [print('GEMINI', e['path'], e['body'][-200:]) for e in d['gemini']]"
 crashes cw
+fi
+if want home-button; then
 # Home button takeover via the accessibility service (like Projectivy)
 adb shell settings put secure enabled_accessibility_services $P/$P.HomeButtonService
 adb shell settings put secure accessibility_enabled 1
@@ -229,6 +280,8 @@ curl -s -m 20 http://127.0.0.1:8090/ > /dev/null
 adb shell am start -W -n $P/.SettingsActivity; sleep 3
 curl -s -m 20 http://127.0.0.1:8090/ > out/settings-page-final.html; echo "== WEB SECTIONS: $(grep -o "<summary>[^<]*" out/settings-page-final.html | tr '\n' ' ')"
 crashes home-button
+fi
+if want live; then
 # ---------------- Live TV guide (EPG), TiviMate-style player, DVR to local storage and to an SMB share
 (sudo apt-get install -y -q samba > /tmp/samba.log 2>&1 && sudo mkdir -p /srv/flux/Shows && sudo chmod -R 777 /srv/flux \
   && printf '[global]\n  map to guest = Bad User\n  server min protocol = SMB2\n  guest account = nobody\n[flux]\n  path = /srv/flux\n  read only = no\n  guest ok = yes\n  force user = nobody\n' | sudo tee /etc/samba/smb.conf > /dev/null \
@@ -264,18 +317,22 @@ key DPAD_CENTER 8; top play-recording; shot 72-play-recording; key BACK 2
 adb shell am start -W -a android.intent.action.VIEW -d "fluxtv://live/201"; sleep 8; top deeplink-live-201; texts deeplink-live 12; key BACK 2
 adb shell am start -W -n $P/.MainActivity; sleep 8; nudge; key DPAD_DOWN 1; shot 73-home-row-1; key DPAD_DOWN 1; shot 74-home-row-2; key DPAD_DOWN 1; shot 75-home-row-3; texts home-live-row 40
 crashes live
+fi
+if want theme-place; then
 # ---------------- Settings keeps your place after choosing a theme
 adb shell am start -W -n $P/.SettingsActivity --es category appearance; sleep 3
 key DPAD_CENTER 2; key DPAD_RIGHT 1; key DPAD_RIGHT 1; focused theme-before
 key DPAD_CENTER 4; focused theme-after; shot 91-theme-after
 curl -s -m 20 -X POST --data-urlencode "theme=0" http://127.0.0.1:8090/appearance > /dev/null
 adb shell am start -W -n $P/.MainActivity; sleep 6; nudge; key DPAD_DOWN 1; shot 92-home-highlight
-
+fi
+if want home-instant; then
 # ---------------- Home shows instantly from its saved copy
 adb shell am force-stop $P; sleep 1
 adb shell am start -n $P/.MainActivity; sleep 1.5; shot 90-home-1500ms; texts home-1500ms 25
 sleep 8; texts home-later 25
-
+fi
+if want smarthome; then
 # ---------------- Smart home panel (Home Assistant)
 adb shell am start -W -n $P/.SettingsActivity --es category smarthome; sleep 3
 curl -s -m 30 -X POST --data-urlencode "url=http://10.0.2.2:8000/ha" --data-urlencode "token=wrong" http://127.0.0.1:8090/sh-connect | grep -o "<p class='m'>[^<]*"
@@ -298,6 +355,8 @@ adb shell am start -W -a android.intent.action.VIEW -d "fluxtv://smarthome"; sle
 key DPAD_DOWN 1; key DPAD_DOWN 1; key DPAD_RIGHT 2; shot 84-panel-over-video
 echo "== HA LOG 2: $(curl -s http://127.0.0.1:8000/ha/_log | python3 -c "import json,sys; d=json.load(sys.stdin); print([ (e['service'], e['data']) for e in d['log']])")"; key BACK 2; top after-overlay-back; shot 85-after-overlay-back
 crashes smarthome
+fi
+if want apps-sync; then
 # ---------------- icons, Apps grid, Settings focus, age limits, TV-to-TV sync
 adb shell am start -W -n $P/.SettingsActivity --es category home; sleep 3
 sleep 2; focused settings-start; key DPAD_RIGHT 2; focused settings-right
@@ -337,12 +396,14 @@ adb shell am start -W -n $P/.MainActivity --es section favorites; sleep 5; texts
 adb shell am start -W -n $P/.SettingsActivity --es category profiles; sleep 3
 curl -s -m 20 -X POST --data-urlencode "name=Default" http://127.0.0.1:8090/profile-use | grep -o "<p class='m'>[^<]*"
 crashes sync
+fi
 # ---------------- v26: info screen (no phantom stop, Trailer), skip intro / credits / next episode, extra guide sources
 curl -s -m 30 -X POST --data-urlencode "tmdb=http://10.0.2.2:8000/3" --data-urlencode "gemini=http://10.0.2.2:8000/gemini/" --data-urlencode "trakt=http://10.0.2.2:8000/trakt" --data-urlencode "introdb=http://10.0.2.2:8000/introdb" http://127.0.0.1:8090/test-config | grep -o "<p class='m'>[^<]*"
 adb shell am start -W -n $P/.DetailActivity --es type movie --es id tt0111161 --es name Test
-sleep 12; focused info-open; texts info-buttons 20; shot 90-info-open
+waitfor Trailer 12; focused info-open; texts info-buttons 20; shot 90-info-open
 key DPAD_DOWN 1; focused info-one-down; shot 91-info-one-down
 key DPAD_UP 1; focused info-back-up
+if want skip-next; then
 adb shell am start -W -n $P/.PlayerActivity --es url "https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_fmp4/master.m3u8" --es pi_type series --es pi_meta tt0903747 --es pi_video tt0903747:1:1 --es pi_name "Breaking Bad" --es pi_label "S1 E1"
 sleep 14; shot 92-skip-intro; texts skip-intro 10
 key DPAD_CENTER 3; shot 93-after-skip-intro; texts after-skip 10
@@ -351,6 +412,8 @@ sleep 4; shot 95-next-countdown
 sleep 9; top after-countdown; shot 96-next-started
 key BACK 2; key BACK 2
 crashes skip-next
+fi
+if want epg; then
 curl -s -m 60 -X POST --data-urlencode "urls=http://10.0.2.2:8000/extra-epg.xml" --data-urlencode "refresh=1" http://127.0.0.1:8090/epg-extra | grep -o "<p class='m'>[^<]*"
 sleep 15
 curl -s -m 60 -X POST http://127.0.0.1:8090/dvr-guide | grep -o "<p class='m'>[^<]*"
@@ -358,6 +421,8 @@ curl -s -m 20 http://127.0.0.1:8090/ > out/settings-page-epg.html; echo "== WEB 
 adb shell am start -W -n $P/.LiveActivity; sleep 8; shot 97-guide-extra; texts guide-extra 40
 adb shell am start -W -n $P/.SettingsActivity --es category live; sleep 4; key DPAD_RIGHT 1; key DPAD_DOWN 1; key DPAD_DOWN 1; key DPAD_DOWN 1; key DPAD_DOWN 1; key DPAD_DOWN 1; shot 98-settings-epg; texts settings-epg 40
 crashes epg
+fi
+if want portal; then
 # ---------------- v28: MAC portal, catch-up, multiview, sports
 XT=ca0e9097; PORTAL=9b2ad21
 curl -s -m 60 -X POST --data-urlencode "url=http://10.0.2.2:8000/stalker/c/" --data-urlencode "mac=00-1a-79-00-00-01" http://127.0.0.1:8090/iptv-stalker | grep -o "<p class='m'>[^<]*"
@@ -380,12 +445,13 @@ key BACK 2
 crashes portal-catchup-multiview
 adb shell am start -W -n $P/.SettingsActivity; sleep 4
 curl -s -m 30 -X POST --data-urlencode "tmdb=http://10.0.2.2:8000/3" --data-urlencode "gemini=http://10.0.2.2:8000/gemini/" --data-urlencode "trakt=http://10.0.2.2:8000/trakt" --data-urlencode "sports=http://10.0.2.2:8000/espn" http://127.0.0.1:8090/test-config | grep -o "<p class='m'>[^<]*"
-adb shell am start -W -n $P/.SportsActivity; sleep 15; texts sports 40; shot 107-sports
+adb shell am start -W -n $P/.SportsActivity; waitfor Table 15; texts sports 40; shot 107-sports
 tap "Kansas City Chiefs"; sleep 10; top sports-watch; shot 108-sports-watch; key BACK 2
-longtap() { adb shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1; B=$(adb shell cat /sdcard/ui.xml | grep -o "<node[^>]*text=\"$1[^>]*>" | head -1 | grep -o 'bounds="[^"]*"' | grep -o '[0-9]*' | tr '\n' ' '); set -- $B; if [ -n "$4" ]; then adb shell input swipe $(( ($1+$3)/2 )) $(( ($2+$4)/2 )) $(( ($1+$3)/2 )) $(( ($2+$4)/2 )) 1300; else echo "== no element for longtap"; fi; }
 sleep 2; longtap "Kansas City Chiefs"; sleep 2; texts sports-watch-on 12; shot 109-sports-watch-on
 tap "Table"; sleep 5; texts sports-table 30; shot 110-sports-table; key BACK 1
 crashes sports
+fi
+if want gemini; then
 # ---------------- v29: simpler player bar (Ask Gemini + ⋮), Ask Gemini about the screen
 adb shell am start -W -n $P/.PlayerActivity --es url "http://10.0.2.2:8000/timeshift/test/test/60/x/1001.ts" --es pi_type movie --es pi_meta tt0133093 --es pi_video tt0133093 --es pi_name "The\ Matrix"
 sleep 10; key DPAD_UP 1; shot 120-player-bar
@@ -398,6 +464,7 @@ key DPAD_RIGHT 1; key DPAD_CENTER 3; shot 125-gemini-type; adb shell input text 
 echo "== SCREEN ASKS: $(curl -s http://127.0.0.1:8000/_screen)"
 key BACK 1; key BACK 2; texts gemini-closed 8; top gemini-closed; key BACK 2
 crashes gemini
+fi
 adb logcat -d > out/logcat.txt
 kill $FAKE_PID 2>/dev/null
 exit 0
