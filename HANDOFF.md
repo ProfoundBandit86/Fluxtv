@@ -110,8 +110,8 @@ Gotchas for tests:
   one-time "Viewing full screen" notice ("Got it") first; the emulator starts in touch mode, so the first key on a
   new screen may only move focus.
 - Catch-up: supported for MAC portals (tested), Xtream (`tv_archive`) and M3U `catchup` tags; past programmes with ↺
-  in the guide replay. Xtream replay test (Flux News) still needs one clean pass (earlier runs were spoiled by test
-  setup problems).
+  in the guide replay. **Xtream replay tested on the emulator** (Flux News → `/timeshift/…/1001.ts`). `LiveActivity`
+  takes an optional `group` extra ("all", "favorites" or "sourceId|groupId"); otherwise it reopens the last group.
 
 ## 5. Rules and decisions to keep
 
