@@ -1044,7 +1044,7 @@ public class PlayerActivity extends Activity {
 
     private void buildGemini() {
         geminiPanel = new FrameLayout(this);
-        geminiPanel.setBackgroundColor(Ui.alpha(Color.parseColor("#06080C"), 0.86f));
+        geminiPanel.setBackgroundColor(Ui.alpha(Color.parseColor("#06080C"), 0.92f));
         geminiPanel.setClickable(true);
 
         LinearLayout top = Ui.horizontal(this);

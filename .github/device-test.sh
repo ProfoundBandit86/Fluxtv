@@ -246,8 +246,8 @@ curl -s -m 20 -X POST --data-urlencode "highlight=5" http://127.0.0.1:8090/appea
 adb shell am force-stop $P
 adb shell am start -W -n $P/.SettingsActivity --es category appearance; sleep 4; key DPAD_RIGHT 1; focused highlight-settings; shot 39b-highlight-mint-settings
 adb shell am start -W -n $P/.MainActivity; waitfor "Your apps" 15; nudge; key DPAD_DOWN 1; shot 39c-highlight-mint-home
-adb shell am start -W -n $P/.SettingsActivity; sleep 3
-curl -s -m 20 -X POST --data-urlencode "highlight=0" http://127.0.0.1:8090/appearance | grep -o "<p class='m'>[^<]*"
+adb shell am start -W -n $P/.SettingsActivity; sleep 6
+for i in 1 2 3; do R=$(curl -s -m 20 -X POST --data-urlencode "highlight=0" http://127.0.0.1:8090/appearance | grep -o "<p class='m'>[^<]*"); echo "== HIGHLIGHT RESET: $R"; [ -n "$R" ] && break; sleep 4; done
 crashes themes
 if want quick; then
 # Quick Settings panel (also its own launcher entry)

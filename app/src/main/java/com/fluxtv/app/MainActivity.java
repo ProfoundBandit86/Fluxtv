@@ -117,7 +117,7 @@ public class MainActivity extends Activity {
         rail.setGravity(Gravity.CENTER_HORIZONTAL);
         rail.setFocusable(false);
         rail.setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);
-        rail.setPadding(Ui.dp(this, 6), Ui.dp(this, 18), Ui.dp(this, 6), Ui.dp(this, 12));
+        rail.setPadding(Ui.dp(this, 6), Ui.dp(this, 14), Ui.dp(this, 6), Ui.dp(this, 10));
         GradientDrawable bg = new GradientDrawable();
         bg.setColor(Ui.alpha(Ui.BG, 0.8f));
         GradientDrawable edge = new GradientDrawable();   // a thin line on the right edge
@@ -159,13 +159,13 @@ public class MainActivity extends Activity {
         ic.setImageTintList(new ColorStateList(new int[][]{{android.R.attr.state_selected}, {}}, new int[]{Ui.ACCENT, Ui.MUTED}));
         ic.setImageTintMode(PorterDuff.Mode.SRC_IN);
         ic.setDuplicateParentStateEnabled(true);
-        e.addView(ic, new LinearLayout.LayoutParams(Ui.dp(this, 20), Ui.dp(this, 20)));
+        e.addView(ic, new LinearLayout.LayoutParams(Ui.dp(this, 18), Ui.dp(this, 18)));
         TextView t = Ui.single(Ui.text(this, label, 10, Ui.MUTED));
         t.setTextColor(new ColorStateList(new int[][]{{android.R.attr.state_selected}, {}}, new int[]{Ui.TEXT, Ui.MUTED}));
         t.setDuplicateParentStateEnabled(true);
-        t.setPadding(0, Ui.dp(this, 4), 0, 0);
+        t.setPadding(0, Ui.dp(this, 3), 0, 0);
         e.addView(t);
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 46));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 42));
         lp.setMargins(0, Ui.dp(this, 1), 0, Ui.dp(this, 1));
         e.setLayoutParams(lp);
         railFor.put(drawerRow, e);

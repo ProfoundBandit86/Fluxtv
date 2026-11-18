@@ -74,9 +74,13 @@ public class ClockBadge extends LinearLayout {
         decor.addView(new ClockBadge(a), topRight(a));
     }
 
+    private final android.view.ViewTreeObserver.OnScrollChangedListener onScroll = this::checkCovered;
+    private float fadeTarget = 1f;
+
     @Override
     protected void onAttachedToWindow() {
         super.onAttachedToWindow();
+        getViewTreeObserver().addOnScrollChangedListener(onScroll);
         removeCallbacks(tick);
         tick.run();
         refreshWeather(false);
@@ -84,8 +88,33 @@ public class ClockBadge extends LinearLayout {
 
     @Override
     protected void onDetachedFromWindow() {
+        getViewTreeObserver().removeOnScrollChangedListener(onScroll);
         removeCallbacks(tick);
         super.onDetachedFromWindow();
+    }
+
+    /** Fades out while a page that runs under the badge is scrolled down (title pages, Settings), so it never sits on buttons. */
+    private void checkCovered() {
+        View content = getRootView().findViewById(android.R.id.content);
+        float target = scrolledUnder(content) ? 0f : 1f;
+        if (target == fadeTarget) return;
+        fadeTarget = target;
+        animate().alpha(target).setDuration(160).start();
+    }
+
+    private boolean scrolledUnder(View v) {
+        if (v == null || v == this || v.getVisibility() != VISIBLE) return false;
+        if (v instanceof android.widget.ScrollView && v.getScrollY() > Ui.dp(getContext(), 24)) {
+            int[] a = new int[2], b = new int[2];
+            v.getLocationOnScreen(a);
+            getLocationOnScreen(b);
+            if (a[1] < b[1] + getHeight() && a[0] + v.getWidth() > b[0] && a[0] < b[0] + getWidth()) return true;
+        }
+        if (v instanceof android.view.ViewGroup) {
+            android.view.ViewGroup g = (android.view.ViewGroup) v;
+            for (int i = 0; i < g.getChildCount(); i++) if (scrolledUnder(g.getChildAt(i))) return true;
+        }
+        return false;
     }
 
     private void update() {
