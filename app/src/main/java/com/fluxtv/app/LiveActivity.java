@@ -170,6 +170,8 @@ public class LiveActivity extends FluxActivity {
 
         setContentView(root);
         group = Store.get("live_group").isEmpty() ? "all" : Store.get("live_group");
+        // Opened for a particular group (e.g. "all", "favorites" or "sourceId|groupId").
+        if (getIntent().getStringExtra("group") != null) group = getIntent().getStringExtra("group");
         load();
         tuneFromLink(getIntent());
     }

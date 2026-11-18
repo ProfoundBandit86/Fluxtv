@@ -468,9 +468,7 @@ adb shell am start -W -n $P/.LiveActivity; sleep 8; texts live-with-portal 30; s
 key DPAD_LEFT 2; shot 102-guide-past; texts guide-past 12
 key DPAD_CENTER 10; top catchup; shot 103-catchup-playing; texts catchup 12
 key BACK 2; key BACK 2
-adb shell am start -W -n $P/.LiveActivity; sleep 6
-# Live TV reopens on the last group: switch to All channels first
-key DPAD_LEFT 1; key DPAD_LEFT 1; key DPAD_LEFT 1; key DPAD_LEFT 2; tap "All channels"; sleep 3
+adb shell am start -W -n $P/.LiveActivity --es group all; sleep 6   # Live TV otherwise reopens on the last group
 # move down to the Xtream channel that keeps replays ("Flux News", tv_archive 3 days)
 for i in 1 2 3 4 5 6 7 8; do T=$(texts guide-find 4); echo "$T"; case "$T" in *"Flux News"*) break;; esac; key DPAD_DOWN 1; done
 key DPAD_LEFT 2; texts guide-past-xtream 12; shot 103b-guide-past-xtream
