@@ -45,22 +45,17 @@ import java.util.Map;
 public class MainActivity extends Activity {
 
     private FrameLayout contentRoot;
-    private LinearLayout drawer, rows;
-    private android.widget.ScrollView drawerPanel;
-    private View dim;
+    private LinearLayout rows;
     private ScrollView scroll;
-    private TextView clock, status, avatarText;
+    private TextView clock, status;
     private ImageView heroImage;
     private TextView heroEyebrow, heroTitle, heroMeta, heroText;
-    private boolean drawerOpen;
-    private View lastContentFocus;
-    private final Map<String, View> drawerItems = new HashMap<>();
+        private View lastContentFocus;
 
     private String section = "home";
     private Blend.Home home;
     private List<JSONObject> external = new ArrayList<>();
     private List<Addons.Row> appRows = new ArrayList<>();
-    private boolean drawerHasDownloads;
     private List<Tmdb.Service> services = new ArrayList<>();
     private final Map<String, List<Addons.Row>> extraRows = new HashMap<>();
     private int loadedVersion = -1, themeVersion = -1, renderedChanges = -1, sectionGen = 0;
@@ -90,107 +85,29 @@ public class MainActivity extends Activity {
         root.addView(contentRoot, new FrameLayout.LayoutParams(-1, -1));
         buildContent();
 
-        buildDrawer();
-        buildRail();   // mirrors the menu's entries, so after buildDrawer
-        root.addView(rail, new FrameLayout.LayoutParams(Ui.dp(this, RAIL_DP), ViewGroup.LayoutParams.MATCH_PARENT));
-
-        dim = new View(this);
-        dim.setBackgroundColor(Ui.alpha(Color.BLACK, 0.55f));
-        dim.setAlpha(0f);
-        dim.setVisibility(View.GONE);
-        root.addView(dim, new FrameLayout.LayoutParams(-1, -1));
-        root.addView(drawerPanel, new FrameLayout.LayoutParams(Ui.dp(this, DRAWER_DP), ViewGroup.LayoutParams.MATCH_PARENT));
+        dock = new Dock(this, new Dock.Host() {
+            @Override public String dockKey() { return section; }
+            @Override public void dockGo(String key) { goDock(key); }
+        }, contentRoot);
+        root.addView(dock.view, dock.params());
         setContentView(root);
-        syncRail();
     }
 
-    // ------------------------------------------------------------ the dock (always on screen; ← opens the full menu)
+    // ------------------------------------------------------------ the dock (Dock: always on screen; ← glides it open)
 
     /** Width of the always-visible dock on the left, and where Home's content starts. */
-    private static final int RAIL_DP = 38, DRAWER_DP = 220, START_DP = RAIL_DP + 44, TOP_DP = 64;
-    private LinearLayout rail;
-    private TextView railAvatar;
-    private final Map<View, View> railFor = new HashMap<>();
+    private static final int RAIL_DP = Dock.RAIL_DP, START_DP = RAIL_DP + 44, TOP_DP = 64;
+    private Dock dock;
 
-    private void buildRail() {
-        rail = Ui.vertical(this);
-        rail.setGravity(Gravity.CENTER_HORIZONTAL);
-        rail.setFocusable(false);
-        rail.setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);
-        rail.setPadding(Ui.dp(this, 3), Ui.dp(this, 16), Ui.dp(this, 3), Ui.dp(this, 10));
-        GradientDrawable bg = new GradientDrawable();
-        bg.setColor(Ui.alpha(Ui.BG, 0.8f));
-        GradientDrawable edge = new GradientDrawable();   // a thin line on the right edge
-        edge.setColor(Ui.alpha(Color.WHITE, 0.07f));
-        android.graphics.drawable.LayerDrawable layers = new android.graphics.drawable.LayerDrawable(new android.graphics.drawable.Drawable[]{bg, edge});
-        layers.setLayerInset(1, Ui.dp(this, RAIL_DP) - Math.max(1, Ui.dp(this, 1)), 0, 0, 0);
-        rail.setBackground(layers);
-        rail.setContentDescription("Menu. Press left to open it.");
-        railAvatar = Ui.heading(this, "", 14);
-        railAvatar.setGravity(Gravity.CENTER);
-        railAvatar.setBackground(Ui.rounded(this, Ui.ACCENT, 0, 999));
-        railAvatar.setTextColor(Ui.BG);
-        LinearLayout.LayoutParams al = new LinearLayout.LayoutParams(Ui.dp(this, 26), Ui.dp(this, 26));
-        al.setMargins(0, 0, 0, Ui.dp(this, 12));
-        rail.addView(railAvatar, al);
-        // Entries are added alongside the full menu's (drawerItem), so both always match.
-        for (int i = 0; i < drawer.getChildCount(); i++) {
-            View d = drawer.getChildAt(i);
-            View r = railEntryFor(d);
-            if (r != null) rail.addView(r);
-            else if (d.getLayoutParams() instanceof LinearLayout.LayoutParams && ((LinearLayout.LayoutParams) d.getLayoutParams()).weight > 0) {
-                rail.addView(new View(this), new LinearLayout.LayoutParams(1, 0, 1f));   // pushes Settings to the bottom
-            }
+    private void goDock(String key) {
+        switch (key) {
+            case "home": case "movie": case "series": case "favorites":
+                showSection(key);
+                break;
+            case "profile": chooseProfile(); break;
+            default: Dock.openScreen(this, key);
         }
     }
-
-    private View railEntryFor(View drawerRow) {
-        String label = String.valueOf(drawerRow.getTag(R.id.rail_label) == null ? "" : drawerRow.getTag(R.id.rail_label));
-        Object icon = drawerRow.getTag(R.id.rail_icon);
-        if (label.isEmpty() || !(icon instanceof Integer)) return null;
-        // Compact dock: icons only (the names show when ← slides the dock open).
-        FrameLayout e = new FrameLayout(this);
-        e.setContentDescription(label);
-        StateListDrawable bg = new StateListDrawable();
-        bg.addState(new int[]{android.R.attr.state_selected}, Ui.rounded(this, Ui.alpha(Color.WHITE, 0.11f), 0, 10));
-        bg.addState(new int[]{}, Ui.rounded(this, Color.TRANSPARENT, 0, 10));
-        e.setBackground(bg);
-        ImageView ic = new ImageView(this);
-        ic.setImageResource((Integer) icon);
-        ic.setImageTintList(new ColorStateList(new int[][]{{android.R.attr.state_selected}, {}}, new int[]{Ui.ACCENT, Ui.MUTED}));
-        ic.setImageTintMode(PorterDuff.Mode.SRC_IN);
-        ic.setDuplicateParentStateEnabled(true);
-        e.addView(ic, new FrameLayout.LayoutParams(Ui.dp(this, 18), Ui.dp(this, 18), Gravity.CENTER));
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 34));
-        lp.setMargins(0, Ui.dp(this, 2), 0, Ui.dp(this, 2));
-        e.setLayoutParams(lp);
-        railFor.put(drawerRow, e);
-        return e;
-    }
-
-    /** The dock mirrors the menu: same entries shown, current section marked. */
-    private void syncRail() {
-        if (rail == null) return;
-        java.util.Set<String> hidden = dockHidden();
-        for (Map.Entry<View, View> e : railFor.entrySet()) {
-            Object key = e.getKey().getTag(R.id.rail_label);
-            boolean off = hidden.contains(String.valueOf(key)) && !e.getKey().isSelected();
-            e.getValue().setVisibility(off ? View.GONE : e.getKey().getVisibility());
-            e.getValue().setSelected(e.getKey().isSelected());
-        }
-        String name = Store.profile();
-        railAvatar.setText(name.isEmpty() ? "?" : name.substring(0, 1).toUpperCase());
-    }
-
-    /** Dock items hidden in Settings → Home screen → Left dock (they stay in the full menu). */
-    static java.util.Set<String> dockHidden() {
-        java.util.Set<String> out = new java.util.HashSet<>();
-        for (String k : Store.get("dock_hidden").split("\\|")) if (!k.isEmpty()) out.add(k);
-        return out;
-    }
-
-    /** The dock's items in order (for Settings). */
-    static final String[] DOCK_ITEMS = {"Search", "Home", "Movies", "TV Shows", "Live TV", "Favorites", "Apps", "Smart", "Downloads"};
 
     // ------------------------------------------------------------ layout
 
@@ -267,7 +184,7 @@ public class MainActivity extends Activity {
 
     /** Home: the featured title shows while you're on the first row; further down the rows move up to fill the screen. */
     private void onRowFocus(View f) {
-        if (f == null || drawerOpen) return;
+        if (f == null || dock.isOpen()) return;
         View top = null, row = null;
         for (View v = f; v != null && v.getParent() instanceof View; v = (View) v.getParent()) {
             if (row == null && "row".equals(v.getTag())) row = v;
@@ -306,135 +223,15 @@ public class MainActivity extends Activity {
         browsing = on;
     }
 
-    // ------------------------------------------------------------ sidebar
-
-    private void buildDrawer() {
-        drawer = Ui.vertical(this);
-        drawer.setPadding(Ui.dp(this, 10), Ui.dp(this, 16), Ui.dp(this, 10), Ui.dp(this, 10));
-        // The menu scrolls when it's taller than the screen.
-        drawerPanel = new FocusScroll.Vertical(this);
-        drawerPanel.setFillViewport(true);
-        drawerPanel.setFocusable(false);
-        GradientDrawable dbg = new GradientDrawable();
-        dbg.setColor(Ui.alpha(Ui.BG, 0.97f));
-        GradientDrawable dedge = new GradientDrawable();
-        dedge.setColor(Ui.alpha(Color.WHITE, 0.07f));
-        android.graphics.drawable.LayerDrawable dl = new android.graphics.drawable.LayerDrawable(new android.graphics.drawable.Drawable[]{dbg, dedge});
-        dl.setLayerInset(1, Ui.dp(this, DRAWER_DP) - Math.max(1, Ui.dp(this, 1)), 0, 0, 0);
-        drawerPanel.setBackground(dl);
-        drawerPanel.setTranslationX(-Ui.dp(this, DRAWER_DP));
-        drawerPanel.setVisibility(View.INVISIBLE);   // closed: hidden entirely, so its shadow doesn't show on the left edge
-        drawerPanel.addView(drawer, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-        drawer.setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);
-
-        LinearLayout profile = drawerRow();
-        avatarText = Ui.heading(this, "", 13);
-        avatarText.setGravity(Gravity.CENTER);
-        avatarText.setBackground(Ui.rounded(this, Ui.ACCENT, 0, 999));
-        avatarText.setTextColor(Ui.BG);
-        profile.addView(avatarText, new LinearLayout.LayoutParams(Ui.dp(this, 26), Ui.dp(this, 26)));
-        TextView pl = label("Profile");
-        pl.setTag("profileLabel");
-        profile.addView(pl);
-        profile.setOnClickListener(v -> chooseProfile());
-        drawer.addView(profile);
-        drawer.addView(new View(this), new LinearLayout.LayoutParams(1, Ui.dp(this, 14)));
-
-        drawerItem(R.drawable.ic_search, "Search", null, () -> startActivity(new Intent(this, SearchActivity.class).putExtra("voice", true)));
-        drawerItem(R.drawable.ic_home, "Home", "home", () -> showSection("home"));
-        drawerItem(R.drawable.ic_movie, "Movies", "movie", () -> showSection("movie"));
-        drawerItem(R.drawable.ic_tv, "TV Shows", "series", () -> showSection("series"));
-        drawerItem(R.drawable.ic_live, "Live TV", null, () -> startActivity(new Intent(this, LiveActivity.class)));
-        liveItem = drawer.getChildAt(drawer.getChildCount() - 1);
-        liveItem.setVisibility(Ratings.restricted() ? View.GONE : View.VISIBLE);
-        drawerItem(R.drawable.ic_heart, "Favorites", "favorites", () -> showSection("favorites"));
-        drawerItem(R.drawable.ic_apps, "Apps", null, () -> startActivity(new Intent(this, AppsActivity.class)));
-        drawerItem(R.drawable.ic_bulb, "Smart home", null, () -> startActivity(new Intent(this, SmartPanelActivity.class)));
-        smartItem = drawer.getChildAt(drawer.getChildCount() - 1);
-        smartItem.setVisibility(SmartHome.configured() ? View.VISIBLE : View.GONE);
-        drawerHasDownloads = Arr.anyConfigured();
-        if (drawerHasDownloads) {
-            drawerItem(R.drawable.ic_download, "Downloads", null, () -> startActivity(new Intent(this, DownloadsActivity.class)));
-        }
-        drawer.addView(new View(this), new LinearLayout.LayoutParams(1, 0, 1f));
-        drawerItem(R.drawable.ic_settings, "Settings", null, () -> startActivity(new Intent(this, SettingsActivity.class)));
-
-    }
-
-    private LinearLayout drawerRow() {
-        LinearLayout item = Ui.horizontal(this);
-        item.setGravity(Gravity.CENTER_VERTICAL);
-        item.setFocusable(true);
-        item.setClickable(true);
-        item.setPadding(Ui.dp(this, 14), 0, Ui.dp(this, 14), 0);
-        StateListDrawable s = new StateListDrawable();
-        s.addState(new int[]{android.R.attr.state_focused}, Ui.rounded(this, Ui.FOCUS, 0, 12));
-        s.addState(new int[]{android.R.attr.state_selected}, Ui.rounded(this, Ui.BUTTON, 0, 12));
-        s.addState(new int[]{}, Ui.rounded(this, Color.TRANSPARENT, 0, 12));
-        item.setBackground(s);
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 36));
-        lp.setMargins(0, Ui.dp(this, 1), 0, Ui.dp(this, 1));
-        item.setLayoutParams(lp);
-        return item;
-    }
-
-    private ColorStateList tint() {
-        return new ColorStateList(new int[][]{{android.R.attr.state_focused}, {android.R.attr.state_selected}, {}},
-                new int[]{Ui.ON_FOCUS, Ui.TEXT, Ui.MUTED});
-    }
-
-    private TextView label(String s) {
-        TextView t = Ui.single(Ui.text(this, s, 13, Ui.MUTED));
-        t.setTextColor(tint());
-        t.setTypeface(android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL));
-        t.setPadding(Ui.dp(this, 14), 0, 0, 0);
-        t.setDuplicateParentStateEnabled(true);
-        return t;
-    }
-
-    private void drawerItem(int icon, String text, String sectionKey, Runnable action) {
-        LinearLayout item = drawerRow();
-        ImageView ic = new ImageView(this);
-        ic.setImageResource(icon);
-        ic.setImageTintList(new ColorStateList(new int[][]{{android.R.attr.state_focused}, {android.R.attr.state_selected}, {}},
-                new int[]{Ui.ON_FOCUS, Ui.ACCENT, Ui.MUTED}));
-        ic.setImageTintMode(PorterDuff.Mode.SRC_IN);
-        ic.setDuplicateParentStateEnabled(true);
-        item.addView(ic, new LinearLayout.LayoutParams(Ui.dp(this, 20), Ui.dp(this, 20)));
-        item.addView(label(text));
-        item.setTag(R.id.rail_icon, icon);
-        item.setTag(R.id.rail_label, text.equals("Smart home") ? "Smart" : text);
-        item.setOnClickListener(v -> {
-            closeDrawer(sectionKey != null);
-            action.run();
-        });
-        if (sectionKey != null) drawerItems.put(sectionKey, item);
-        drawer.addView(item);
-    }
-
     private void openDrawer() {
-        if (drawerOpen) return;
-        drawerOpen = true;
+        if (dock.isOpen()) return;
         lastContentFocus = getCurrentFocus();
-        drawer.setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
-        contentRoot.setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);   // focus stays in the menu
-        // The dock slides open from where the compact one is, and Home slides right to make room.
-        if (drawerPanel.getVisibility() != View.VISIBLE) drawerPanel.setTranslationX(-Ui.dp(this, DRAWER_DP - RAIL_DP));
-        drawerPanel.setVisibility(View.VISIBLE);
-        drawerPanel.animate().translationX(0).setDuration(240).setInterpolator(new DecelerateInterpolator()).start();
-        contentRoot.animate().translationX(Ui.dp(this, DRAWER_DP - RAIL_DP)).setDuration(240).setInterpolator(new DecelerateInterpolator()).start();
-        View target = drawerItems.get(section);
-        (target != null ? target : drawer.getChildAt(2)).requestFocus();   // Search (after the profile and its spacer)
+        dock.open();
     }
 
     private void closeDrawer(boolean restoreFocus) {
-        if (!drawerOpen) return;
-        drawerOpen = false;
-        drawerPanel.animate().translationX(-Ui.dp(this, DRAWER_DP - RAIL_DP)).setDuration(220).setInterpolator(new DecelerateInterpolator())
-                .withEndAction(() -> { if (!drawerOpen) drawerPanel.setVisibility(View.INVISIBLE); }).start();
-        contentRoot.animate().translationX(0).setDuration(220).setInterpolator(new DecelerateInterpolator()).start();
-        drawer.setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);
-        contentRoot.setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
+        if (!dock.isOpen()) return;
+        dock.close(false);
         if (restoreFocus) focusContent();
     }
 
@@ -447,6 +244,7 @@ public class MainActivity extends Activity {
 
     @Override
     public boolean dispatchKeyEvent(KeyEvent e) {
+        if (e.getKeyCode() != KeyEvent.KEYCODE_DPAD_RIGHT && dock.onKey(e)) return true;
         if (e.getAction() == KeyEvent.ACTION_DOWN) {
             int k = e.getKeyCode();
             if (movingApp != null) {
@@ -460,19 +258,11 @@ public class MainActivity extends Activity {
                     return true;
                 }
             }
-            if (drawerOpen && k == KeyEvent.KEYCODE_DPAD_RIGHT) {
+            if (dock.isOpen() && k == KeyEvent.KEYCODE_DPAD_RIGHT) {
                 closeDrawer(true);
                 return true;
             }
-            if (drawerOpen && (k == KeyEvent.KEYCODE_DPAD_UP || k == KeyEvent.KEYCODE_DPAD_DOWN)) {
-                List<View> items = new ArrayList<>();
-                for (int i = 0; i < drawer.getChildCount(); i++) if (drawer.getChildAt(i).isFocusable() && drawer.getChildAt(i).getVisibility() == View.VISIBLE) items.add(drawer.getChildAt(i));
-                int at = items.indexOf(getCurrentFocus());
-                int next = Math.max(0, Math.min(items.size() - 1, at + (k == KeyEvent.KEYCODE_DPAD_UP ? -1 : 1)));
-                if (!items.isEmpty()) items.get(at < 0 ? 0 : next).requestFocus();
-                return true;
-            }
-            if (!drawerOpen && k == KeyEvent.KEYCODE_DPAD_LEFT) {
+            if (!dock.isOpen() && k == KeyEvent.KEYCODE_DPAD_LEFT) {
                 View f = getCurrentFocus();
                 // The focused view can be outside the content area (or just removed by a refresh), and
                 // FocusFinder throws for those, so only ask it about views that are really inside.
@@ -515,7 +305,7 @@ public class MainActivity extends Activity {
     @Override
     public void onBackPressed() {
         // We may be the TV's home screen, so never close.
-        if (drawerOpen) {
+        if (dock.isOpen()) {
             closeDrawer(true);
         } else if (!section.equals("home")) {
             showSection("home");
@@ -533,17 +323,12 @@ public class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
-        if (themeVersion != Theme.version() || drawerHasDownloads != Arr.anyConfigured()) {
+        if (themeVersion != Theme.version()) {
             recreate();
             return;
         }
         String name = Store.profile();
-        if (liveItem != null) liveItem.setVisibility(Ratings.restricted() ? View.GONE : View.VISIBLE);
-        if (smartItem != null) smartItem.setVisibility(SmartHome.configured() ? View.VISIBLE : View.GONE);
-        syncRail();
-        avatarText.setText(name.isEmpty() ? "?" : name.substring(0, 1).toUpperCase());
-        View pl = drawer.findViewWithTag("profileLabel");
-        if (pl instanceof TextView) ((TextView) pl).setText(name);
+        dock.rebuildIfChanged();
         updateStatus();
         if (Store.addonsVersion() != loadedVersion || !name.equals(loadedProfile)) {
             extraRows.clear();
@@ -563,7 +348,7 @@ public class MainActivity extends Activity {
             if (isFinishing() || !hasWindowFocus()) return;   // picked up in onResume otherwise
             if (!Store.profiles().contains(loadedProfile)) { recreate(); return; }
             if (home != null && Store.changes() != renderedChanges) {
-                boolean hadFocus = !drawerOpen && getCurrentFocus() != null;
+                boolean hadFocus = !dock.isOpen() && getCurrentFocus() != null;
                 renderSection();
                 if (hadFocus) rows.post(this::focusContent);
             }
@@ -572,7 +357,7 @@ public class MainActivity extends Activity {
         Updater.check(this, false);
         showLastCrash();
         askWatchNextPermission();
-        if (getCurrentFocus() == null && !drawerOpen) rows.post(this::focusContent);
+        if (getCurrentFocus() == null && !dock.isOpen()) rows.post(this::focusContent);
     }
 
     @Override
@@ -629,7 +414,7 @@ public class MainActivity extends Activity {
                 home = saved;
                 HomeLayout.setAvailable(allRows());
                 renderSection();
-                if (!drawerOpen) rows.post(this::focusContent);
+                if (!dock.isOpen()) rows.post(this::focusContent);
                 showing = true;
             }
         }
@@ -677,16 +462,16 @@ public class MainActivity extends Activity {
 
     /** Swaps in new Home data without moving your highlight (same row, same position). */
     private void applyHome(Blend.Home h, List<JSONObject> ext, List<Addons.Row> ch, List<Tmdb.Service> sv) {
-        int[] pos = drawerOpen ? null : focusPosition();
+        int[] pos = dock.isOpen() ? null : focusPosition();
         int y = scroll.getScrollY();
-        boolean hadFocus = getCurrentFocus() != null && !drawerOpen;
+        boolean hadFocus = getCurrentFocus() != null && !dock.isOpen();
         home = h;
         external = ext;
         appRows = ch;
         if (sv != null) services = sv;
         HomeLayout.setAvailable(allRows());
         renderSection();
-        if (drawerOpen) return;
+        if (dock.isOpen()) return;
         if (pos != null) {
             scroll.scrollTo(0, y);
             rows.post(() -> { if (!restoreFocus(pos)) focusContent(); scroll.scrollTo(0, y); });
@@ -774,7 +559,7 @@ public class MainActivity extends Activity {
             appRows = ch;
             if (home != null) HomeLayout.setAvailable(allRows());
             if (changed && section.equals("home") && home != null) {
-                boolean hadFocus = !drawerOpen && getCurrentFocus() != null;
+                boolean hadFocus = !dock.isOpen() && getCurrentFocus() != null;
                 renderSection();
                 if (hadFocus || getCurrentFocus() == null) rows.post(this::focusContent);
             }
@@ -789,15 +574,13 @@ public class MainActivity extends Activity {
             lastContentFocus = null;
             renderSection();
         }
-        for (Map.Entry<String, View> e : drawerItems.entrySet()) e.getValue().setSelected(e.getKey().equals(section));
-        syncRail();
+        dock.refresh();
         rows.post(this::focusContent);
     }
 
     private void renderSection() {
         renderedChanges = Store.changes();
-        for (Map.Entry<String, View> e : drawerItems.entrySet()) e.getValue().setSelected(e.getKey().equals(section));
-        syncRail();
+        dock.refresh();
         if (home == null) return;
         sectionGen++;
         rows.removeAllViews();
@@ -1354,17 +1137,11 @@ public class MainActivity extends Activity {
         Ratings.switchProfile(this, name, () -> applyProfile(name));
     }
 
-    private View liveItem, smartItem;
-
     private void applyProfile(String name) {
         extraRows.clear();
-        if (liveItem != null) liveItem.setVisibility(Ratings.restricted() ? View.GONE : View.VISIBLE);
         ProfileSync.syncNow(null);
-        avatarText.setText(name.substring(0, 1).toUpperCase());
-        View pl = drawer.findViewWithTag("profileLabel");
-        if (pl instanceof TextView) ((TextView) pl).setText(name);
         updateStatus();
-        syncRail();
+        dock.rebuildIfChanged();
         load();
     }
 }

@@ -324,22 +324,23 @@ public class SettingsActivity extends FluxActivity {
             cwRow.addView(Ui.pill(this, (on ? "✓ " : "") + src[1], on, v -> { ContinueWatching.setHidden(src[0], on); render(); }));
         }
         section("Left dock");
-        content.addView(label("Choose what shows in the dock on Home. Hidden items stay in the full menu (press ← on Home)."));
-        java.util.Set<String> dockOff = MainActivity.dockHidden();
-        for (String item : MainActivity.DOCK_ITEMS) {
+        content.addView(label("Choose what shows in the dock on the left of every main screen."));
+        java.util.Set<String> dockOff = Dock.hidden();
+        for (int di = 0; di < Dock.ITEMS.length; di++) {
+            String key = Dock.ITEMS[di], item = Dock.NAMES[di];
             LinearLayout line = buttonRow();
             line.setGravity(Gravity.CENTER_VERTICAL);
-            TextView name = Ui.text(this, item.equals("Smart") ? "Smart home" : item, 16, dockOff.contains(item) ? Ui.DIM : Ui.TEXT);
+            TextView name = Ui.text(this, item, 16, dockOff.contains(key) ? Ui.DIM : Ui.TEXT);
             name.setMinWidth(Ui.dp(this, 200));
             line.addView(name);
-            if (item.equals("Home")) {
+            if (key.equals("home")) {
                 line.addView(Ui.text(this, "Always shown", 14, Ui.DIM));
                 continue;
             }
-            boolean off = dockOff.contains(item);
+            boolean off = dockOff.contains(key);
             line.addView(Ui.pill(this, off ? "Hidden" : "Shown", !off, v -> {
-                java.util.Set<String> now = MainActivity.dockHidden();
-                if (off) now.remove(item); else now.add(item);
+                java.util.Set<String> now = Dock.hidden();
+                if (off) now.remove(key); else now.add(key);
                 Store.put("dock_hidden", android.text.TextUtils.join("|", now));
                 render();
             }));
