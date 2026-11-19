@@ -555,6 +555,7 @@ public class LivePlayerActivity extends Activity {
     }
 
     private void startOver() {
+        android.util.Log.i("FluxLive", "start over (replay " + canReplay() + ", " + programmes().size() + " programmes)");
         if (!canReplay()) { noReplay(); return; }
         Iptv.Program p = GuideView.at(programmes(), watchingAt());
         if (p == null) { Toast.makeText(this, "No guide information for this show, so it can't tell where it started", Toast.LENGTH_SHORT).show(); return; }
@@ -590,6 +591,7 @@ public class LivePlayerActivity extends Activity {
         span.title = cur != null ? cur.title : e.channel.name;
         long seek = at - span.start;
         int token = ++replayToken;
+        android.util.Log.i("FluxLive", "replay from " + at + " (start " + span.start + ", seek " + seek + ")");
         Toast.makeText(this, "Going back…", Toast.LENGTH_SHORT).show();
         App.async(() -> Iptv.catchupUrl(e.source, e.channel, span), url -> {
             if (token != replayToken || current() != e) return;
@@ -600,7 +602,10 @@ public class LivePlayerActivity extends Activity {
             player.prepare();
             player.play();
             refreshTimeline();
-        }, err -> Toast.makeText(this, "Replay: " + App.message(err), Toast.LENGTH_LONG).show());
+        }, err -> {
+            android.util.Log.w("FluxLive", "replay failed: " + App.message(err));
+            Toast.makeText(this, "Replay: " + App.message(err), Toast.LENGTH_LONG).show();
+        });
     }
 
     // ------------------------------------------------------------ guide, categories, catch-up
