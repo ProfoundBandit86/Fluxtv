@@ -52,9 +52,13 @@ final class GuideShift {
                     : "The guide says on now:\n" + p.title + "   " + tf.format(new Date(p.start)) + " – " + tf.format(new Date(p.end)));
             amounts.setText("This channel: " + label(Iptv.channelShift(s, c)) + "   ·   Every channel from " + s.name + ": "
                     + label(Iptv.sourceShift(s)));
+            // Rebuilt to show which is chosen; focus stays on the one just picked.
+            boolean onScope = scope.findFocus() != null;
+            int at = onScope ? scope.indexOfChild(scope.findFocus()) : -1;
             scope.removeAllViews();
             scope.addView(Ui.pill(a, "Just this channel", !whole[0], v -> { whole[0] = false; refresh[0].run(); }));
             scope.addView(Ui.pill(a, "Every channel from " + s.name, whole[0], v -> { whole[0] = true; refresh[0].run(); }));
+            if (at >= 0 && at < scope.getChildCount()) scope.getChildAt(at).requestFocus();
         };
         moves.addView(Ui.button(a, "− 1 h", v -> move.accept(-60)));
         moves.addView(Ui.button(a, "− 15 min", v -> move.accept(-15)));
@@ -69,7 +73,7 @@ final class GuideShift {
         AlertDialog d = new AlertDialog.Builder(a).setTitle("Guide times · " + c.name).setView(box)
                 .setPositiveButton("Done", null).create();
         d.show();
-        if (moves.getChildCount() > 2) moves.getChildAt(2).requestFocus();
+        if (moves.getChildCount() > 2) moves.getChildAt(2).post(() -> moves.getChildAt(2).requestFocus());   // "+ 15 min"
     }
 
     static String label(int minutes) {
