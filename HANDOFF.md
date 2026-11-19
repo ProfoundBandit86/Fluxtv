@@ -1,6 +1,6 @@
 # Flux TV — handoff
 
-Last updated: 2026-11-18 · latest release **round 3 (Nov 18)** · repo `ProfoundBandit86/Fluxtv` (old name `fluxtv` redirects)
+Last updated: 2026-11-19 · latest release **round 4 (v39, Nov 19)** · repo `ProfoundBandit86/Fluxtv` (old name `fluxtv` redirects)
 
 This file is for whoever picks the project up next (a person or a new AI session). It says what Flux is,
 how it is built, tested and released, what was done recently, and the rules and gotchas learned the hard way.
@@ -112,8 +112,7 @@ Gotchas for tests:
 - Catch-up: supported for MAC portals (tested), Xtream (`tv_archive`) and M3U `catchup` tags; past programmes with ↺
   in the guide replay. **Xtream replay tested on the emulator** (Flux News → `/timeshift/…/1001.ts`). `LiveActivity`
   takes an optional `group` extra ("all", "favorites" or "sourceId|groupId"); otherwise it reopens the last group.
-- **Round 4** (mockups 11–13 on the canvas). Released Nov 18: channel buttons only + top-10 sources. The rest is
-  tested on the emulator and waits on branch **`round4`** for the owner's OK on the mockups (then push `round4:main`):
+- **Round 4** (owner-approved mockups 11–13 on the canvas), all released Nov 19 (v39):
   - Live TV player (`LivePlayerActivity`): only CH+/CH− change channel (arrows just show the info). OK opens a
     glass panel with Start over, −30 s, Pause/Play, +30 s, Back to live, Guide, Channels, Categories, Catch-up, ⋮.
     Pause/rewind/start over use the channel's catch-up (`replayFrom(clockTime)` builds a span from the show's start
