@@ -1,6 +1,6 @@
 # Flux TV — handoff
 
-Last updated: 2026-11-19 · latest release **round 4 (v39, Nov 19)** · repo `ProfoundBandit86/Fluxtv` (old name `fluxtv` redirects)
+Last updated: 2026-11-19 · latest release **round 5 (Nov 19)** · repo `ProfoundBandit86/Fluxtv` (old name `fluxtv` redirects)
 
 This file is for whoever picks the project up next (a person or a new AI session). It says what Flux is,
 how it is built, tested and released, what was done recently, and the rules and gotchas learned the hard way.
@@ -126,6 +126,24 @@ Gotchas for tests:
   - Test gotchas: a tap leaves the emulator in touch mode (the next OK/arrow is swallowed) — press ↑ first; Android
     may show a "Speech Services isn't responding" dialog — `tap "Wait"`; the Live TV panel hides after 8 s, so the
     button tests reopen the player for each step (`liveopen`).
+- **Nov 19 fixes:** blank pictures after the player (ImageLoader re-puts a bitmap into the memory cache before telling
+  waiting views; cache = maxMemory/5; `largeHeap`); Home's Live TV row refreshes alone when `live_recent`/`live_favs`
+  change (`refreshLiveRow`); Settings → System → **Reload Flux TV** (`App.reload`: restart task + exit).
+- **Round 5** (owner-approved mockups 14–16): one **`Dock`** class for every screen (MainActivity + FluxActivity
+  subclasses): a 38 dp icon strip that glides to 220 dp (width animation, icons fixed, names in spaced capitals),
+  content slides by the same amount. Entries: Search, Home, Movies, TV Shows, Live TV, Sports, Favorites, Apps,
+  Settings (Smart home and Downloads now only via Settings). `Dock.openScreen` switches main screens with no
+  animation and finishes the previous main screen. `dock_hidden` stores keys (old names still read).
+  **Eclipse look** (owner's other project github.com/ProfoundBandit86/eclipse): buttons/pills squared (`Ui.BTN_RADIUS`
+  8 dp, faint edge), spaced capitals (`Ui.caps`), main button filled with the accent (`Ui.ON_ACCENT`), section titles
+  `Ui.sectionLabel` (accent capitals + hairline); Settings tabs in capitals with an accent edge, sections as edged
+  cards, the tab's line under the page heading. TV show page: compact top for series so episodes show without
+  scrolling; the "Season N ▾" button sits where "Episodes" was. Note: uiautomator reports all-caps text in capitals
+  (tests that `tap` button text need capitals).
+- **Home-server runner** (`.github/runner/`): Docker image `ghcr.io/profoundbandit86/flux-runner` (built by
+  `runner-image.yml`), Unraid steps in `.github/runner/README.md`. Repo variable `FLUX_RUNNER=unraid` sends
+  device tests to it (labels `self-hosted, flux-emulator`); unset = GitHub's runners. Device tests now cancel an
+  older run on a new push (`concurrency`).
 
 ## 5. Rules and decisions to keep
 
