@@ -87,7 +87,7 @@ public class LivePlayerActivity extends Activity {
         // ---- info / controls panel (bottom, dark glass). OK opens it with buttons; a channel change shows it briefly.
         infoBar = Ui.vertical(this);
         infoBar.setBackground(Ui.rounded(this, Ui.alpha(0xFF06080C, 0.8f), 0, 22));
-        infoBar.setPadding(Ui.dp(this, 22), Ui.dp(this, 18), Ui.dp(this, 22), Ui.dp(this, 14));
+        infoBar.setPadding(Ui.dp(this, 18), Ui.dp(this, 16), Ui.dp(this, 18), Ui.dp(this, 12));
         LinearLayout r1 = Ui.horizontal(this);
         r1.setGravity(Gravity.CENTER_VERTICAL);
         logo = new ImageView(this);
@@ -145,7 +145,8 @@ public class LivePlayerActivity extends Activity {
         liveBtn = pillButton(0, "●  Back to live", v -> goLive());
         liveBtn.setTextColor(Ui.onFocusDark(0xFFFF6B70));
         left.addView(liveBtn);
-        buttonsRow.addView(left, new LinearLayout.LayoutParams(0, -2, 1f));
+        buttonsRow.addView(left);
+        buttonsRow.addView(new View(this), new LinearLayout.LayoutParams(0, 1, 1f));
         buttonsRow.addView(pillButton(R.drawable.ic_guide, "Guide", v -> openGuide()));
         buttonsRow.addView(pillButton(R.drawable.ic_list, "Channels", v -> { closeControls(); showList(); }));
         buttonsRow.addView(pillButton(R.drawable.ic_apps, "Categories", v -> showCategories()));
@@ -160,7 +161,7 @@ public class LivePlayerActivity extends Activity {
         hint.setPadding(0, Ui.dp(this, 10), 0, 0);
         infoBar.addView(hint);
         FrameLayout.LayoutParams ilp = new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM);
-        ilp.setMargins(Ui.dp(this, 32), 0, Ui.dp(this, 32), Ui.dp(this, 24));
+        ilp.setMargins(Ui.dp(this, 24), 0, Ui.dp(this, 24), Ui.dp(this, 20));
         root.addView(infoBar, ilp);
 
         clock = Ui.heading(this, "", 22);
@@ -436,22 +437,22 @@ public class LivePlayerActivity extends Activity {
         Button b = new Button(this);
         b.setAllCaps(false);
         b.setText(label);
-        b.setTextSize(14);
+        b.setTextSize(13);
         b.setTypeface(android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL));
         b.setTextColor(Ui.onFocusDark(Ui.TEXT));
         b.setBackground(pillBg(Ui.alpha(Color.WHITE, 0.1f)));
-        b.setPadding(Ui.dp(this, 16), 0, Ui.dp(this, 18), 0);
+        b.setPadding(Ui.dp(this, 12), 0, Ui.dp(this, 14), 0);
         b.setMinWidth(0);
         b.setMinimumWidth(0);
         if (iconRes != 0) {
-            b.setCompoundDrawables(icon(iconRes, 18), null, null, null);
-            b.setCompoundDrawablePadding(Ui.dp(this, 8));
+            b.setCompoundDrawables(icon(iconRes, 16), null, null, null);
+            b.setCompoundDrawablePadding(Ui.dp(this, 6));
             b.setCompoundDrawableTintList(Ui.onFocusDark(Ui.TEXT));
         }
         b.setOnClickListener(click);
         b.setOnFocusChangeListener((v, has) -> { if (has) bumpHide(); });
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, Ui.dp(this, 42));
-        lp.setMargins(Ui.dp(this, 4), 0, Ui.dp(this, 4), 0);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, Ui.dp(this, 40));
+        lp.setMargins(Ui.dp(this, 3), 0, Ui.dp(this, 3), 0);
         lp.gravity = Gravity.CENTER_VERTICAL;
         b.setLayoutParams(lp);
         return b;
@@ -459,8 +460,8 @@ public class LivePlayerActivity extends Activity {
 
     private Button roundButton(int iconRes, boolean main, View.OnClickListener click) {
         Button b = new Button(this);
-        int size = Ui.dp(this, main ? 54 : 42);
-        int is = main ? 24 : 20;
+        int size = Ui.dp(this, main ? 50 : 40);
+        int is = main ? 22 : 18;
         b.setCompoundDrawables(icon(iconRes, is), null, null, null);
         b.setPadding((size - Ui.dp(this, is)) / 2, 0, 0, 0);
         b.setCompoundDrawableTintList(main ? Ui.onFocusDark(Ui.BG) : Ui.onFocusDark(Ui.TEXT));
@@ -481,7 +482,7 @@ public class LivePlayerActivity extends Activity {
         b.setOnClickListener(click);
         b.setOnFocusChangeListener((v, has) -> { if (has) bumpHide(); });
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(size, size);
-        lp.setMargins(Ui.dp(this, 5), 0, Ui.dp(this, 5), 0);
+        lp.setMargins(Ui.dp(this, 3), 0, Ui.dp(this, 3), 0);
         lp.gravity = Gravity.CENTER_VERTICAL;
         b.setLayoutParams(lp);
         return b;

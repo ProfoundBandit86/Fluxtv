@@ -191,9 +191,9 @@ tap "+ Radarr"; sleep 4; texts arr-quality 20; shot 24-arr-quality
 tap "HD-1080p"; sleep 6; texts arr-added 30; shot 25-arr-added
 adb shell am start -W -n $P/.DetailActivity --es type series --es id tt0903747 --es name "Breaking Bad"
 waitfor Trailer 12; nudge; texts detail-sonarr 30; shot 26-detail-sonarr
-tap "Season"; sleep 2; texts seasons-menu 30; shot 26b-seasons-menu
+tap "Wait"; sleep 1; tap "Season"; sleep 2; texts seasons-menu 30; shot 26b-seasons-menu
 key DPAD_DOWN 1; key DPAD_CENTER 2; texts seasons-picked 30; shot 26c-seasons-picked
-adb shell am start -W -n $P/.StreamsActivity --es pi_type movie --es pi_meta tt0111161 --es pi_video tt0111161 --es pi_name Test; sleep 12; texts streams-top10 80; shot 26d-streams-top10
+adb shell am start -W -n $P/.StreamsActivity --es pi_type movie --es pi_meta tt0111161 --es pi_video tt0111161 --es pi_name Test; sleep 12; tap "Wait"; sleep 1; texts streams-top10 80; shot 26d-streams-top10
 adb shell am start -W -n $P/.DownloadsActivity; sleep 6; texts downloads 60; shot 27-downloads
 adb shell am start -W -n $P/.ArrSetupActivity; sleep 5; texts arr-setup 60; shot 28-arr-setup
 crashes arr
@@ -487,10 +487,10 @@ adb shell am start -W -n $P/.LivePlayerActivity --es group all --es source $XT -
 key DPAD_CENTER 2; texts live-buttons 40; shot 111-live-buttons; focused live-buttons
 tap "Start over"; sleep 8; texts live-start-over 30; shot 112-live-start-over
 echo "== START-OVER REQS: $(curl -s http://127.0.0.1:8000/_reqs | python3 -c "import json,sys; r=json.load(sys.stdin); print([x for x in r if 'timeshift' in x][-2:])")"
-key DPAD_CENTER 2; tap "●  Back to live"; sleep 5; texts live-back-live 20
-key DPAD_CENTER 2; tap "Categories"; sleep 4; texts live-categories 30; shot 113-live-categories; key BACK 2
-key DPAD_CENTER 2; tap "Catch-up"; sleep 3; texts live-catchup-list 30; shot 114-live-catchup-list; key BACK 2
-key DPAD_CENTER 2; tap "Channels"; sleep 3; shot 115-live-channels; key BACK 2
+key DPAD_UP 1; key DPAD_CENTER 2; tap "●  Back to live"; sleep 5; texts live-back-live 20; shot 112b-live-back-live
+key DPAD_UP 1; key DPAD_CENTER 2; tap "Categories"; sleep 4; texts live-categories 30; shot 113-live-categories; key BACK 2
+key DPAD_UP 1; key DPAD_CENTER 2; tap "Catch-up"; sleep 3; texts live-catchup-list 30; shot 114-live-catchup-list; key BACK 2
+key DPAD_UP 1; key DPAD_CENTER 2; tap "Channels"; sleep 3; shot 115-live-channels; key BACK 2
 key DPAD_UP 2; top live-arrow-no-zap; key CHANNEL_UP 4; texts live-ch-up 12
 key BACK 2
 crashes portal-catchup-multiview
