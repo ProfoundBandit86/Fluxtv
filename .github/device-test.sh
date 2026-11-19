@@ -193,6 +193,7 @@ adb shell am start -W -n $P/.DetailActivity --es type series --es id tt0903747 -
 waitfor Trailer 12; nudge; texts detail-sonarr 30; shot 26-detail-sonarr
 tap "Season"; sleep 2; texts seasons-menu 30; shot 26b-seasons-menu
 key DPAD_DOWN 1; key DPAD_CENTER 2; texts seasons-picked 30; shot 26c-seasons-picked
+adb shell am start -W -n $P/.StreamsActivity --es pi_type movie --es pi_meta tt0111161 --es pi_video tt0111161 --es pi_name Test; sleep 12; texts streams-top10 80; shot 26d-streams-top10
 adb shell am start -W -n $P/.DownloadsActivity; sleep 6; texts downloads 60; shot 27-downloads
 adb shell am start -W -n $P/.ArrSetupActivity; sleep 5; texts arr-setup 60; shot 28-arr-setup
 crashes arr
