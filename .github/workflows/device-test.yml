@@ -21,9 +21,16 @@ on:
 permissions:
   contents: write
 
+# A newer push replaces a run that's still going (one emulator at a time, especially on the home server).
+concurrency:
+  group: device-test
+  cancel-in-progress: true
+
 jobs:
   emulator:
-    runs-on: ubuntu-latest
+    # Repo variable FLUX_RUNNER = "unraid" runs this on the home server (.github/runner/README.md); otherwise GitHub's.
+    # Only pushes to the test branches and manual runs start it: pull requests never reach the home server.
+    runs-on: ${{ vars.FLUX_RUNNER == 'unraid' && fromJSON('["self-hosted","flux-emulator"]') || 'ubuntu-latest' }}
     timeout-minutes: 70
     steps:
       - uses: actions/checkout@v4
@@ -57,6 +64,7 @@ jobs:
         run: gradle assembleRelease --no-daemon && cp app/build/outputs/apk/release/app-release.apk flux-test.apk
 
       - name: Enable KVM
+        if: runner.environment == 'github-hosted'
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules

@@ -1,0 +1,29 @@
+name: Build test-runner image
+
+# Builds the Docker image for running Flux's emulator tests on a home server (see .github/runner/README.md)
+# and publishes it as ghcr.io/profoundbandit86/flux-runner:latest.
+on:
+  push:
+    branches: [main]
+    paths: ['.github/runner/**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .github/runner
+          push: true
+          tags: ghcr.io/profoundbandit86/flux-runner:latest
