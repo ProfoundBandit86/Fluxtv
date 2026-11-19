@@ -12,7 +12,7 @@ import java.util.concurrent.Executors;
 public final class ImageLoader {
 
     private static final LruCache<String, Bitmap> CACHE =
-            new LruCache<String, Bitmap>((int) (Runtime.getRuntime().maxMemory() / 8)) {
+            new LruCache<String, Bitmap>((int) (Runtime.getRuntime().maxMemory() / 5)) {
                 @Override
                 protected int sizeOf(String key, Bitmap b) {
                     return b.getByteCount();
@@ -94,7 +94,13 @@ public final class ImageLoader {
             if (waiting == null) return;
             boolean ok = b != null;
             java.util.List<Runnable[]> w = waiting;
-            App.MAIN.post(() -> { for (Runnable[] r : w) (ok ? r[0] : r[1]).run(); });
+            Bitmap got = b;
+            App.MAIN.post(() -> {
+                // Many pictures arrive at once when Home is rebuilt (e.g. back from the player): the memory cache can
+                // drop this one before its views are told, which left blank cards. Put it back first.
+                if (ok && CACHE.get(url) == null) CACHE.put(url, got);
+                for (Runnable[] r : w) (ok ? r[0] : r[1]).run();
+            });
         });
     }
 

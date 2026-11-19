@@ -1030,6 +1030,7 @@ public class SettingsActivity extends FluxActivity {
         pics.addView(Ui.button(this, "Refresh this report", v -> render(true)));
         section("Flux TV " + Updater.currentName(this));
         LinearLayout sys = buttonRow();
+        sys.addView(Ui.button(this, R.drawable.ic_update, "Reload Flux TV", v -> App.reload(this)));
         sys.addView(Ui.button(this, R.drawable.ic_update, "Check for updates", v -> Updater.check(this, true)));
         sys.addView(Ui.button(this, R.drawable.ic_apps, "All apps", v -> startActivity(new Intent(this, AppsActivity.class))));
         sys.addView(Ui.button(this, R.drawable.ic_settings, "TV settings", v -> {

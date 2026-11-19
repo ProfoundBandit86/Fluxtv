@@ -554,6 +554,7 @@ public class MainActivity extends Activity {
             load();   // keeps showing the current rows and swaps in fresh ones
         } else if (section.equals("home")) {
             refreshExternal();
+            refreshLiveRow();
         }
         App.MAIN.removeCallbacks(clockTick);
         clockTick.run();
@@ -920,14 +921,42 @@ public class MainActivity extends Activity {
     }
 
     /** Live TV on Home: the guide, then favourite / recently watched channels (OK tunes straight in). */
+    private LinearLayout liveSlot;
+    private String liveSig = "";
+
+    /** Which channels the Live TV row shows depends on these (watching a channel changes "recent"). */
+    private static String liveSignature() {
+        return Store.get("live_recent") + "#" + Store.get("live_favs");
+    }
+
     private void liveRow() {
         if (Iptv.sources().isEmpty() || Ratings.restricted()) return;
         LinearLayout slot = Ui.vertical(this);
         slot.setClipChildren(false);
         rows.addView(slot);
+        liveSlot = slot;
+        fillLiveRow(slot, false);
+    }
+
+    /** Back on Home after watching Live TV: redo just the Live TV row (not the whole screen). */
+    private void refreshLiveRow() {
+        if (liveSlot == null || liveSlot.getParent() == null || liveSig.equals(liveSignature())) return;
+        View focused = getCurrentFocus();
+        boolean hadFocus = focused != null && isInside(focused, liveSlot);
+        fillLiveRow(liveSlot, hadFocus);
+    }
+
+    private static boolean isInside(View v, View parent) {
+        for (android.view.ViewParent p = v.getParent(); p != null; p = p.getParent()) if (p == parent) return true;
+        return false;
+    }
+
+    private void fillLiveRow(LinearLayout slot, boolean focusAfter) {
+        liveSig = liveSignature();
         int gen = sectionGen;
         App.async(LiveActivity::homeChannels, list -> {
             if (gen != sectionGen) return;
+            slot.removeAllViews();
             LinearLayout row = Ui.row(this, slot, "Live TV", "Favorites and recent channels");
             LinearLayout guideTile = (LinearLayout) appTile("TV guide", v -> startActivity(new Intent(this, LiveActivity.class)));
             FrameLayout box = new FrameLayout(this);
@@ -955,6 +984,7 @@ public class MainActivity extends Activity {
                 }
                 row.addView(t);
             }
+            if (focusAfter && row.getChildCount() > 1) row.getChildAt(1).requestFocus();   // the channel just watched
         }, null);
     }
 

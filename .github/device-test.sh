@@ -493,6 +493,9 @@ echo "== START-OVER REQS: $(curl -s http://127.0.0.1:8000/_reqs | python3 -c "im
 liveopen; for i in 1 2 3 4; do key DPAD_RIGHT 0; done; key DPAD_CENTER 4; texts live-categories 30; shot 113-live-categories
 liveopen; for i in 1 2 3 4 5; do key DPAD_RIGHT 0; done; key DPAD_CENTER 3; texts live-catchup-list 30; shot 114-live-catchup-list
 liveopen; for i in 1 2 3; do key DPAD_RIGHT 0; done; key DPAD_CENTER 3; shot 115-live-channels; key BACK 1
+# Back on Home after watching: the Live TV row shows the channel just watched first (no full Home rebuild)
+adb shell am start -W -n $P/.LivePlayerActivity --es group all --es source $XT --es channel 1002 >/dev/null; sleep 6
+adb shell am start -W -n $P/.MainActivity; sleep 5; texts home-live-row-after 60; shot 116-home-live-row-after
 key DPAD_UP 2; top live-arrow-no-zap; key CHANNEL_UP 4; texts live-ch-up 12
 key BACK 2
 crashes portal-catchup-multiview

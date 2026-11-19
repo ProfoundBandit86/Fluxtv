@@ -113,4 +113,17 @@ public class App extends Application {
         String m = e.getMessage();
         return m == null || m.isEmpty() ? e.getClass().getSimpleName() : m;
     }
+
+    /**
+     * Settings → System → Reload Flux TV: starts Flux afresh (Home rows, pictures in memory, channel lists and
+     * sources looked up again). Saved settings, profiles and pictures on disk are kept.
+     */
+    public static void reload(android.app.Activity from) {
+        android.widget.Toast.makeText(from, "Reloading Flux TV…", android.widget.Toast.LENGTH_SHORT).show();
+        Addons.forgetStreams();
+        android.content.Intent i = android.content.Intent.makeRestartActivityTask(
+                new android.content.ComponentName(from, MainActivity.class));
+        from.startActivity(i);
+        MAIN.postDelayed(() -> Runtime.getRuntime().exit(0), 400);
+    }
 }
