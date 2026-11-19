@@ -499,6 +499,7 @@ public class LiveActivity extends FluxActivity {
                 "Hide this channel",
                 "Hide the group \u201C" + Iptv.groupName(e.source, groupOf(e.source, e.channel)) + "\u201D",
                 "Choose which channels show…",
+                "Guide times for this channel… (if the guide is off)",
         };
         new AlertDialog.Builder(this)
                 .setTitle(e.channel.name)
@@ -540,6 +541,10 @@ public class LiveActivity extends FluxActivity {
                         case 8:
                             stopPreview();
                             startActivity(new Intent(this, IptvFilterActivity.class));
+                            break;
+                        case 9:
+                            GuideShift.show(this, e.source, e.channel, () -> { guide.invalidate(); GuideView.Entry se = guide.selected();
+                                if (se != null) showInfo(se, GuideView.at(Iptv.programs(se.source, se.channel), System.currentTimeMillis())); });
                             break;
                         default:
                             Toast.makeText(this, "Updating the guide…", Toast.LENGTH_SHORT).show();

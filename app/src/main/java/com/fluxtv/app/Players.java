@@ -33,7 +33,15 @@ public final class Players {
         //  - the box's own decoders first (hardware, and HDMI passthrough to the receiver for Dolby/DTS),
         //  - FFmpeg software audio when the box can't decode or pass a format through (DTS, TrueHD, E-AC3…),
         //  - if a hardware decoder fails to start, try the next one rather than giving up.
-        DefaultRenderersFactory renderers = new DefaultRenderersFactory(c)
+        //  - the sound output is wrapped for lip sync (LipSync: the picture waits for late sound).
+        DefaultRenderersFactory renderers = new DefaultRenderersFactory(c) {
+            @Override
+            protected androidx.media3.exoplayer.audio.AudioSink buildAudioSink(Context context, boolean enableFloatOutput,
+                                                                             boolean enableAudioTrackPlaybackParams) {
+                androidx.media3.exoplayer.audio.AudioSink sink = super.buildAudioSink(context, enableFloatOutput, enableAudioTrackPlaybackParams);
+                return sink == null ? null : LipSync.wrap(sink);
+            }
+        }
                 .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
                 .setEnableDecoderFallback(true);
         androidx.media3.extractor.DefaultExtractorsFactory extractors = new androidx.media3.extractor.DefaultExtractorsFactory()

@@ -116,6 +116,7 @@ public class PlayerActivity extends Activity {
         setContentView(root);
 
         player = Players.create(this);
+        LipSync.use(this, live || info == null ? null : info.metaId);
         view.setPlayer(player);
         applyTrackPreferences();
         applySubtitleStyle();
@@ -1494,6 +1495,9 @@ public class PlayerActivity extends Activity {
                 header("Video quality");
                 focus = trackOptions(C.TRACK_TYPE_VIDEO);
                 break;
+            case "sync":
+                focus = syncPage();
+                break;
             default:
                 panelPage = "main";
                 header(info.title().isEmpty() ? "Options" : info.title());
@@ -1503,6 +1507,7 @@ public class PlayerActivity extends Activity {
                 item("Subtitle style", SUB_STYLES[Math.max(0, Math.min(2, intPref("player_sub_style", 0)))], false, v -> showPage("substyle"));
                 float sp = player.getPlaybackParameters().speed;
                 item("Playback speed", sp == 1f ? "Normal" : sp + "×", false, v -> showPage("speed"));
+                item("Audio sync", LipSync.label((int) LipSync.lateMs), false, v -> showPage("sync"));
                 item("Picture size", ZOOMS[Math.max(0, Math.min(2, intPref("player_zoom", 0)))], false, v -> showPage("zoom"));
                 if (countTracks(C.TRACK_TYPE_VIDEO) > 1) item("Video quality", currentLabel(C.TRACK_TYPE_VIDEO), false, v -> showPage("quality"));
                 item("Play in another app", "VLC, MX Player, Just Player…", false, v -> openExternally());
@@ -1514,9 +1519,42 @@ public class PlayerActivity extends Activity {
         if (f != null) f.post(f::requestFocus);
     }
 
+    /** Lip sync for this sound output (and optionally just this show). */
+    private boolean syncForShow;
+
+    private View syncPage() {
+        header("Audio sync · " + LipSync.label((int) LipSync.lateMs));
+        TextView note = Ui.text(this, "Voices come after the lips move? Choose Sound earlier. Before? Sound later. "
+                + "Saved for " + (syncForShow ? "this show" : LipSync.deviceName(this)) + ".", 13, Ui.MUTED);
+        note.setPadding(Ui.dp(this, 4), 0, Ui.dp(this, 4), Ui.dp(this, 8));
+        panelList.addView(note);
+        View first = item("Sound earlier", "−50 ms", false, v -> adjustSync(50));
+        item("Sound later", "+50 ms", false, v -> adjustSync(-50));
+        if (LipSync.hasShow()) {
+            item("Save for", syncForShow ? "Just this show" : LipSync.deviceName(this), false, v -> { syncForShow = !syncForShow; showPage("sync"); });
+        }
+        item("Back in sync (reset)", null, false, v -> {
+            if (syncForShow) LipSync.setShowMs(this, 0); else LipSync.setDeviceMs(this, 0);
+            showPage("sync");
+        });
+        item("Set it with a flash and a beep…", "For " + LipSync.deviceName(this), false, v -> {
+            player.pause();
+            startActivity(new android.content.Intent(this, LipSyncActivity.class));
+        });
+        return first;
+    }
+
+    private void adjustSync(int deltaMs) {
+        if (syncForShow) LipSync.setShowMs(this, LipSync.showMs() + deltaMs);
+        else LipSync.setDeviceMs(this, LipSync.deviceMs(this) + deltaMs);
+        int at = panelList.indexOfChild(getCurrentFocus());
+        showPage("sync");
+        if (at > 0 && at < panelList.getChildCount()) panelList.getChildAt(at).post(() -> panelList.getChildAt(at).requestFocus());
+    }
+
     /** When going back to the main page, focus the entry you came from. */
     private View focusFor(String page, View fallback) {
-        String[] order = {"audio", "subs", "subsize", "substyle", "speed", "zoom", "quality"};
+        String[] order = {"audio", "subs", "subsize", "substyle", "speed", "sync", "zoom", "quality"};
         for (int i = 0; i < order.length; i++) {
             if (order[i].equals(page) && i + 1 < panelList.getChildCount()) return panelList.getChildAt(i + 1);
         }
@@ -1988,6 +2026,7 @@ public class PlayerActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        LipSync.refresh(this);   // back from the flash-and-beep screen, or a different sound output
         App.MAIN.postDelayed(saver, 10_000);
         App.MAIN.post(cueTick);
     }

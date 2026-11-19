@@ -196,6 +196,22 @@ public class LivePlayerActivity extends Activity {
         channelList.setItemsCanFocus(false);
         channelList.setPadding(Ui.dp(this, 24), Ui.dp(this, 24), Ui.dp(this, 24), Ui.dp(this, 24));
         channelList.setClipToPadding(false);
+        channelList.setOnItemLongClickListener((p, v, pos, id) -> {   // hold OK: hide this channel
+            GuideView.Entry x = list.get(pos);
+            new AlertDialog.Builder(this).setTitle(x.channel.name).setItems(new String[]{"Hide this channel", "Guide times…"}, (d, w) -> {
+                if (w == 0) {
+                    Iptv.setChannelHidden(x.source, x.channel, true);
+                    Toast.makeText(this, x.channel.name + " hidden. Show it again in Settings → Live TV → Channels.", Toast.LENGTH_LONG).show();
+                    if (pos == index) { hideList(); hideChannel(x); return; }
+                    list.remove(pos);
+                    if (pos < index) index--;
+                    adapter.notifyDataSetChanged();
+                } else {
+                    GuideShift.show(this, x.source, x.channel, adapter::notifyDataSetChanged);
+                }
+            }).show();
+            return true;
+        });
         channelList.setOnItemClickListener((p, v, pos, id) -> { savedList = null; listPanel.setVisibility(View.GONE); view.requestFocus(); tune(pos); });
         listPanel.addView(channelList, new FrameLayout.LayoutParams(Ui.dp(this, 520), -1));
         root.addView(listPanel, new FrameLayout.LayoutParams(Ui.dp(this, 620), -1));
@@ -217,6 +233,7 @@ public class LivePlayerActivity extends Activity {
         App.MAIN.postDelayed(tick, 1000);
 
         player = Players.create(this);
+        LipSync.use(this, null);
         view.setPlayer(player);
         player.addListener(new Player.Listener() {
             @Override public void onPlayerError(PlaybackException e) {
@@ -647,6 +664,7 @@ public class LivePlayerActivity extends Activity {
 
     private void showCategories() {
         openSide("Categories");
+        sideList.addView(Ui.text(this, "Hold OK on a category to hide it.", 12, Ui.DIM));
         TextView wait = Ui.text(this, "Loading…", 14, Ui.MUTED);
         sideList.addView(wait);
         App.async(() -> {
@@ -675,6 +693,19 @@ public class LivePlayerActivity extends Activity {
             for (Map.Entry<String, String> g : names.entrySet()) {
                 Integer n = counts.get(g.getKey());
                 View b = sideButton(g.getValue() + (n == null ? "" : "   " + n), g.getKey().equals(group), v -> pickGroup(g.getKey()));
+                b.setOnLongClickListener(v -> {   // hold OK: hide this category
+                    String[] parts = g.getKey().split("\\|", 2);
+                    Iptv.Source src = null;
+                    for (Iptv.Source x : Iptv.sources()) if (x.id.equals(parts[0])) src = x;
+                    if (src == null || parts.length < 2) return true;
+                    Iptv.Source fs = src;
+                    new AlertDialog.Builder(this).setTitle(g.getValue()).setItems(new String[]{"Hide this category"}, (d, w) -> {
+                        sidePanel.setVisibility(View.GONE);
+                        hideCategory(fs, parts[1]);
+                        showCategories();
+                    }).show();
+                    return true;
+                });
                 if (g.getKey().equals(group)) focus = b;
             }
             View f = focus;
@@ -828,6 +859,9 @@ public class LivePlayerActivity extends Activity {
                 "TV guide",
                 "Recordings",
                 "Multiview (watch up to 4 channels)",
+                "Guide times… (if the guide is off)",
+                "Hide this channel",
+                "Hide the category \u201C" + Iptv.groupName(e.source, Iptv.groupKey(e.source, e.channel)) + "\u201D",
         };
         new AlertDialog.Builder(this).setTitle(e.channel.name).setItems(items, (d, w) -> {
             switch (w) {
@@ -850,12 +884,42 @@ public class LivePlayerActivity extends Activity {
                     break;
                 case 5: finish(); break;
                 case 6: startActivity(new android.content.Intent(this, RecordingsActivity.class)); break;
+                case 8: GuideShift.show(this, e.source, e.channel, () -> { fetched = new ArrayList<>(); showInfo(); }); break;
+                case 9: hideChannel(e); break;
+                case 10: hideCategory(e.source, Iptv.groupKey(e.source, e.channel)); break;
                 default:
                     startActivity(new android.content.Intent(this, MultiviewActivity.class).putExtra("group", group)
                             .putExtra("source", e.source.id).putExtra("channel", e.channel.id));
                     finish();
             }
         }).show();
+    }
+
+    /** Hides a channel (Settings → Live TV → Channels shows it again) and moves on to the next one. */
+    private void hideChannel(GuideView.Entry e) {
+        Iptv.setChannelHidden(e.source, e.channel, true);
+        Toast.makeText(this, e.channel.name + " hidden. Show it again in Settings → Live TV → Channels.", Toast.LENGTH_LONG).show();
+        int at = list.indexOf(e);
+        if (at >= 0) {
+            list.remove(at);
+            if (list.isEmpty()) { finish(); return; }
+            index = -1;
+            tune(Math.min(at, list.size() - 1));
+            adapter.notifyDataSetChanged();
+        }
+    }
+
+    private void hideCategory(Iptv.Source s, String key) {
+        Iptv.setGroupHidden(s, key, true);
+        Toast.makeText(this, "Category hidden. Show it again in Settings → Live TV → Channels.", Toast.LENGTH_LONG).show();
+        GuideView.Entry cur = current();
+        boolean playingIt = cur != null && cur.source == s && Iptv.groupKey(s, cur.channel).equals(key);
+        List<GuideView.Entry> keep = new ArrayList<>();
+        for (GuideView.Entry x : list) if (!(x.source == s && Iptv.groupKey(s, x.channel).equals(key))) keep.add(x);
+        if (keep.isEmpty()) { finish(); return; }
+        list = keep;
+        if (playingIt) { index = -1; tune(0); } else index = Math.max(0, list.indexOf(cur));
+        adapter.notifyDataSetChanged();
     }
 
     private void tracks(int type, String title) {

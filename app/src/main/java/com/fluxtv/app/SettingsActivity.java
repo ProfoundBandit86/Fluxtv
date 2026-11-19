@@ -924,6 +924,17 @@ public class SettingsActivity extends FluxActivity {
         content.addView(choices(PlayerActivity.SUB_SIZES, "player_sub_size", 1));
         content.addView(label("Style"));
         content.addView(choices(PlayerActivity.SUB_STYLES, "player_sub_style", 0));
+        section("Audio sync (lip sync)");
+        int ls = LipSync.deviceMs(this);
+        content.addView(label("If voices don't match the lips (often with Bluetooth or a soundbar). Saved for the sound output in use: "
+                + LipSync.deviceName(this) + " · now " + LipSync.label(ls) + ". While watching it's also under ⋮ → Audio sync, "
+                + "where it can be saved for just one show."));
+        LinearLayout lsRow = buttonRow();
+        lsRow.addView(Ui.button(this, "Sound earlier · −50 ms", v -> { LipSync.setDeviceMs(this, ls + 50); render(true); }));
+        lsRow.addView(Ui.button(this, "Sound later · +50 ms", v -> { LipSync.setDeviceMs(this, ls - 50); render(true); }));
+        lsRow.addView(Ui.button(this, "Reset", v -> { LipSync.setDeviceMs(this, 0); render(true); }));
+        LinearLayout lsRow2 = buttonRow();
+        lsRow2.addView(Ui.button(this, "Set it with a flash and a beep…", v -> startActivity(new Intent(this, LipSyncActivity.class))));
         section("Picture size");
         content.addView(choices(PlayerActivity.ZOOMS, "player_zoom", 0));
         section("Skip intro & credits");

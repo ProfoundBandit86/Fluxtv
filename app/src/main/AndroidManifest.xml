@@ -120,6 +120,7 @@
         <activity android:name=".IptvActivity" android:exported="${testExported}" android:screenOrientation="landscape"
             android:windowSoftInputMode="adjustResize" />
         <activity android:name=".IptvFilterActivity" android:exported="${testExported}" android:screenOrientation="landscape" />
+        <activity android:name=".LipSyncActivity" android:exported="${testExported}" android:screenOrientation="landscape" />
         <activity android:name=".ServiceActivity" android:exported="true" android:screenOrientation="landscape">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />

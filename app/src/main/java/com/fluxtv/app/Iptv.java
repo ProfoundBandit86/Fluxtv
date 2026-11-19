@@ -651,7 +651,7 @@ public final class Iptv {
         String key = s.id + "|" + c.id;
         Long t = epgTime.get(key);
         List<Program> cached = epgCache.get(key);
-        if (cached != null && t != null && System.currentTimeMillis() - t < EPG_TTL) return current(cached);
+        if (cached != null && t != null && System.currentTimeMillis() - t < EPG_TTL) return current(shifted(s, c, cached));
         List<Program> list = new ArrayList<>();
         List<Program> full = programs(s, c);
         if (!full.isEmpty()) return current(full);
@@ -667,15 +667,15 @@ public final class Iptv {
                     p.desc = b64(o.optString("description"));
                     p.start = o.optLong("start_timestamp") * 1000L;
                     p.end = o.optLong("stop_timestamp") * 1000L;
-                    if (p.start == 0) p.start = xmlDate(o.optString("start").replaceAll("[-: ]", "") + " +0000");
-                    if (p.end == 0) p.end = xmlDate(o.optString("end").replaceAll("[-: ]", "") + " +0000");
+                    if (p.start == 0) p.start = xmlDate(o.optString("start").replaceAll("[-: ]", "") + "+0000");
+                    if (p.end == 0) p.end = xmlDate(o.optString("end").replaceAll("[-: ]", "") + "+0000");
                     list.add(p);
                 }
             }
         } catch (Exception ignored) { }
         epgCache.put(key, list);
         epgTime.put(key, System.currentTimeMillis());
-        return current(list);
+        return current(shifted(s, c, list));
     }
 
     private static List<Program> current(List<Program> all) {
@@ -701,7 +701,7 @@ public final class Iptv {
         Map<String, List<Program>> g = guides.get(s.id);
         if (g == null) return new ArrayList<>();
         List<Program> list = lookup(g, c);
-        return list == null ? new ArrayList<>() : list;
+        return list == null ? new ArrayList<>() : shifted(s, c, list);
     }
 
     /** True once a guide is in memory for the source. */
@@ -1055,16 +1055,102 @@ public final class Iptv {
         }
     }
 
-    private static long xmlDate(String v) {
-        if (v == null || v.length() < 14) return 0;
+    private static final Pattern XML_DATE = Pattern.compile("^(\\d{12})(\\d{2})?\\s*(?:([+-])(\\d{2}):?(\\d{2})|(Z|UTC|GMT))?");
+
+    /**
+     * XMLTV times: "20261119100000 +0000", but providers also send "20261119100000+0000", "-05:00", "Z",
+     * no seconds, or no zone at all. The old parser read only the first form exactly and gave 0 (or the wrong hour)
+     * for the others, so guides were off by the provider's time zone. No zone → treated as UTC.
+     */
+    static long xmlDate(String v) {
+        if (v == null) return 0;
+        java.util.regex.Matcher m = XML_DATE.matcher(v.trim());
+        if (!m.find()) return 0;
         try {
-            String d = v.trim();
-            SimpleDateFormat f = new SimpleDateFormat(d.length() > 14 ? "yyyyMMddHHmmss Z" : "yyyyMMddHHmmss", Locale.ROOT);
-            if (d.length() <= 14) f.setTimeZone(java.util.TimeZone.getTimeZone("UTC"));
-            return f.parse(d).getTime();
+            SimpleDateFormat f = new SimpleDateFormat("yyyyMMddHHmmss", Locale.ROOT);
+            f.setTimeZone(java.util.TimeZone.getTimeZone("UTC"));
+            long t = f.parse(m.group(1) + (m.group(2) == null ? "00" : m.group(2))).getTime();
+            if (m.group(3) != null) {
+                long off = (Integer.parseInt(m.group(4)) * 60L + Integer.parseInt(m.group(5))) * 60_000L;
+                t += "+".equals(m.group(3)) ? -off : off;
+            }
+            return t;
         } catch (Exception e) {
             return 0;
         }
+    }
+
+    // ------------------------------------------------------------ guide time shift (per channel / per provider)
+
+    /** Minutes to move a guide's times by, per "sourceId|channelId" and per "src:sourceId" (whole provider). */
+    private static Map<String, Integer> shifts;
+
+    private static synchronized Map<String, Integer> shifts() {
+        if (shifts == null) {
+            Map<String, Integer> m = new HashMap<>();
+            try {
+                JSONObject o = new JSONObject(Store.get("epg_shift").isEmpty() ? "{}" : Store.get("epg_shift"));
+                for (java.util.Iterator<String> it = o.keys(); it.hasNext(); ) { String k = it.next(); m.put(k, o.optInt(k)); }
+            } catch (Exception ignored) { }
+            shifts = m;
+        }
+        return shifts;
+    }
+
+    /** This channel's own shift (minutes), not counting the provider's. */
+    public static int channelShift(Source s, Channel c) {
+        Integer v = shifts().get(s.id + "|" + c.id);
+        return v == null ? 0 : v;
+    }
+
+    /** The whole provider's shift (minutes). */
+    public static int sourceShift(Source s) {
+        Integer v = shifts().get("src:" + s.id);
+        return v == null ? 0 : v;
+    }
+
+    public static int shiftMinutes(Source s, Channel c) {
+        return sourceShift(s) + channelShift(s, c);
+    }
+
+    public static synchronized void setChannelShift(Source s, Channel c, int minutes) { putShift(s.id + "|" + c.id, minutes); }
+
+    public static synchronized void setSourceShift(Source s, int minutes) { putShift("src:" + s.id, minutes); }
+
+    private static synchronized void putShift(String key, int minutes) {
+        Map<String, Integer> m = new HashMap<>(shifts());
+        if (minutes == 0) m.remove(key); else m.put(key, minutes);
+        JSONObject o = new JSONObject();
+        try { for (Map.Entry<String, Integer> e : m.entrySet()) o.put(e.getKey(), (int) e.getValue()); } catch (Exception ignored) { }
+        Store.put("epg_shift", o.toString());
+        shifts = m;
+        SHIFTED.clear();
+        Store.bumpChanges();
+    }
+
+    private static final class Shifted { List<Program> raw; int mins; List<Program> list; }
+    private static final Map<String, Shifted> SHIFTED = new ConcurrentHashMap<>();
+
+    /** The programmes with the channel's time shift applied (copies, made once per list and shift). */
+    private static List<Program> shifted(Source s, Channel c, List<Program> raw) {
+        int m = shiftMinutes(s, c);
+        if (m == 0 || raw == null || raw.isEmpty()) return raw;
+        String k = s.id + "|" + c.id;
+        Shifted sh = SHIFTED.get(k);
+        if (sh == null || sh.raw != raw || sh.mins != m) {
+            long d = m * 60_000L;
+            List<Program> out = new ArrayList<>(raw.size());
+            for (Program p : raw) {
+                Program q = new Program();
+                q.id = p.id; q.title = p.title; q.desc = p.desc;
+                q.start = p.start + d; q.end = p.end + d;
+                out.add(q);
+            }
+            sh = new Shifted();
+            sh.raw = raw; sh.mins = m; sh.list = out;
+            SHIFTED.put(k, sh);
+        }
+        return sh.list;
     }
 
     // ------------------------------------------------------------ movies & series (Xtream only)

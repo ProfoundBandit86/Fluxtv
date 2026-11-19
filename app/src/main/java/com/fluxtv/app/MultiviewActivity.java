@@ -89,6 +89,7 @@ public class MultiviewActivity extends Activity {
         lp.setMargins(Ui.dp(this, 10), Ui.dp(this, 10), 0, 0);
         t.frame.addView(t.label, lp);
         t.player = Players.create(this);
+        LipSync.use(this, null);
         // Smaller pictures: ask for at most 720p so the box's decoders can handle several channels.
         t.player.setTrackSelectionParameters(t.player.getTrackSelectionParameters().buildUpon().setMaxVideoSize(1280, 720).build());
         t.view.setPlayer(t.player);
