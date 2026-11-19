@@ -193,7 +193,7 @@ adb shell am start -W -n $P/.DetailActivity --es type series --es id tt0903747 -
 waitfor Trailer 12; nudge; texts detail-sonarr 30; shot 26-detail-sonarr
 tap "Wait"; sleep 1; nudge; for i in 1 2 3 4; do F=$(focused season-find); echo "$F"; case "$F" in *Season*) break;; esac; key DPAD_DOWN 1; done
 key DPAD_CENTER 2; texts seasons-menu 30; shot 26b-seasons-menu
-key DPAD_DOWN 1; key DPAD_CENTER 2; texts seasons-picked 30; shot 26c-seasons-picked
+key DPAD_DOWN 1; key DPAD_DOWN 1; key DPAD_CENTER 2; texts seasons-picked 30; shot 26c-seasons-picked
 adb shell am start -W -n $P/.StreamsActivity --es pi_type movie --es pi_meta tt0111161 --es pi_video tt0111161 --es pi_name Test; sleep 12; tap "Wait"; sleep 1; texts streams-top10 80; shot 26d-streams-top10
 adb shell am start -W -n $P/.DownloadsActivity; sleep 6; texts downloads 60; shot 27-downloads
 adb shell am start -W -n $P/.ArrSetupActivity; sleep 5; texts arr-setup 60; shot 28-arr-setup
@@ -483,16 +483,16 @@ adb shell am start -W -n $P/.MultiviewActivity --es group all --es source $XT --
 key DPAD_RIGHT 2; shot 105-multiview-right
 key MENU 2; texts multiview-menu 10; tap "Add a view"; sleep 10; shot 106-multiview-3
 key BACK 2
-# Live TV buttons on the Xtream channel with replay: OK shows them; Start over / rewind use the provider's replay
-adb shell am start -W -n $P/.LivePlayerActivity --es group all --es source $XT --es channel 1001; sleep 10; top live-buttons-player
-key DPAD_CENTER 2; texts live-buttons 40; shot 111-live-buttons; focused live-buttons
-adb logcat -c; key DPAD_LEFT 1; key DPAD_LEFT 1; focused live-on-start-over; key DPAD_CENTER 8; key DPAD_UP 1; texts live-start-over 30; shot 112-live-start-over
+# Live TV buttons on the Xtream channel with replay: OK shows them; Start over / rewind use the provider's replay.
+# Each step reopens the player so it starts clean, then drives the buttons with the remote (focus starts on Pause).
+liveopen() { adb shell am start -W -n $P/.LivePlayerActivity --es group all --es source $XT --es channel 1001 >/dev/null; sleep 8; key DPAD_UP 1; key DPAD_CENTER 1; }
+liveopen; top live-buttons-player; texts live-buttons 40; shot 111-live-buttons
+adb logcat -c; liveopen; key DPAD_LEFT 0; key DPAD_LEFT 0; key DPAD_CENTER 8; key DPAD_UP 1; texts live-start-over 30; shot 112-live-start-over
 echo "== LIVE LOG: $(adb logcat -d -s FluxLive:V | tail -5 | tr '\n' ' ')"
 echo "== START-OVER REQS: $(curl -s http://127.0.0.1:8000/_reqs | python3 -c "import json,sys; r=json.load(sys.stdin); print([x for x in r if 'timeshift' in x][-2:])")"
-key DPAD_UP 1; key DPAD_CENTER 2; tap "●  Back to live"; sleep 5; texts live-back-live 20; shot 112b-live-back-live
-key DPAD_UP 1; key DPAD_CENTER 2; tap "Categories"; sleep 4; texts live-categories 30; shot 113-live-categories; key BACK 2
-key DPAD_UP 1; key DPAD_CENTER 2; tap "Catch-up"; sleep 3; texts live-catchup-list 30; shot 114-live-catchup-list; key BACK 2
-key DPAD_UP 1; key DPAD_CENTER 2; tap "Channels"; sleep 3; shot 115-live-channels; key BACK 2
+liveopen; for i in 1 2 3 4; do key DPAD_RIGHT 0; done; key DPAD_CENTER 4; texts live-categories 30; shot 113-live-categories
+liveopen; for i in 1 2 3 4 5; do key DPAD_RIGHT 0; done; key DPAD_CENTER 3; texts live-catchup-list 30; shot 114-live-catchup-list
+liveopen; for i in 1 2 3; do key DPAD_RIGHT 0; done; key DPAD_CENTER 3; shot 115-live-channels; key BACK 1
 key DPAD_UP 2; top live-arrow-no-zap; key CHANNEL_UP 4; texts live-ch-up 12
 key BACK 2
 crashes portal-catchup-multiview
