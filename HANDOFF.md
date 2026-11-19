@@ -112,6 +112,20 @@ Gotchas for tests:
 - Catch-up: supported for MAC portals (tested), Xtream (`tv_archive`) and M3U `catchup` tags; past programmes with ↺
   in the guide replay. **Xtream replay tested on the emulator** (Flux News → `/timeshift/…/1001.ts`). `LiveActivity`
   takes an optional `group` extra ("all", "favorites" or "sourceId|groupId"); otherwise it reopens the last group.
+- **Round 4** (mockups 11–13 on the canvas):
+  - Live TV player (`LivePlayerActivity`): only CH+/CH− change channel (arrows just show the info). OK opens a
+    glass panel with Start over, −30 s, Pause/Play, +30 s, Back to live, Guide, Channels, Categories, Catch-up, ⋮.
+    Pause/rewind/start over use the channel's catch-up (`replayFrom(clockTime)` builds a span from the show's start
+    to now and calls `Iptv.catchupUrl`, `shiftStart` = clock time of position 0); channels without archive grey
+    those out (pause alone holds, rejoins live after 45 s). Tested on the emulator (Xtream `/timeshift/…`). Log tag
+    `FluxLive`. Categories / Catch-up open a side list (`sidePanel`).
+  - Title page: seasons are one "Season N ▾" pill with a PopupWindow drop-down (`seasonMenu`).
+  - Posters are `Ui.POSTER_W` = 150 dp (was 116); grids 5 per line.
+  - Sources page shows the top 10 (library → ready → quality) with "Show all N sources"; `Addons.fetchStreams`
+    gives slow add-ons only 4 s more once 10+ sources are in.
+  - Test gotchas: a tap leaves the emulator in touch mode (the next OK/arrow is swallowed) — press ↑ first; Android
+    may show a "Speech Services isn't responding" dialog — `tap "Wait"`; the Live TV panel hides after 8 s, so the
+    button tests reopen the player for each step (`liveopen`).
 
 ## 5. Rules and decisions to keep
 
