@@ -4,7 +4,6 @@ import android.content.Context;
 import android.media.AudioDeviceInfo;
 import android.media.AudioManager;
 
-import androidx.annotation.Nullable;
 import androidx.media3.exoplayer.audio.AudioSink;
 import androidx.media3.exoplayer.audio.ForwardingAudioSink;
 
@@ -57,7 +56,6 @@ final class LipSync {
     }
 
     /** The output most likely in use: Bluetooth if connected, then ARC, USB, else the TV. */
-    @Nullable
     private static AudioDeviceInfo output(Context c) {
         try {
             AudioManager am = (AudioManager) c.getSystemService(Context.AUDIO_SERVICE);
@@ -103,7 +101,7 @@ final class LipSync {
     }
 
     /** Called when playback starts: show = the show or movie (null for Live TV), so its own amount applies. */
-    static void use(Context c, @Nullable String show) {
+    static void use(Context c, String show) {
         showKey = show == null || show.isEmpty() ? null : show;
         refresh(c);
     }
