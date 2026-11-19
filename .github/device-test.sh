@@ -318,7 +318,7 @@ key DPAD_CENTER 2; sleep 1; shot 63-live-scheduled
 key DPAD_LEFT 1; key DPAD_LEFT 1; key DPAD_LEFT 1; key DPAD_LEFT 2; shot 64-live-groups; texts live-groups 20
 key BACK 1
 key DPAD_CENTER 8; top live-player; shot 65-live-player; texts live-player 20
-key DPAD_DOWN 6; shot 66-live-player-zap
+key DPAD_DOWN 2; texts live-player-arrow 12; key CHANNEL_DOWN 6; shot 66-live-player-zap; texts live-player-zap 12
 key DPAD_CENTER 3; shot 67-live-channel-list; key BACK 1
 key MENU 2; shot 68-live-options; texts live-options 12
 key DPAD_CENTER 3; echo "== recording locally for 20s"; sleep 20

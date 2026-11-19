@@ -236,6 +236,7 @@ public class StreamsActivity extends FluxActivity {
         for (String f : new String[]{"All", "4K", "1080p", "720p & less", "Smallest"}) {
             filters.addView(Ui.pill(this, f, f.equals(filter), v -> {
                 filter = f;
+                showAll = false;
                 renderFilters();
                 renderList(false);
                 for (int i = 0; i < filters.getChildCount(); i++) {
@@ -245,7 +246,8 @@ public class StreamsActivity extends FluxActivity {
         }
     }
 
-    private boolean showOversize;
+    private boolean showOversize, showAll;
+    private static final int TOP = 10;
 
     private static boolean oversize(Item it) {
         return !it.library && SizeLimits.tooBig(it.quality, it.sizeGb);
@@ -267,7 +269,18 @@ public class StreamsActivity extends FluxActivity {
         for (Item it : items) if (matches(it)) shown.add(it);
         if (filter.equals("Smallest")) {
             Collections.sort(shown, (a, b) -> Double.compare(a.sizeGb < 0 ? 1e9 : a.sizeGb, b.sizeGb < 0 ? 1e9 : b.sizeGb));
+        } else {
+            // Best first: your library, then ready-to-play, then highest quality (stable: keeps add-on order on ties).
+            Collections.sort(shown, (a, b) -> {
+                if (a.library != b.library) return a.library ? -1 : 1;
+                boolean ra = via(a)[1] != null, rb = via(b)[1] != null;
+                if (ra != rb) return ra ? -1 : 1;
+                return Integer.compare(rank(b.quality), rank(a.quality));
+            });
         }
+        // Only the top 10 are drawn (long lists are slow on a TV); the rest are one press away.
+        int total = shown.size();
+        if (!showAll && total > TOP) shown = new ArrayList<>(shown.subList(0, TOP));
         boolean libHeader = false, otherHeader = false;
         View first = null;
         for (Item it : shown) {
@@ -284,6 +297,19 @@ public class StreamsActivity extends FluxActivity {
             if (first == null) first = row;
         }
         if (shown.isEmpty()) list.addView(Ui.text(this, "No streams match this filter.", 13, Ui.MUTED));
+        if (!showAll && total > TOP) {
+            View more = Ui.button(this, "Show all " + total + " sources", v -> {
+                showAll = true;
+                int at = list.indexOfChild(v);
+                renderList(false);
+                View next = at >= 0 && at < list.getChildCount() ? list.getChildAt(at) : null;
+                if (next != null) next.requestFocus();
+            });
+            LinearLayout.LayoutParams mlp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            mlp.setMargins(0, Ui.dp(this, 10), 0, 0);
+            more.setLayoutParams(mlp);
+            list.addView(more);
+        }
         int hidden = 0;
         for (Item it : items) if (oversize(it)) hidden++;
         if (hidden > 0) {

@@ -314,9 +314,12 @@ public final class Addons {
                 out.addAll(f.get(60, TimeUnit.SECONDS));
             } catch (Exception ignored) { }
         }
+        // Wait up to 40 s for slow add-ons, but once there are plenty of sources (10+), give the rest only a few seconds.
+        long deadline = System.currentTimeMillis() + 40_000;
         for (int i = 0; i < jobs.size(); i++) {
+            if (out.size() >= 10) deadline = Math.min(deadline, System.currentTimeMillis() + 4_000);
             try {
-                JSONArray arr = jobs.get(i).get(40, TimeUnit.SECONDS);
+                JSONArray arr = jobs.get(i).get(Math.max(1, deadline - System.currentTimeMillis()), TimeUnit.MILLISECONDS);
                 if (arr == null) continue;
                 for (int j = 0; j < arr.length(); j++) {
                     JSONObject s = arr.optJSONObject(j);

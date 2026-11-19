@@ -109,7 +109,7 @@ public class LivePlayerActivity extends Activity {
         nextText = Ui.single(Ui.text(this, "", 13, Ui.MUTED));
         r2.addView(nextText, new LinearLayout.LayoutParams(Ui.dp(this, 360), -2));
         infoBar.addView(r2);
-        TextView hint = Ui.text(this, "↑↓ channels   ·   OK channel list   ·   MENU or hold OK: record, audio, subtitles", 12, Ui.DIM);
+        TextView hint = Ui.text(this, "CH+ / CH− channels   ·   OK channel list   ·   MENU or hold OK: record, audio, subtitles", 12, Ui.DIM);
         hint.setPadding(Ui.dp(this, 114), Ui.dp(this, 10), 0, 0);
         infoBar.addView(hint);
         root.addView(infoBar, new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM));
@@ -162,7 +162,7 @@ public class LivePlayerActivity extends Activity {
                     play(Iptv.liveUrl(cur.source, cur.channel, true));
                     return;
                 }
-                error.setText("This channel isn't playing (" + App.message(e) + ")\nOK to try again · ↑↓ another channel");
+                error.setText("This channel isn't playing (" + App.message(e) + ")\nOK to try again · CH+ / CH− another channel");
                 error.setVisibility(View.VISIBLE);
             }
 
@@ -480,11 +480,10 @@ public class LivePlayerActivity extends Activity {
         }
         if (e.getAction() == KeyEvent.ACTION_DOWN) {
             switch (k) {
-                case KeyEvent.KEYCODE_DPAD_UP:
+                // Only the remote's channel buttons change channel; the arrows just show the info bar.
                 case KeyEvent.KEYCODE_CHANNEL_UP:
                     tune(index - 1);
                     return true;
-                case KeyEvent.KEYCODE_DPAD_DOWN:
                 case KeyEvent.KEYCODE_CHANNEL_DOWN:
                     tune(index + 1);
                     return true;
@@ -500,6 +499,8 @@ public class LivePlayerActivity extends Activity {
                 case KeyEvent.KEYCODE_INFO:
                     if (k == KeyEvent.KEYCODE_INFO) showInfo(); else options();
                     return true;
+                case KeyEvent.KEYCODE_DPAD_UP:
+                case KeyEvent.KEYCODE_DPAD_DOWN:
                 case KeyEvent.KEYCODE_DPAD_LEFT:
                 case KeyEvent.KEYCODE_DPAD_RIGHT:
                     showInfo();
