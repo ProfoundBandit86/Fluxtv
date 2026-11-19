@@ -377,20 +377,23 @@ public final class Ui {
      * Poster card (2:3). Item fields used: name, poster, badge.
      * onFocus runs when the card gains focus (used for the home screen's hero).
      */
+    /** Poster card width in dp (2:3 cards). */
+    public static final int POSTER_W = 150;
+
     public static View poster(Context c, JSONObject item, View.OnClickListener click, Runnable onFocus) {
         LinearLayout col = vertical(c);
-        LinearLayout.LayoutParams clp = new LinearLayout.LayoutParams(dp(c, 116), ViewGroup.LayoutParams.WRAP_CONTENT);
-        clp.setMargins(0, dp(c, 6), dp(c, 12), dp(c, 6));
+        LinearLayout.LayoutParams clp = new LinearLayout.LayoutParams(dp(c, POSTER_W), ViewGroup.LayoutParams.WRAP_CONTENT);
+        clp.setMargins(0, dp(c, 6), dp(c, 14), dp(c, 6));
         col.setLayoutParams(clp);
 
-        FrameLayout f = frame(c, click, 116);
-        ImageView img = image(c, BUTTON, 10);
-        f.addView(img, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(c, 168)));
-        ImageLoader.load(img, item.optString("poster"), dp(c, 116));
+        FrameLayout f = frame(c, click, POSTER_W);
+        ImageView img = image(c, BUTTON, 12);
+        f.addView(img, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(c, POSTER_W * 3 / 2)));
+        ImageLoader.load(img, item.optString("poster"), dp(c, POSTER_W));
         if (!item.optString("badge").isEmpty()) f.addView(badge(c, item.optString("badge")));
         col.addView(f);
 
-        TextView t = single(text(c, item.optString("name"), 12, DIM));
+        TextView t = single(text(c, item.optString("name"), 13, DIM));
         t.setPadding(dp(c, 3), dp(c, 6), 0, 0);
         col.addView(t);
 

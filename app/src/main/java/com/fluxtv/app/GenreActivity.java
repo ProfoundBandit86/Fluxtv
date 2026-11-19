@@ -16,7 +16,7 @@ import java.util.Set;
 /** Every title in one genre, as a poster grid that keeps loading as you go. */
 public class GenreActivity extends FluxActivity {
 
-    private static final int PER_LINE = 6;
+    private static final int PER_LINE = 5;
 
     private LinearLayout grid;
     private LinearLayout line;

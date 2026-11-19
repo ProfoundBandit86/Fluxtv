@@ -615,19 +615,19 @@ public class DetailActivity extends FluxActivity {
         View focused = getCurrentFocus();
         boolean seasonFocused = focused != null && focused.getParent() == seasonsBar;
 
+        // One "Season N ▾" button; OK opens a drop-down list of the seasons.
         seasonsBar.removeAllViews();
+        seasonsBar.setGravity(Gravity.CENTER_VERTICAL);
         List<Integer> order = new ArrayList<>(map.keySet());
         if (order.size() > 1 && order.get(0) == 0) order.add(order.remove(0));   // specials last
-        View selectedPill = null;
-        for (int s : order) {
-            TextView pill = Ui.pill(this, s == 0 ? "Specials" : "Season " + s, s == selectedSeason, v -> {
-                selectedSeason = s;
-                renderSeasons();
-            });
-            seasonsBar.addView(pill);
-            if (s == selectedSeason) selectedPill = pill;
-        }
-        if (seasonFocused && selectedPill != null) selectedPill.requestFocus();
+        List<JSONObject> cur = map.get(selectedSeason);
+        TextView pick = Ui.pill(this, seasonName(selectedSeason) + (order.size() > 1 ? "  ▾" : ""), true, null);
+        pick.setOnClickListener(v -> { if (order.size() > 1) seasonMenu(v, map, order); });
+        seasonsBar.addView(pick);
+        TextView count = Ui.text(this, cur == null ? "" : cur.size() + (cur.size() == 1 ? " episode" : " episodes"), 13, Ui.MUTED);
+        count.setPadding(Ui.dp(this, 6), 0, 0, 0);
+        seasonsBar.addView(count);
+        if (seasonFocused) pick.requestFocus();
 
         episodes.removeAllViews();
         List<JSONObject> list = map.get(selectedSeason);
@@ -648,6 +648,49 @@ public class DetailActivity extends FluxActivity {
             episodes.addView(Ui.landscape(this, img, n + " · " + (name.isEmpty() ? "Episode " + n : name), sub, epBadge,
                     progress, 220, v -> openStreams(ep.optString("id"), episodeLabel(ep)), null));
         }
+    }
+
+    private static String seasonName(int s) {
+        return s == 0 ? "Specials" : "Season " + s;
+    }
+
+    /** The seasons drop-down: a glass card under the Season button. */
+    private void seasonMenu(View anchor, TreeMap<Integer, List<JSONObject>> map, List<Integer> order) {
+        LinearLayout box = Ui.vertical(this);
+        box.setPadding(Ui.dp(this, 6), Ui.dp(this, 6), Ui.dp(this, 6), Ui.dp(this, 6));
+        box.setBackground(Ui.rounded(this, Ui.alpha(0xFF06080C, 0.94f), Ui.alpha(Color.WHITE, 0.14f), 14));
+        android.widget.ScrollView scroll = new android.widget.ScrollView(this);
+        scroll.setVerticalScrollBarEnabled(false);
+        scroll.addView(box);
+        android.widget.PopupWindow pw = new android.widget.PopupWindow(scroll, Ui.dp(this, 260), ViewGroup.LayoutParams.WRAP_CONTENT, true);
+        pw.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
+        pw.setOutsideTouchable(true);
+        JSONObject next = nextEpisode();
+        View sel = null;
+        for (int s : order) {
+            List<JSONObject> eps = map.get(s);
+            int n = eps == null ? 0 : eps.size(), watched = 0;
+            if (eps != null) for (JSONObject ep : eps) if (Store.isFinished(Store.progress(ep.optString("id")))) watched++;
+            String note = n + (n == 1 ? " episode" : " episodes");
+            if (n > 0 && watched == n) note += " · watched";
+            else if (next != null && next.optInt("season", 1) == s) note += " · E" + next.optInt("episode", next.optInt("number")) + " next";
+            android.text.SpannableStringBuilder label = new android.text.SpannableStringBuilder((s == selectedSeason ? "✓  " : "") + seasonName(s) + "\n");
+            int at = label.length();
+            label.append(note);
+            label.setSpan(new android.text.style.RelativeSizeSpan(0.8f), at, label.length(), 0);
+            Button b = Ui.listButton(this, label, v -> {
+                pw.dismiss();
+                selectedSeason = s;
+                renderSeasons();
+            });
+            b.setBackground(Ui.focusable(this, Color.TRANSPARENT, Ui.FOCUS, 0));
+            b.setTextColor(Ui.onFocusDark(Ui.TEXT));
+            box.addView(b);
+            if (s == selectedSeason) sel = b;
+        }
+        pw.showAsDropDown(anchor, 0, Ui.dp(this, 6));
+        View f = sel;
+        if (f != null) f.post(f::requestFocus);
     }
 
     private static String shortLabel(JSONObject ep) {
