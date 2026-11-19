@@ -102,6 +102,7 @@ public final class Theme {
         Ui.FOCUS = h == 0 ? Color.WHITE : h == 1 ? Ui.ACCENT : Color.parseColor(ACCENT_HEX[h - 2]);
         // Dark text on a light highlight, white text on a dark one, whichever is easier to read.
         Ui.ON_FOCUS = contrast(Ui.FOCUS, Ui.BG) >= contrast(Ui.FOCUS, Color.WHITE) ? Ui.BG : Color.WHITE;
+        Ui.ON_ACCENT = contrast(Ui.ACCENT, Ui.BG) >= contrast(Ui.ACCENT, Color.WHITE) ? Ui.BG : Color.WHITE;
         version++;
     }
 

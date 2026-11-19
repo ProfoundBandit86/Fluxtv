@@ -428,16 +428,16 @@ public class LivePlayerActivity extends Activity {
 
     private android.graphics.drawable.Drawable pillBg(int normal) {
         android.graphics.drawable.StateListDrawable st = new android.graphics.drawable.StateListDrawable();
-        st.addState(new int[]{android.R.attr.state_focused}, Ui.rounded(this, Ui.FOCUS, 0, 999));
-        st.addState(new int[]{}, Ui.rounded(this, normal, 0, 999));
+        st.addState(new int[]{android.R.attr.state_focused}, Ui.rounded(this, Ui.FOCUS, 0, Ui.BTN_RADIUS));
+        st.addState(new int[]{}, Ui.rounded(this, normal, 0, Ui.BTN_RADIUS));
         return st;
     }
 
     private Button pillButton(int iconRes, String label, View.OnClickListener click) {
         Button b = new Button(this);
-        b.setAllCaps(false);
         b.setText(label);
-        b.setTextSize(13);
+        Ui.caps(b, 0.1f);
+        b.setTextSize(12);
         b.setTypeface(android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL));
         b.setTextColor(Ui.onFocusDark(Ui.TEXT));
         b.setBackground(pillBg(Ui.alpha(Color.WHITE, 0.1f)));

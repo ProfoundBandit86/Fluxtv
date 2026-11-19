@@ -65,7 +65,7 @@ public class SearchActivity extends FluxActivity {
         // The search pill: round mic on the left, then the text.
         LinearLayout pill = Ui.horizontal(this);
         pill.setGravity(Gravity.CENTER_VERTICAL);
-        pill.setBackground(Ui.rounded(this, Ui.PANEL, Ui.BORDER, 999));
+        pill.setBackground(Ui.rounded(this, Ui.PANEL, Ui.BORDER, Ui.BTN_RADIUS));
         pill.setPadding(Ui.dp(this, 8), Ui.dp(this, 6), Ui.dp(this, 20), Ui.dp(this, 6));
         mic = new android.widget.ImageButton(this);
         mic.setImageResource(R.drawable.ic_mic);

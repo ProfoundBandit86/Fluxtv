@@ -4,6 +4,7 @@ import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.content.res.ColorStateList;
 import android.graphics.Color;
+import android.graphics.Typeface;
 import android.graphics.PorterDuff;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.StateListDrawable;
@@ -115,11 +116,12 @@ public class SettingsActivity extends FluxActivity {
         root.setBaselineAligned(false);
 
         LinearLayout left = Ui.vertical(this);
-        left.setBackgroundColor(Ui.PANEL);
-        left.setPadding(Ui.dp(this, 28), Ui.dp(this, 32), Ui.dp(this, 20), Ui.dp(this, 24));
-        TextView title = Ui.heading(this, "Settings", 30);
-        title.setLetterSpacing(-0.01f);
-        title.setPadding(Ui.dp(this, 12), 0, 0, Ui.dp(this, 20));
+        left.setBackgroundColor(Ui.alpha(Color.WHITE, 0.025f));
+        left.setPadding(Ui.dp(this, 16), Ui.dp(this, 28), Ui.dp(this, 14), Ui.dp(this, 24));
+        TextView title = Ui.eyebrow(this, "Settings");
+        title.setLetterSpacing(0.24f);
+        title.setTextSize(12);
+        title.setPadding(Ui.dp(this, 14), 0, 0, Ui.dp(this, 16));
         left.addView(title);
         for (int i = 0; i < CATEGORIES.length; i++) left.addView(catRow(ICONS[i], CATEGORIES[i]));
         left.addView(new View(this), new LinearLayout.LayoutParams(1, 0, 1f));
@@ -129,7 +131,7 @@ public class SettingsActivity extends FluxActivity {
         ScrollView leftScroll = new FocusScroll.Vertical(this);
         leftScroll.setFillViewport(true);
         leftScroll.addView(left);
-        root.addView(leftScroll, new LinearLayout.LayoutParams(Ui.dp(this, 300), ViewGroup.LayoutParams.MATCH_PARENT));
+        root.addView(leftScroll, new LinearLayout.LayoutParams(Ui.dp(this, 230), ViewGroup.LayoutParams.MATCH_PARENT));
 
         paneScroll = new FocusScroll.Vertical(this);
         paneScroll.setVerticalScrollBarEnabled(false);
@@ -164,11 +166,13 @@ public class SettingsActivity extends FluxActivity {
         row.setGravity(Gravity.CENTER_VERTICAL);
         row.setFocusable(true);
         row.setClickable(true);
-        row.setPadding(Ui.dp(this, 14), Ui.dp(this, 9), Ui.dp(this, 12), Ui.dp(this, 9));
+        row.setPadding(Ui.dp(this, 12), 0, Ui.dp(this, 10), 0);
         StateListDrawable bg = new StateListDrawable();
-        bg.addState(new int[]{android.R.attr.state_focused}, Ui.rounded(this, Ui.FOCUS, 0, 14));
-        bg.addState(new int[]{android.R.attr.state_selected}, Ui.rounded(this, Ui.alpha(Color.WHITE, 0.08f), 0, 14));
-        bg.addState(new int[]{}, Ui.rounded(this, Color.TRANSPARENT, 0, 14));
+        bg.addState(new int[]{android.R.attr.state_focused}, Ui.rounded(this, Ui.FOCUS, 0, Ui.BTN_RADIUS));
+        GradientDrawable sel = Ui.rounded(this, Ui.alpha(Color.WHITE, 0.08f), 0, Ui.BTN_RADIUS);
+        sel.setStroke(Math.max(1, Ui.dp(this, 1)), Ui.ACCENT);
+        bg.addState(new int[]{android.R.attr.state_selected}, sel);
+        bg.addState(new int[]{}, Ui.rounded(this, Color.TRANSPARENT, 0, Ui.BTN_RADIUS));
         row.setBackground(bg);
         ImageView ic = new ImageView(this);
         ic.setImageResource(icon);
@@ -176,20 +180,15 @@ public class SettingsActivity extends FluxActivity {
                 new int[]{Ui.ON_FOCUS, Ui.ACCENT, Ui.MUTED}));
         ic.setImageTintMode(PorterDuff.Mode.SRC_IN);
         ic.setDuplicateParentStateEnabled(true);
-        row.addView(ic, new LinearLayout.LayoutParams(Ui.dp(this, 20), Ui.dp(this, 20)));
-        LinearLayout names = Ui.vertical(this);
-        names.setPadding(Ui.dp(this, 14), 0, 0, 0);
-        TextView t = Ui.single(Ui.text(this, c[1], 15, Ui.TEXT));
-        t.setTextColor(new ColorStateList(new int[][]{{android.R.attr.state_focused}, {}}, new int[]{Ui.ON_FOCUS, Ui.TEXT}));
+        row.addView(ic, new LinearLayout.LayoutParams(Ui.dp(this, 18), Ui.dp(this, 18)));
+        TextView t = Ui.single(Ui.text(this, c[1], 12, Ui.MUTED));
+        Ui.caps(t, 0.12f);
+        t.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        t.setTextColor(new ColorStateList(new int[][]{{android.R.attr.state_focused}, {android.R.attr.state_selected}, {}}, new int[]{Ui.ON_FOCUS, Ui.TEXT, Ui.MUTED}));
         t.setDuplicateParentStateEnabled(true);
-        TextView d = Ui.single(Ui.text(this, c[2], 12, Ui.DIM));
-        d.setTextColor(new ColorStateList(new int[][]{{android.R.attr.state_focused}, {}}, new int[]{Ui.alpha(Ui.ON_FOCUS, 0.7f), Ui.DIM}));
-        d.setDuplicateParentStateEnabled(true);
-        names.addView(t);
-        names.addView(d);
-        names.setDuplicateParentStateEnabled(true);
-        row.addView(names);
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        t.setPadding(Ui.dp(this, 12), 0, 0, 0);
+        row.addView(t);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 36));
         lp.setMargins(0, Ui.dp(this, 2), 0, Ui.dp(this, 2));
         row.setLayoutParams(lp);
         String key = c[0];
@@ -251,9 +250,10 @@ public class SettingsActivity extends FluxActivity {
 
     private void heading(String title, String sub) {
         content = pane;
-        TextView t = Ui.heading(this, title, 30);
+        TextView t = Ui.heading(this, title, 28);
         t.setLetterSpacing(-0.01f);
         pane.addView(t);
+        if (sub == null) for (String[] c : CATEGORIES) if (c[0].equals(cat)) sub = c[2];   // the tab's line (Eclipse's look)
         if (sub != null) {
             TextView s = Ui.text(this, sub, 15, Ui.MUTED);
             s.setPadding(0, Ui.dp(this, 6), 0, Ui.dp(this, 4));
@@ -1095,19 +1095,17 @@ public class SettingsActivity extends FluxActivity {
 
     /** Starts a new card titled s; what's added after it (content.addView, buttonRow…) goes inside the card. */
     private void section(String s) {
+        LinearLayout head = Ui.sectionLabel(this, s);
+        head.setPadding(0, Ui.dp(this, 22), 0, Ui.dp(this, 8));
+        pane.addView(head);
         LinearLayout card = Ui.vertical(this);
         GradientDrawable bg = new GradientDrawable();
-        bg.setColor(Ui.alpha(Color.WHITE, 0.035f));
-        bg.setCornerRadius(Ui.dp(this, 18));
-        bg.setStroke(Math.max(1, Ui.dp(this, 1)), Ui.alpha(Color.WHITE, 0.06f));
+        bg.setColor(Ui.alpha(Color.WHITE, 0.04f));
+        bg.setCornerRadius(Ui.dp(this, 10));
+        bg.setStroke(Math.max(1, Ui.dp(this, 1)), Ui.alpha(Color.WHITE, 0.10f));
         card.setBackground(bg);
-        card.setPadding(Ui.dp(this, 22), Ui.dp(this, 18), Ui.dp(this, 22), Ui.dp(this, 16));
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        lp.setMargins(0, Ui.dp(this, 16), 0, 0);
-        pane.addView(card, lp);
-        TextView t = Ui.heading(this, s, 17);
-        t.setPadding(0, 0, 0, Ui.dp(this, 6));
-        card.addView(t);
+        card.setPadding(Ui.dp(this, 18), Ui.dp(this, 12), Ui.dp(this, 18), Ui.dp(this, 12));
+        pane.addView(card, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         content = card;
     }
 
@@ -1124,8 +1122,10 @@ public class SettingsActivity extends FluxActivity {
             View v = g.getChildAt(i);
             if (v instanceof android.widget.EditText) {
                 StateListDrawable s = new StateListDrawable();
-                s.addState(new int[]{android.R.attr.state_focused}, Ui.rounded(this, Ui.alpha(Color.WHITE, 0.08f), Ui.FOCUS, 12));
-                s.addState(new int[]{}, Ui.rounded(this, Ui.alpha(Color.WHITE, 0.06f), 0, 12));
+                s.addState(new int[]{android.R.attr.state_focused}, Ui.rounded(this, Ui.alpha(Color.WHITE, 0.08f), Ui.FOCUS, Ui.BTN_RADIUS));
+                GradientDrawable f = Ui.rounded(this, Ui.alpha(Color.WHITE, 0.05f), 0, Ui.BTN_RADIUS);
+                f.setStroke(Math.max(1, Ui.dp(this, 1)), Ui.alpha(Color.WHITE, 0.10f));
+                s.addState(new int[]{}, f);
                 v.setBackground(s);
                 v.setPadding(Ui.dp(this, 16), Ui.dp(this, 11), Ui.dp(this, 16), Ui.dp(this, 11));
                 ViewGroup.LayoutParams lp = v.getLayoutParams();

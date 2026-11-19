@@ -113,7 +113,10 @@ public class DetailActivity extends FluxActivity {
         LinearLayout hero = Ui.vertical(this);
         hero.setGravity(Gravity.BOTTOM);
         hero.setPadding(0, 0, Ui.dp(this, 64), Ui.dp(this, 28));
-        hero.setMinimumHeight(Math.max(Ui.dp(this, 300), getResources().getDisplayMetrics().heightPixels - Ui.dp(this, 120)));
+        boolean series = "series".equals(type);
+        // Shows: a compact top so the episodes are on the first screen. Movies keep the tall, cinematic top.
+        if (series) hero.setPadding(0, Ui.dp(this, 30), Ui.dp(this, 64), Ui.dp(this, 6));
+        else hero.setMinimumHeight(Math.max(Ui.dp(this, 300), getResources().getDisplayMetrics().heightPixels - Ui.dp(this, 120)));
 
         if (badge != null && !badge.isEmpty()) {
             TextView own = Ui.eyebrow(this, "In your " + badge + " library");
@@ -123,11 +126,11 @@ public class DetailActivity extends FluxActivity {
         logo = new ImageView(this);
         logo.setAdjustViewBounds(true);
         logo.setScaleType(ImageView.ScaleType.FIT_START);
-        logo.setMaxHeight(Ui.dp(this, 96));
+        logo.setMaxHeight(Ui.dp(this, series ? 70 : 96));
         logo.setMaxWidth(Ui.dp(this, 380));
         logo.setVisibility(View.GONE);
         hero.addView(logo, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-        title = Ui.heading(this, getIntent().getStringExtra("name"), 48);
+        title = Ui.heading(this, getIntent().getStringExtra("name"), series ? 38 : 48);
         title.setLetterSpacing(-0.02f);
         title.setShadowLayer(Ui.dp(this, 8), 0, Ui.dp(this, 1), 0x99000000);
         title.setMaxLines(2);
@@ -136,11 +139,11 @@ public class DetailActivity extends FluxActivity {
 
         chips = Ui.horizontal(this);
         chips.setGravity(Gravity.CENTER_VERTICAL);
-        chips.setPadding(0, Ui.dp(this, 14), 0, Ui.dp(this, 14));
+        chips.setPadding(0, Ui.dp(this, series ? 10 : 14), 0, Ui.dp(this, series ? 10 : 14));
         hero.addView(chips);
 
         description = Ui.text(this, "Loading…", 16, Ui.alpha(Ui.TEXT, 0.9f));
-        description.setMaxLines(4);
+        description.setMaxLines(series ? 2 : 4);
         description.setMaxWidth(Ui.dp(this, 640));
         description.setEllipsize(TextUtils.TruncateAt.END);
         description.setLineSpacing(0, 1.3f);
@@ -148,12 +151,13 @@ public class DetailActivity extends FluxActivity {
         credits = Ui.text(this, "", 13, Ui.MUTED);
         credits.setPadding(0, Ui.dp(this, 12), 0, 0);
         credits.setMaxLines(2);
+        if (series) credits.setVisibility(View.GONE);   // in About, further down
         hero.addView(credits);
 
         buttons = Ui.horizontal(this);
         buttons.setBaselineAligned(false);   // two-line Play button would otherwise be pushed down and clipped
         buttons.setGravity(android.view.Gravity.CENTER_VERTICAL);
-        buttons.setPadding(0, Ui.dp(this, 26), Ui.dp(this, 40), Ui.dp(this, 10));
+        buttons.setPadding(0, Ui.dp(this, series ? 16 : 26), Ui.dp(this, 40), Ui.dp(this, series ? 4 : 10));
         android.widget.HorizontalScrollView buttonScroll = new FocusScroll.Horizontal(this);
         buttonScroll.addView(buttons);
         hero.addView(buttonScroll);
@@ -165,9 +169,9 @@ public class DetailActivity extends FluxActivity {
         epGroup.setClipChildren(false);
         epGroup.setVisibility(View.GONE);   // shown for series only (an empty row here was an invisible stop)
         content.addView(epGroup);
-        episodesHeader = sectionTitle("Episodes");
-        epGroup.addView(episodesHeader);
+        episodesHeader = new View(this);   // the season button itself is the title of this section
         seasonsBar = Ui.horizontal(this);
+        seasonsBar.setPadding(0, Ui.dp(this, 10), 0, 0);
         epGroup.addView(seasonsBar);
         episodes = Ui.row(this, epGroup, "");
 
@@ -189,9 +193,9 @@ public class DetailActivity extends FluxActivity {
         load();
     }
 
-    private TextView sectionTitle(String s) {
-        TextView t = Ui.heading(this, s, 18);
-        t.setPadding(0, Ui.dp(this, 30), 0, Ui.dp(this, 6));
+    private View sectionTitle(String s) {
+        LinearLayout t = Ui.sectionLabel(this, s);
+        t.setPadding(0, Ui.dp(this, 28), Ui.dp(this, 64), Ui.dp(this, 8));
         t.setVisibility(View.GONE);
         return t;
     }

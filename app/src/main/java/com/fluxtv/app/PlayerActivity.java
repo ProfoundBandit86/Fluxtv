@@ -392,8 +392,8 @@ public class PlayerActivity extends Activity {
     /** A pill-shaped button background: translucent, the highlight colour when selected. */
     private android.graphics.drawable.Drawable pillBg(int normal) {
         android.graphics.drawable.StateListDrawable s = new android.graphics.drawable.StateListDrawable();
-        s.addState(new int[]{android.R.attr.state_focused}, Ui.rounded(this, Ui.FOCUS, 0, 999));
-        s.addState(new int[]{}, Ui.rounded(this, normal, 0, 999));
+        s.addState(new int[]{android.R.attr.state_focused}, Ui.rounded(this, Ui.FOCUS, 0, Ui.BTN_RADIUS));
+        s.addState(new int[]{}, Ui.rounded(this, normal, 0, Ui.BTN_RADIUS));
         return s;
     }
 
@@ -435,7 +435,6 @@ public class PlayerActivity extends Activity {
             lastChip = (android.widget.Button) v;
             showPopover(page, v);
         });
-        b.setAllCaps(false);
         b.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
         b.setBackground(Ui.focusable(this, Ui.alpha(Color.WHITE, 0.12f), Color.WHITE, 0));
         b.setPadding(Ui.dp(this, 12), 0, Ui.dp(this, 12), 0);

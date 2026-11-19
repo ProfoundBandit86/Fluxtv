@@ -36,6 +36,10 @@ public final class Ui {
     public static int FOCUS = Color.WHITE;
     /** Text and icons drawn on top of FOCUS: dark on a light highlight, white on a dark one. */
     public static int ON_FOCUS = Color.parseColor("#0B0B10");
+    /** Text on an ACCENT fill (the main button, selected switches). */
+    public static int ON_ACCENT = Color.parseColor("#0B0B10");
+    /** Corner radius of buttons and pills (Eclipse's look: squared-off, not round). */
+    public static final int BTN_RADIUS = 8;
 
     public static final int TEXT = Color.parseColor("#F4F4F7");
     public static final int MUTED = Color.parseColor("#A9A9B8");
@@ -99,15 +103,37 @@ public final class Ui {
         return d;
     }
 
-    /** Like focusable, but fully rounded ends (buttons). */
+    /** Buttons in Eclipse's look: squared-off corners and a faint edge; the highlight fills it when selected. */
     public static Drawable focusablePill(Context c, int normal, int focused, int focusStroke) {
         StateListDrawable s = new StateListDrawable();
-        s.addState(new int[]{android.R.attr.state_focused}, rounded(c, focused, focusStroke, 999));
-        s.addState(new int[]{android.R.attr.state_pressed}, rounded(c, focused, focusStroke, 999));
-        GradientDrawable n = rounded(c, normal, 0, 999);
-        n.setStroke(Math.max(1, dp(c, 1)), alpha(Color.WHITE, 0.08f));   // a faint edge so buttons read on any picture
+        s.addState(new int[]{android.R.attr.state_focused}, rounded(c, focused, focusStroke, BTN_RADIUS));
+        s.addState(new int[]{android.R.attr.state_pressed}, rounded(c, focused, focusStroke, BTN_RADIUS));
+        GradientDrawable n = rounded(c, normal, 0, BTN_RADIUS);
+        n.setStroke(Math.max(1, dp(c, 1)), alpha(Color.WHITE, 0.10f));   // a faint edge so buttons read on any picture
         s.addState(new int[]{}, n);
         return s;
+    }
+
+    /** Small spaced capitals (Eclipse's labels): buttons, pills, section titles. */
+    public static void caps(TextView t, float spacing) {
+        t.setAllCaps(true);
+        t.setLetterSpacing(spacing);
+    }
+
+    /** A section title in Eclipse's look: accent capitals followed by a thin line. */
+    public static LinearLayout sectionLabel(Context c, String s) {
+        LinearLayout row = horizontal(c);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        TextView t = text(c, s.toUpperCase(java.util.Locale.ROOT), 12, ACCENT);
+        t.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        t.setLetterSpacing(0.2f);
+        row.addView(t);
+        View line = new View(c);
+        line.setBackgroundColor(alpha(Color.WHITE, 0.12f));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, Math.max(1, dp(c, 1)), 1f);
+        lp.setMargins(dp(c, 12), 0, 0, 0);
+        row.addView(line, lp);
+        return row;
     }
 
     public static Drawable focusable(Context c, int normal, int focused, int focusStroke) {
@@ -149,12 +175,13 @@ public final class Ui {
         Button b = new Button(c);
         b.setText(label);
         b.setAllCaps(false);
-        b.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
+        if (!(label instanceof android.text.Spanned)) caps(b, 0.1f);
+        b.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
         b.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
         b.setTextColor(onFocusDark(TEXT));
         b.setFocusable(true);
-        b.setBackground(focusablePill(c, GLASS, FOCUS, 0));
-        b.setPadding(dp(c, 22), 0, dp(c, 22), 0);
+        b.setBackground(focusablePill(c, alpha(Color.WHITE, 0.07f), FOCUS, 0));
+        b.setPadding(dp(c, 20), 0, dp(c, 20), 0);
         b.setMinHeight(dp(c, 46));
         b.setMinimumHeight(dp(c, 46));
         b.setStateListAnimator(null);
@@ -190,27 +217,30 @@ public final class Ui {
     /** The big white Play button: a bold first line and a smaller second line (e.g. which source will play). */
     public static Button primary(Context c, int iconRes, String title, String sub, View.OnClickListener click) {
         Button b = button(c, iconRes, "", click);
+        b.setAllCaps(false);
+        b.setLetterSpacing(0.08f);
         setPrimaryText(c, b, title, sub);
-        b.setTextColor(BG);
-        b.setCompoundDrawableTintList(ColorStateList.valueOf(BG));
+        b.setTextColor(onFocusDark(ON_ACCENT));
+        b.setCompoundDrawableTintList(onFocusDark(ON_ACCENT));
         b.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
-        b.setBackground(focusablePill(c, Color.parseColor("#E9E9EF"), FOCUS, alpha(Color.WHITE, 0.25f)));
-        b.setPadding(dp(c, 24), 0, dp(c, 30), 0);
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(c, 64));
+        // Eclipse's main button: filled with the accent colour.
+        b.setBackground(focusablePill(c, ACCENT, FOCUS, alpha(Color.WHITE, 0.25f)));
+        b.setPadding(dp(c, 22), 0, dp(c, 28), 0);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(c, 56));
         lp.setMargins(0, dp(c, 4), dp(c, 12), dp(c, 4));
         b.setLayoutParams(lp);
         return b;
     }
 
     public static void setPrimaryText(Context c, Button b, String title, String sub) {
-        android.text.SpannableStringBuilder sb = new android.text.SpannableStringBuilder(title);
+        android.text.SpannableStringBuilder sb = new android.text.SpannableStringBuilder(title.toUpperCase(java.util.Locale.getDefault()));
         sb.setSpan(new android.text.style.StyleSpan(Typeface.BOLD), 0, sb.length(), 0);
-        sb.setSpan(new android.text.style.RelativeSizeSpan(1.15f), 0, sb.length(), 0);
+        sb.setSpan(new android.text.style.RelativeSizeSpan(1.1f), 0, sb.length(), 0);
         if (sub != null && !sub.isEmpty()) {
             int start = sb.length();
-            sb.append("\n").append(sub);
-            sb.setSpan(new android.text.style.RelativeSizeSpan(0.78f), start, sb.length(), 0);
-            sb.setSpan(new android.text.style.ForegroundColorSpan(Color.parseColor("#4A4A5C")), start, sb.length(), 0);
+            sb.append("\n").append(sub.toUpperCase(java.util.Locale.getDefault()));
+            sb.setSpan(new android.text.style.RelativeSizeSpan(0.75f), start, sb.length(), 0);
+            sb.setSpan(new android.text.style.ForegroundColorSpan(alpha(ON_ACCENT, 0.65f)), start, sb.length(), 0);
         }
         b.setText(sb);
     }
@@ -219,14 +249,14 @@ public final class Ui {
     public static Button tile(Context c, int iconRes, String label, View.OnClickListener click) {
         Button b = new Button(c);
         b.setText(label);
-        b.setAllCaps(false);
-        b.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
+        caps(b, 0.1f);
+        b.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
         b.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
         b.setTextColor(onFocusDark(TEXT));
         b.setSingleLine(true);
         b.setEllipsize(android.text.TextUtils.TruncateAt.END);
         b.setFocusable(true);
-        b.setBackground(focusablePill(c, GLASS, FOCUS, 0));
+        b.setBackground(focusablePill(c, alpha(Color.WHITE, 0.07f), FOCUS, 0));
         b.setStateListAnimator(null);
         b.setGravity(Gravity.CENTER_VERTICAL);
         b.setPadding(dp(c, 16), 0, dp(c, 18), 0);
@@ -277,17 +307,21 @@ public final class Ui {
 
     /** A focusable pill that can be selected (season and filter pickers). */
     public static TextView pill(Context c, String s, boolean selected, View.OnClickListener click) {
-        TextView t = text(c, s, 14, selected ? BG : MUTED);
+        TextView t = text(c, s, 12, selected ? ACCENT : MUTED);
+        caps(t, 0.12f);
         t.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
         t.setFocusable(true);
         t.setClickable(true);
         t.setGravity(Gravity.CENTER);
         t.setPadding(dp(c, 16), 0, dp(c, 16), 0);
+        // Eclipse's choice look: the chosen one tinted and edged with the accent colour.
         StateListDrawable s1 = new StateListDrawable();
-        s1.addState(new int[]{android.R.attr.state_focused}, rounded(c, FOCUS, ACCENT, 999));
-        s1.addState(new int[]{}, rounded(c, selected ? TEXT : GLASS, 0, 999));
+        s1.addState(new int[]{android.R.attr.state_focused}, rounded(c, FOCUS, 0, BTN_RADIUS));
+        GradientDrawable n = rounded(c, selected ? alpha(ACCENT, 0.12f) : alpha(Color.WHITE, 0.06f), 0, BTN_RADIUS);
+        n.setStroke(Math.max(1, dp(c, 1)), selected ? alpha(ACCENT, 0.55f) : alpha(Color.WHITE, 0.10f));
+        s1.addState(new int[]{}, n);
         t.setBackground(s1);
-        if (!selected) t.setTextColor(onFocusDark(MUTED));
+        t.setTextColor(onFocusDark(selected ? ACCENT : MUTED));
         t.setOnClickListener(click);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(c, 36));
         lp.setMargins(0, dp(c, 4), dp(c, 8), dp(c, 4));
