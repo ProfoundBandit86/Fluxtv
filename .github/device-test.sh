@@ -219,6 +219,11 @@ waitfor Trailer 12; nudge; key DPAD_LEFT 1; key DPAD_LEFT 1; key DPAD_LEFT 1; ke
 key DPAD_DOWN 1; key DPAD_DOWN 1; key DPAD_CENTER 6; top sidebar-to-movies; texts sidebar-to-movies 12
 adb shell am start -W -f 0x10008000 -n $P/.SettingsActivity; sleep 4; key DPAD_LEFT 2; texts settings-sidebar 20; shot 34-settings-sidebar
 key BACK 2; texts settings-after-back 8
+# Same dock on Apps: icons stay put, ← glides it open with names; picking Sports swaps the screen behind it
+adb shell am start -W -n $P/.AppsActivity; sleep 5; nudge; shot 34b-apps-dock
+for i in 1 2 3 4 5 6; do key DPAD_LEFT 0; done; sleep 1; texts apps-dock-open 30; shot 34c-apps-dock-open
+key DPAD_UP 1; key DPAD_UP 1; key DPAD_CENTER 6; top dock-to-sports; shot 34d-dock-to-sports
+key BACK 3; top dock-back-from-sports
 crashes sidebar
 # Remote-button link to a service page
 adb shell am start -W -a android.intent.action.VIEW -d "fluxtv://service/disney"; sleep 8; top deeplink; texts deeplink 10; shot 29-deeplink-disney
