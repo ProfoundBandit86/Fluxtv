@@ -499,8 +499,9 @@ liveopen; for i in 1 2 3 4; do key DPAD_RIGHT 0; done; key DPAD_CENTER 4; texts 
 liveopen; for i in 1 2 3 4 5; do key DPAD_RIGHT 0; done; key DPAD_CENTER 3; texts live-catchup-list 30; shot 114-live-catchup-list
 liveopen; for i in 1 2 3; do key DPAD_RIGHT 0; done; key DPAD_CENTER 3; shot 115-live-channels; key BACK 1
 # Guide times: ⋮ → "Guide times…" (9th item) moves this channel's guide; +15 min is focused first
-liveopen; key BACK 1; key MENU 2; tap "Guide times"; sleep 2
-texts guide-shift-dialog 20; shot 117-guide-shift; tap "+ 15 MIN"; sleep 1; texts guide-shift-after 20; tap "RESET"; sleep 1; key BACK 1; key BACK 1
+# (the item is below the dialog's fold, so arrows: ↑ first leaves touch mode, then ↓×8 reaches it; +15 min is focused)
+liveopen; key BACK 1; key MENU 2; key DPAD_UP 1; for i in 1 2 3 4 5 6 7 8; do key DPAD_DOWN 0; done; sleep 1; key DPAD_CENTER 2
+texts guide-shift-dialog 20; shot 117-guide-shift; key DPAD_CENTER 2; texts guide-shift-after 20; key BACK 1; key BACK 1
 # Lip sync: the flash-and-beep screen; → twice then OK saves +20 ms for this sound output
 adb shell am start -W -n $P/.LipSyncActivity; sleep 4; shot 118-lipsync; key DPAD_RIGHT 1; key DPAD_RIGHT 1; texts lipsync 12; key DPAD_CENTER 2
 crashes guide-shift-lipsync
