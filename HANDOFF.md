@@ -144,6 +144,16 @@ Gotchas for tests:
   `runner-image.yml`), Unraid steps in `.github/runner/README.md`. Repo variable `FLUX_RUNNER=unraid` sends
   device tests to it (labels `self-hosted, flux-emulator`); unset = GitHub's runners. Device tests now cancel an
   older run on a new push (`concurrency`).
+- **Guide times + hiding + lip sync (Nov 19):** `Iptv.xmlDate` reads "+0000" with or without a space, "-05:00",
+  "Z" and no seconds (the strict parser dropped programmes). Manual guide shift per channel and per provider
+  (`Iptv.setChannelShift/setSourceShift`, Store `epg_shift` JSON; `programs()`/`nowNext()` return shifted copies,
+  cached in `SHIFTED`); dialog `GuideShift.show` from the guide ⋮ and the Live TV player ⋮ (also hold OK in its
+  Channels list). Player ⋮ and hold-OK in its lists hide channels/categories. **Lip sync** (`LipSync`): the audio
+  sink is wrapped (`Players` → `ForwardingAudioSink` reports position − lateMs, so the picture waits for late
+  sound); amounts per sound output (`lipsync_dev:bt:<name>|arc|usb|tv`) + per show (`lipsync_show:<metaId>`);
+  player ⋮ → Audio sync, Settings → Player, and `LipSyncActivity` (flash + 1 kHz beep timed with AudioTimestamp;
+  ←/→ 10 ms, OK saves for the output).
+- The lip-sync proposal was approved by the owner (Nov 19); "Lip sync" in §6 is done.
 
 ## 5. Rules and decisions to keep
 
@@ -159,10 +169,7 @@ Gotchas for tests:
 
 - **Design canvas** "Flux TV — sleeker video player" on claude.ai holds the approved mockups (built in the redesign).
   Owner still needs to set his ZIP for the weather.
-- **Lip sync** (proposed, waiting for owner's go-ahead): manual audio delay in ⋮ (±50 ms), remembered per audio
-  output device (TV speakers / Bluetooth / soundbar) and per show, plus a one-time flash-and-beep calibration.
-  Media3 has no built-in audio delay: wrap `DefaultAudioSink` in a `ForwardingAudioSink` that offsets
-  `getCurrentPositionUs`.
+- Owner will set up the Unraid test runner (`.github/runner/README.md`) at home; then set repo variable `FLUX_RUNNER=unraid`.
 - Test `waitfor "Your apps"` never matches (falls back to the full old wait); find a label that the dump shows.
 - Test: the phone page often doesn't answer right after Settings reopens (highlight reset step) — harmless, but the
   rest of that run keeps a Mint highlight.
