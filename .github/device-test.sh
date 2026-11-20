@@ -187,6 +187,8 @@ if want arr; then
 # Radarr: add from the title page
 adb shell am start -W -n $P/.DetailActivity --es type movie --es id tt0111161 --es name Test
 waitfor Trailer 12; nudge; texts detail-arr 30; shot 23-detail-radarr
+for i in 1 2 3 4 5 6; do key DPAD_DOWN 1; done; texts more-like-this 40; shot 23b-more-like-this; key BACK 1
+adb shell am start -W -n $P/.DetailActivity --es type movie --es id tt0111161 --es name Test; waitfor TRAILER 12; nudge
 tap "+ Radarr"; sleep 4; texts arr-quality 20; shot 24-arr-quality
 tap "HD-1080p"; sleep 6; texts arr-added 30; shot 25-arr-added
 adb shell am start -W -n $P/.DetailActivity --es type series --es id tt0903747 --es name "Breaking Bad"

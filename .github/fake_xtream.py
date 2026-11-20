@@ -37,6 +37,14 @@ TMDB = {
     "/3/movie/603/external_ids": {"imdb_id": "tt0133093"},
     "/3/tv/1396/external_ids": {"imdb_id": "tt0903747"},
     "/3/find/tt0111161": {"movie_results": [{"id": 278}], "tv_results": []},
+    "/3/movie/278/recommendations": {"results": [
+        {"id": 680, "title": "Pulp Fiction", "poster_path": "/p680.jpg", "vote_count": 25000, "release_date": "1994-09-10"},
+        {"id": 238, "title": "The Godfather", "poster_path": "/p238.jpg", "vote_count": 20000, "release_date": "1972-03-14"},
+        {"id": 424, "title": "Schindler's List", "poster_path": "/p424.jpg", "vote_count": 15000, "release_date": "1993-12-15"},
+        {"id": 13, "title": "Forrest Gump", "poster_path": "/p13.jpg", "vote_count": 26000, "release_date": "1994-06-23"},
+        {"id": 999999, "title": "Obscure Thing", "poster_path": "/x.jpg", "vote_count": 3, "release_date": "2001-01-01"}]},
+    "/3/movie/278/similar": {"results": [
+        {"id": 769, "title": "GoodFellas", "poster_path": "/p769.jpg", "vote_count": 12000, "release_date": "1990-09-12"}]},
     "/3/find/tt0133093": {"movie_results": [{"id": 603}], "tv_results": []},
     "/3/find/tt0903747": {"movie_results": [], "tv_results": [{"id": 1396}]},
     "/3/movie/603": {"id": 603, "title": "The Matrix", "adult": False, "release_dates": {"results": [{"iso_3166_1": "US", "release_dates": [{"certification": "R"}]}]}},

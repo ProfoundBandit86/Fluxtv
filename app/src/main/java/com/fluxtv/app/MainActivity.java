@@ -849,7 +849,7 @@ public class MainActivity extends Activity {
             block.addView(h);
             LinearLayout line = null;
             for (int i = 0; i < list.size(); i++) {
-                if (i % 5 == 0) {
+                if (i % 6 == 0) {
                     line = Ui.horizontal(this);
                     line.setClipChildren(false);
                     line.setTag("row");

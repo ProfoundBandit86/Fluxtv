@@ -547,7 +547,10 @@ public class DetailActivity extends FluxActivity {
         String genre = g != null && g.length() > 0 ? g.optString(0) : "";
         String t = isSeries() ? "series" : "movie";
         String self = meta.optString("id", id);
-        App.async(() -> Addons.similar(t, genre, self), list -> {
+        App.async(() -> {
+            List<JSONObject> rec = Tmdb.recommendations(self, t);   // what fans of this title also watch
+            return rec.size() >= 4 ? rec : Addons.similar(t, genre, self);
+        }, list -> {
             similarRow.removeAllViews();
             for (JSONObject m : list) similarRow.addView(Ui.poster(this, m, v -> open(this, m), null));
             similarHeader.setVisibility(list.isEmpty() ? View.GONE : View.VISIBLE);

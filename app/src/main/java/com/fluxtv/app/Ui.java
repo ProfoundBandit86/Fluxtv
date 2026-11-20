@@ -412,7 +412,7 @@ public final class Ui {
      * onFocus runs when the card gains focus (used for the home screen's hero).
      */
     /** Poster card width in dp (2:3 cards). */
-    public static final int POSTER_W = 150;
+    public static final int POSTER_W = 128;   // 10% bigger than the original 116
 
     public static View poster(Context c, JSONObject item, View.OnClickListener click, Runnable onFocus) {
         LinearLayout col = vertical(c);

@@ -287,6 +287,37 @@ public final class Tmdb {
         return a.optJSONObject(0).optInt("id");
     }
 
+    /**
+     * "More like this": TMDB's recommendations (titles people who liked this one also watched), topped up with
+     * TMDB's similar titles. Much closer matches than "popular in the same genre". Empty if TMDB isn't set up.
+     */
+    public static List<JSONObject> recommendations(String id, String type) {
+        List<JSONObject> out = new ArrayList<>();
+        if (!enabled() || id == null) return out;
+        String base = id.startsWith("tmdb:") ? id : id.split(":")[0];
+        if (!base.startsWith("tt") && !base.startsWith("tmdb:")) return out;
+        try {
+            boolean tv = "series".equals(type) || base.startsWith("tmdb:tv");
+            String mt = tv ? "tv" : "movie";
+            int n = tmdbNumber(base, tv ? "series" : "movie");
+            java.util.Set<String> seen = new java.util.HashSet<>();
+            seen.add("tmdb:" + mt + ":" + n);
+            for (String kind : new String[]{"recommendations", "similar"}) {
+                if (out.size() >= 16) break;
+                JSONArray a = get("/" + mt + "/" + n + "/" + kind, "page=1").optJSONArray("results");
+                if (a == null) continue;
+                for (int i = 0; i < a.length() && out.size() < 20; i++) {
+                    JSONObject r = a.optJSONObject(i);
+                    // skip obscure entries with almost no votes and ones without a poster
+                    if (r == null || r.optInt("vote_count") < 20 || r.isNull("poster_path") || r.optString("poster_path").isEmpty()) continue;
+                    JSONObject m = preview(r, mt);
+                    if (m != null && seen.add(m.optString("id"))) out.add(m);
+                }
+            }
+        } catch (Exception ignored) { }
+        return out;
+    }
+
     /** YouTube id of the official trailer (English first), or null. */
     public static String trailer(String id, String type) {
         if (!enabled() || id == null || !(id.startsWith("tt") || id.startsWith("tmdb:"))) return null;
