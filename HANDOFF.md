@@ -154,6 +154,13 @@ Gotchas for tests:
   player ⋮ → Audio sync, Settings → Player, and `LipSyncActivity` (flash + 1 kHz beep timed with AudioTimestamp;
   ←/→ 10 ms, OK saves for the output).
 - The lip-sync proposal was approved by the owner (Nov 19); "Lip sync" in §6 is done.
+- **Nov 20:** "More like this" = `Tmdb.recommendations` (TMDB /recommendations then /similar, ≥20 votes, with
+  poster; genre row `Addons.similar` only if fewer than 4). Posters back to `Ui.POSTER_W` = 128 dp (+10% over the
+  original 116; owner found +30% too big), grids 6 per line. Guide MENU with no channel selected no longer crashes.
+  **Unraid runner is live** (runner name `unraid`), but with Host networking the test ports (8000 fake servers, 8090
+  phone page, 8091, 445 Samba) clashed with Unraid's own, so runs there "passed" without testing much. Owner asked
+  to switch the container to **Bridge**; the workflow now checks the ports first, and "Run workflow" has
+  `where: github` to force GitHub's machines.
 
 ## 5. Rules and decisions to keep
 
