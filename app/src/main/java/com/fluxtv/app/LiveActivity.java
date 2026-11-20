@@ -485,6 +485,7 @@ public class LiveActivity extends FluxActivity {
     }
 
     private void options(GuideView.Entry e, Iptv.Program p) {
+        if (e == null) return;   // MENU before the guide has a channel selected (was a crash)
         long now = System.currentTimeMillis();
         boolean fav = favorites().contains(e.source.id + "|" + e.channel.id);
         boolean rec = Dvr.recordingNow(e.source, e.channel);

@@ -187,7 +187,12 @@ if want arr; then
 # Radarr: add from the title page
 adb shell am start -W -n $P/.DetailActivity --es type movie --es id tt0111161 --es name Test
 waitfor Trailer 12; nudge; texts detail-arr 30; shot 23-detail-radarr
-for i in 1 2 3 4 5 6; do key DPAD_DOWN 1; done; texts more-like-this 40; shot 23b-more-like-this; key BACK 1
+# More like this = TMDB recommendations (fake: Pulp Fiction, The Godfather…; "Obscure Thing" has too few votes)
+adb shell am start -W -f 0x10008000 -n $P/.SettingsActivity; sleep 4
+post /keys --data-urlencode "tmdb=fakeTmdbKey"; post /test-config --data-urlencode "tmdb=http://10.0.2.2:8000/3"
+adb shell am start -W -n $P/.DetailActivity --es type movie --es id tt0111161 --es name Test; sleep 8; nudge
+for i in 1 2 3 4 5 6; do key DPAD_DOWN 1; T=$(texts more-like-this 60); case "$T" in *"Pulp Fiction"*|*"Godfather"*) break;; esac; done
+echo "$T"; shot 23b-more-like-this; key BACK 1
 adb shell am start -W -n $P/.DetailActivity --es type movie --es id tt0111161 --es name Test; waitfor TRAILER 12; nudge
 tap "+ Radarr"; sleep 4; texts arr-quality 20; shot 24-arr-quality
 tap "HD-1080p"; sleep 6; texts arr-added 30; shot 25-arr-added
