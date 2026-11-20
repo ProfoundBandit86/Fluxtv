@@ -26,7 +26,7 @@ Copy just the token (the part after `--token`). It's only valid for an hour, so 
 |---|---|
 | Name | `flux-runner` |
 | Repository | `ghcr.io/profoundbandit86/flux-runner:latest` |
-| Network Type | `Host` |
+| Network Type | `Bridge` (not Host: the tests run their own little servers, which would clash with Unraid's) |
 | Extra Parameters | `--device=/dev/kvm --shm-size=2g` |
 | Path: container `/data` → host | `/mnt/user/appdata/flux-runner` |
 | Variable `RUNNER_TOKEN` | the token from step 2 |

@@ -17,6 +17,11 @@ on:
         default: 'full'
         type: choice
         options: [quick, full]
+      where:
+        description: 'auto (home server when FLUX_RUNNER=unraid) or github'
+        default: 'auto'
+        type: choice
+        options: [auto, github]
 
 permissions:
   contents: write
@@ -30,10 +35,24 @@ jobs:
   emulator:
     # Repo variable FLUX_RUNNER = "unraid" runs this on the home server (.github/runner/README.md); otherwise GitHub's.
     # Only pushes to the test branches and manual runs start it: pull requests never reach the home server.
-    runs-on: ${{ vars.FLUX_RUNNER == 'unraid' && fromJSON('["self-hosted","flux-emulator"]') || 'ubuntu-latest' }}
+    runs-on: ${{ vars.FLUX_RUNNER == 'unraid' && inputs.where != 'github' && fromJSON('["self-hosted","flux-emulator"]') || 'ubuntu-latest' }}
     timeout-minutes: 70
     steps:
       - uses: actions/checkout@v4
+
+      # The tests run their own fake servers on these ports. On a home server the container must have its own
+      # network ("Bridge" in Unraid), or these clash with the server's own services and the tests can't work.
+      - name: Check the test ports are free
+        if: runner.environment != 'github-hosted'
+        run: |
+          busy=""
+          for port in 8000 8090 8091 445; do
+            if (exec 3<>/dev/tcp/127.0.0.1/$port) 2>/dev/null; then busy="$busy $port"; fi
+          done
+          if [ -n "$busy" ]; then
+            echo "::error::Ports$busy are already used on this machine. In Unraid set the flux-runner container's Network Type to Bridge (see .github/runner/README.md)."
+            exit 1
+          fi
 
       - name: Pick quick or full test
         id: mode
