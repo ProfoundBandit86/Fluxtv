@@ -190,7 +190,7 @@ waitfor Trailer 12; nudge; texts detail-arr 30; shot 23-detail-radarr
 # More like this = TMDB recommendations (fake: Pulp Fiction, The Godfather…; "Obscure Thing" has too few votes)
 adb shell am start -W -f 0x10008000 -n $P/.SettingsActivity; sleep 4
 post /keys --data-urlencode "tmdb=fakeTmdbKey"; post /test-config --data-urlencode "tmdb=http://10.0.2.2:8000/3"
-adb shell am start -W -n $P/.DetailActivity --es type movie --es id tt0111161 --es name Test; sleep 8; nudge
+adb shell am start -W -f 0x10008000 -n $P/.DetailActivity --es type movie --es id tt0111161 --es name Test; sleep 8; top more-like-this-page; nudge
 for i in 1 2 3 4 5 6; do key DPAD_DOWN 1; T=$(texts more-like-this 60); case "$T" in *"Pulp Fiction"*|*"Godfather"*) break;; esac; done
 echo "$T"; shot 23b-more-like-this; key BACK 1
 adb shell am start -W -n $P/.DetailActivity --es type movie --es id tt0111161 --es name Test; waitfor TRAILER 12; nudge
